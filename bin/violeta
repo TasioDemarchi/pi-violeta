@@ -15,25 +15,9 @@ if [ ! -f "$PI_CODING_AGENT_DIR/settings.json" ]; then
 JSON
 fi
 
-# NaN (OpenAI-compatible). The key is read at request time from gentle-shell's auth.json, never copied.
-if [ ! -f "$PI_CODING_AGENT_DIR/models.json" ] && [ -f "$HOME/.gentle-shell/agent/auth.json" ]; then
-	cat > "$PI_CODING_AGENT_DIR/models.json" <<'JSON'
-{
-  "providers": {
-    "nan": {
-      "baseUrl": "https://api.nan.builders/v1",
-      "api": "openai-completions",
-      "apiKey": "!jq -r .nan.key $HOME/.gentle-shell/agent/auth.json",
-      "models": [
-        { "id": "deepseek-v4-flash", "name": "DeepSeek V4 Flash", "reasoning": true, "input": ["text", "image"], "contextWindow": 1000000, "maxTokens": 16384, "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }, "compat": { "maxTokensField": "max_tokens" } },
-        { "id": "glm5.3", "name": "GLM 5.3", "reasoning": true, "input": ["text", "image"], "contextWindow": 1000000, "maxTokens": 32768, "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 } },
-        { "id": "glm5.3-flash", "name": "GLM 5.3 Flash", "reasoning": true, "input": ["text", "image"], "contextWindow": 1000000, "maxTokens": 32768, "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 } }
-      ]
-    }
-  }
-}
-JSON
-fi
+# Model catalog is repo-owned (config/models.json) and synced on every start.
+# NaN's key is read at request time from gentle-shell's auth.json, never copied.
+[ -f "$HOME/.gentle-shell/agent/auth.json" ] && cp "$ROOT/config/models.json" "$PI_CODING_AGENT_DIR/models.json"
 
 NODE="$(command -v node || true)"
 [ -z "$NODE" ] && NODE="$HOME/.gentle-shell/runtime/node-24.21.0/bin/node"
