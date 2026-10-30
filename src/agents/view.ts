@@ -6,6 +6,7 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { fmtTokens } from "../format.ts";
 import { formatElapsed } from "./card.ts";
+import { displayTitle } from "./summary.ts";
 import { isFinished, type AgentTask, type TaskStatus, type ThreadItem } from "./store.ts";
 
 export type ViewFg = (role: string, text: string) => string;
@@ -88,23 +89,68 @@ export function listHeader(tasks: readonly AgentTask[]): string {
 	return parts.length > 0 ? parts.join(" · ") : "0 active · 0 finished";
 }
 
-/** One line per task: `› ◐ name  label` with the selected row marked. */
+/** One line per task: `› ◐ title` with the selected row marked. */
 export function listLines(tasks: readonly AgentTask[], opts: { width: number; selectedId?: string }, fg: ViewFg): string[] {
 	const lines = [fg("accent", clip(listHeader(tasks), opts.width))];
 	for (const task of overlayTasks(tasks)) {
 		const look = GLYPHS[task.status];
 		const selected = task.id === opts.selectedId;
 		const marker = selected ? fg("accent", "›") : " ";
-		const text = clip(`${task.name}  ${task.label}`, Math.max(1, opts.width - 4));
+		const text = clip(displayTitle(task), Math.max(1, opts.width - 4));
 		const row = `${marker} ${fg(look.role, look.glyph)} ${selected ? fg("text", text) : fg("muted", text)}`;
 		lines.push(row);
 	}
 	return lines;
 }
 
+// --- Detail pane --------------------------------------------------------------
+
+/** At most this many further result lines follow the summary. */
+export const RESULT_MAX_LINES = 6;
+
+/** The `── Result ──` section body: a placeholder while the task runs, the
+ * first lines of the error for failed/aborted tasks, and for completed ones
+ * the summary plus up to `RESULT_MAX_LINES` further result lines. When the
+ * summary was taken from the result's own first line (or its `summary:`
+ * line), that source line is skipped so it is not shown twice. */
+export function resultLines(task: AgentTask): string[] {
+	if (task.status === "queued" || task.status === "running") return ["in progress…"];
+	if (task.status === "failed" || task.status === "aborted") {
+		const error = task.error ?? `task ${task.status}`;
+		return error.split("\n").map((l) => l.trimEnd()).filter((l) => l !== "").slice(0, RESULT_MAX_LINES);
+	}
+	const out: string[] = [];
+	if (task.summary) out.push(task.summary);
+	const lines = (task.result ?? "").split("\n").map((l) => l.trim());
+	const first = lines.find((l) => l !== "");
+	if (task.summary && first !== undefined && (first === task.summary || /^summary\s*:/i.test(first))) {
+		lines.splice(0, lines.indexOf(first) + 1);
+	}
+	const limit = task.summary ? 1 + RESULT_MAX_LINES : RESULT_MAX_LINES;
+	for (const line of lines) {
+		if (out.length >= limit) break;
+		if (line !== "") out.push(line);
+	}
+	return out;
+}
+
+/** The right pane: bold title, the `role · status · model · tokens · elapsed`
+ * meta line, the Result section, then the full Thread. */
+export function paneLines(task: AgentTask, width: number, now: number, fg: ViewFg): string[] {
+	return [
+		fg("accent", displayTitle(task)),
+		threadHeader(task, now, fg),
+		fg("dim", "── Result ──"),
+		...resultLines(task),
+		fg("dim", "── Thread ──"),
+		...threadLines(task, width, fg),
+	];
+}
+
 // --- Thread ------------------------------------------------------------------
 
-/** `name · status · model · tokens · elapsed`; finished tasks freeze elapsed. */
+/** The meta line under the pane title: `role · status · model · tokens ·
+ * elapsed`; finished tasks freeze elapsed. */
 export function threadHeader(task: AgentTask, now: number, fg: ViewFg): string {
 	const elapsed = formatElapsed((task.endedAt ?? now) - task.startedAt);
 	const segments = [
@@ -220,15 +266,13 @@ export function renderOverlay(tasks: readonly AgentTask[], state: OverlayState, 
 	const list = listLines(ordered, { width: layout.listWidth, selectedId: selected?.id }, fg);
 	let body: string[];
 	if (layout.mode === "narrow" && state.detail && selected) {
-		const header = threadHeader(selected, now, fg);
-		const lines = [header, ...threadLines(selected, layout.width, fg)];
+		const lines = paneLines(selected, layout.width, now, fg);
 		const maxScroll = Math.max(0, lines.length - layout.bodyRows + 1);
 		const scroll = state.follow ? maxScroll : Math.min(state.scroll, maxScroll);
 		const window = lines.slice(scroll, scroll + Math.max(1, layout.bodyRows - 1));
 		body = window.map((line) => line);
 	} else if (layout.mode === "split" && selected) {
-		const header = threadHeader(selected, now, fg);
-		const lines = [header, ...threadLines(selected, layout.threadWidth, fg)];
+		const lines = paneLines(selected, layout.threadWidth, now, fg);
 		const threadBodyRows = Math.max(1, layout.bodyRows - 1);
 		const maxScroll = Math.max(0, lines.length - threadBodyRows);
 		const scroll = state.follow ? maxScroll : Math.min(state.scroll, maxScroll);

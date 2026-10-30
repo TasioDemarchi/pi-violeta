@@ -14,6 +14,9 @@
  *     id: string                unique per launch (survives persistence)
  *     name: string              agent definition name (not a role)
  *     label: string             short display label (task text or explicit label)
+ *     title: string             display title shown as the primary text in views:
+ *                               the label when present, else the task's first
+ *                               sentence (≤ 60 chars, never empty for real tasks)
  *     status: TaskStatus
  *     model: string             model id from the definition
  *     effort: string            thinking level from the definition, or "default"
@@ -23,6 +26,10 @@
  *     endedAt?: number          epoch ms, set once the task is finished
  *     result?: string           final assistant text (completed tasks)
  *     error?: string            failure reason (failed/aborted tasks)
+ *     summary?: string          one-line summary computed when the task finishes:
+ *                               the `summary:` line of the result handoff, else
+ *                               the first non-empty result line (≤ 200 chars);
+ *                               failed/aborted tasks use the first error line
  *     thread: ThreadItem[]      bounded child transcript, oldest first
  *   }
  *
@@ -60,6 +67,7 @@ export interface AgentTask {
 	id: string;
 	name: string;
 	label: string;
+	title: string;
 	status: TaskStatus;
 	model: string;
 	effort: string;
@@ -69,6 +77,7 @@ export interface AgentTask {
 	endedAt?: number;
 	result?: string;
 	error?: string;
+	summary?: string;
 	thread: ThreadItem[];
 }
 

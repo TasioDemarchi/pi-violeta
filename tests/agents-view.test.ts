@@ -7,6 +7,7 @@ import {
 	overlayLayout,
 	reduceOverlay,
 	renderOverlay,
+	resultLines,
 	threadHeader,
 	threadLines,
 	type ViewFg,
@@ -21,6 +22,7 @@ function task(overrides: Partial<AgentTask>): AgentTask {
 		id: "t1",
 		name: "probe",
 		label: "hello",
+		title: "hello",
 		status: "running",
 		model: "gpt/x",
 		effort: "low",
@@ -42,18 +44,18 @@ test("overlayLayout splits at 60+ columns and degrades to list-only below", () =
 	assert.equal(narrow.bodyRows, 18);
 });
 
-test("listLines put the header first, active tasks before finished history", () => {
+test("listLines put the header first, glyph + title rows, active before finished history", () => {
 	const tasks = [
-		task({ id: "old", name: "old", status: "completed", endedAt: 5_000 }),
-		task({ id: "live", name: "worker", label: "grind" }),
-		task({ id: "newer", name: "newer", status: "failed", endedAt: 9_000 }),
+		task({ id: "old", name: "old", title: "old work", status: "completed", endedAt: 5_000 }),
+		task({ id: "live", name: "worker", title: "grind away", label: "grind" }),
+		task({ id: "newer", name: "newer", title: "newer work", status: "failed", endedAt: 9_000 }),
 	];
 	const lines = listLines(tasks, { width: 40, selectedId: "live" }, plain);
 	assert.equal(lines[0], "1 active · 2 finished");
-	assert.ok(lines[1]!.startsWith("› ◐ worker"));
-	assert.ok(lines[1]!.includes("grind"));
-	assert.ok(lines[2]!.startsWith("  ✗ newer"));
-	assert.ok(lines[3]!.startsWith("  ✓ old"));
+	assert.ok(lines[1]!.startsWith("› ◐ grind away"), "the list row is glyph + title");
+	assert.ok(!lines[1]!.includes("worker"), "the agent name is not part of the list row");
+	assert.ok(lines[2]!.startsWith("  ✗ newer work"));
+	assert.ok(lines[3]!.startsWith("  ✓ old work"));
 	// finished history is newest-ended first
 	const index = (id: string) => lines.findIndex((line) => line.includes(id));
 	assert.ok(index("newer") < index("old"));
@@ -61,7 +63,7 @@ test("listLines put the header first, active tasks before finished history", () 
 	assert.ok(lines[2]!.startsWith("  "));
 });
 
-test("threadHeader reads `name · status · model · tokens · elapsed`", () => {
+test("threadHeader reads `role · status · model · tokens · elapsed`", () => {
 	const running = task({ tokens: 34_000 });
 	assert.equal(threadHeader(running, 25_000, plain), "probe · running · gpt/x · 34.0k · 25s");
 	const done = task({ status: "completed", tokens: 1000, endedAt: 10_000 });
@@ -128,28 +130,79 @@ test("hintLine lists the keys for the current view", () => {
 	assert.equal(hintLine("narrow", plain), "j/k select  enter thread  esc back  q close");
 });
 
-test("renderOverlay draws the list, thread and hint at the exact terminal height", () => {
+test("resultLines shows the summary plus further result lines, the error, or a running placeholder", () => {
+	const fromSummaryLine = task({
+		status: "completed",
+		summary: "Mapped the footer",
+		result: "summary: Mapped the footer\nSource A\nSource B",
+	});
+	assert.deepEqual(resultLines(fromSummaryLine), ["Mapped the footer", "Source A", "Source B"]);
+	const fromFirstLine = task({ status: "completed", summary: "The first line", result: "The first line\nThe second line" });
+	assert.deepEqual(resultLines(fromFirstLine), ["The first line", "The second line"]);
+	const failed = task({ status: "failed", error: "pi exited with code 1\nstderr: boom" });
+	assert.deepEqual(resultLines(failed), ["pi exited with code 1", "stderr: boom"]);
+	const running = task({});
+	assert.deepEqual(resultLines(running), ["in progress…"]);
+	// at most six further lines beyond the summary
+	const many = task({
+		status: "completed",
+		summary: "S",
+		result: "summary: S\n" + Array.from({ length: 10 }, (_, i) => `line ${i}`).join("\n"),
+	});
+	assert.equal(resultLines(many).length, 7);
+	assert.equal(resultLines(many)![0], "S");
+});
+
+test("renderOverlay draws the list, the Title/Result/Thread pane and the hint at the exact height", () => {
+		const now = 25_000;
+		const tasks = [
+			task({ id: "a", name: "alpha", title: "Prepare the launch", tokens: 34_000, thread: [{ kind: "text", text: "working" }] }),
+			task({
+				id: "b",
+				name: "beta",
+				title: "Finish the report",
+				status: "completed",
+				endedAt: 20_000,
+				summary: "Report finished",
+				result: "summary: Report finished\nDetails follow",
+			}),
+		];
+		const layout = overlayLayout(80, 10);
+		const lines = renderOverlay(tasks, initialOverlayState(["a"]), layout, now, plain);
+		assert.equal(lines.length, 10);
+		assert.ok(lines[0]!.includes("1 active · 1 finished"));
+		assert.ok(lines[1]!.includes("› ◐ Prepare the launch"), "list row is glyph + title");
+		assert.ok(lines[1]!.includes("Prepare the launch"), "the right pane starts with the title");
+		assert.ok(lines[2]!.includes("alpha · running · gpt/x · 34.0k · 25s"), "meta line: role · status · model · tokens · elapsed");
+		assert.ok(lines[2]!.includes("✓ Finish the report"));
+		assert.ok(lines[3]!.includes("── Result ──"));
+		assert.ok(lines[4]!.includes("in progress…"), "a running task shows the placeholder");
+		assert.ok(lines[5]!.includes("── Thread ──"));
+		assert.ok(lines[6]!.includes("working"));
+		assert.ok(lines[9]!.startsWith(hintLine("split", plain)));
+		// every line fits the terminal width
+		assert.ok(lines.every((line) => line.length <= 80));
+		// narrow mode without detail still shows the list only
+		const narrow = renderOverlay(tasks, initialOverlayState(["a"]), overlayLayout(50, 10), now, plain);
+		assert.equal(narrow.length, 10);
+		assert.ok(narrow[0]!.includes("1 active · 1 finished"));
+		assert.ok(!narrow[0]!.includes("gpt/x"));
+		assert.ok(narrow[9]!.startsWith(hintLine("narrow", plain)));
+});
+
+test("narrow mode detail view shows the same Title/Result/Thread layout", () => {
 	const now = 25_000;
 	const tasks = [
-		task({ id: "a", name: "alpha", tokens: 34_000, thread: [{ kind: "text", text: "working" }] }),
-		task({ id: "b", name: "beta", status: "completed", endedAt: 20_000 }),
+		task({ id: "a", name: "alpha", title: "Prepare the launch", tokens: 34_000, thread: [{ kind: "text", text: "working" }] }),
 	];
-	const layout = overlayLayout(80, 10);
-	const lines = renderOverlay(tasks, initialOverlayState(["a"]), layout, now, plain);
-	assert.equal(lines.length, 10);
-	// list column on the left, thread on the right of the body rows
-	assert.ok(lines[0]!.includes("1 active · 1 finished"));
-	assert.ok(lines[1]!.includes("› ◐ alpha"));
-	assert.ok(lines[1]!.includes("alpha · running · gpt/x · 34.0k · 25s"));
-	assert.ok(lines[2]!.includes("working"));
-	assert.ok(lines[2]!.includes("✓ beta"));
-	assert.ok(lines[9]!.startsWith(hintLine("split", plain)));
-	// every line fits the terminal width
-	assert.ok(lines.every((line) => line.length <= 80));
-	// narrow mode shows the list only
-	const narrow = renderOverlay(tasks, initialOverlayState(["a"]), overlayLayout(50, 10), now, plain);
-	assert.equal(narrow.length, 10);
-	assert.ok(narrow[0]!.includes("1 active · 1 finished"));
-	assert.ok(!narrow[0]!.includes("gpt/x"));
-	assert.ok(narrow[9]!.startsWith(hintLine("narrow", plain)));
+	const state = { ...initialOverlayState(["a"]), detail: true };
+	const lines = renderOverlay(tasks, state, overlayLayout(50, 10), now, plain);
+	assert.equal(lines.length, 8, "one blank top row, six pane lines, one hint row");
+	assert.ok(lines[1]!.includes("Prepare the launch"), "the title line is first");
+	assert.ok(lines[2]!.includes("alpha · running · gpt/x · 34.0k · 25s"));
+	assert.ok(lines[3]!.includes("── Result ──"));
+	assert.ok(lines[4]!.includes("in progress…"));
+	assert.ok(lines[5]!.includes("── Thread ──"));
+	assert.ok(lines[6]!.includes("working"));
+	assert.ok(lines[7]!.startsWith(hintLine("narrow", plain)));
 });

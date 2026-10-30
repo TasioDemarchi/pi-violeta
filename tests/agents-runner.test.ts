@@ -72,7 +72,7 @@ interface Harness {
 	cleanup(): void;
 	write(child: FakeChild, record: unknown): void;
 	lines(child: FakeChild): string[];
-	start(overrides?: { maxConcurrency?: number; task?: string; mode?: "task" | "background" }): AgentTask;
+	start(overrides?: { maxConcurrency?: number; task?: string; label?: string; mode?: "task" | "background" }): AgentTask;
 }
 
 function harness(overrides: { maxConcurrency?: number; task?: string; mode?: "task" | "background"; stallTimeoutMs?: number } = {}): Harness {
@@ -118,6 +118,7 @@ function harness(overrides: { maxConcurrency?: number; task?: string; mode?: "ta
 		start: (over = {}) =>
 			runner.start(DEF, {
 				task: over.task ?? overrides.task ?? "list files",
+				label: over.label ?? overrides.label,
 				mode: over.mode ?? overrides.mode ?? "task",
 			}),
 	};
@@ -126,6 +127,57 @@ function harness(overrides: { maxConcurrency?: number; task?: string; mode?: "ta
 function definition(overrides: Partial<AgentDefinition> = {}): AgentDefinition {
 	return { ...DEF, ...overrides };
 }
+
+test("start sets the title from the label and falls back to the task's first sentence", () => {
+	const h = harness();
+	try {
+		const withLabel = h.start({ label: "Read note.txt" });
+		assert.equal(withLabel.title, "Read note.txt");
+		const withoutLabel = h.runner.start(DEF, { task: "Corregir parser de git status. Luego seguir.", mode: "task" });
+		assert.equal(withoutLabel.title, "Corregir parser de git status.");
+		const blankLabel = h.runner.start(DEF, { task: "short task", label: "   ", mode: "task" });
+		assert.equal(blankLabel.title, "short task");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a completed task gets a summary from the result handoff", async () => {
+	const h = harness();
+	try {
+		const fromSummaryLine = h.start({ task: "summarize things" });
+		h.write(h.children[0]!, {
+			type: "message_end",
+			message: { role: "assistant", content: [{ type: "text", text: "step one\nsummary: mapped the footer sources\nmore" }] },
+		});
+		h.write(h.children[0]!, { type: "agent_settled", aborted: false });
+		await h.runner.waitFor(fromSummaryLine.id);
+		assert.equal(h.store.get(fromSummaryLine.id)!.summary, "mapped the footer sources");
+
+		const fromFirstLine = h.start({ task: "other things" });
+		h.write(h.children[1]!, {
+			type: "message_end",
+			message: { role: "assistant", content: [{ type: "text", text: "The first line stands alone." }] },
+		});
+		h.write(h.children[1]!, { type: "agent_settled", aborted: false });
+		await h.runner.waitFor(fromFirstLine.id);
+		assert.equal(h.store.get(fromFirstLine.id)!.summary, "The first line stands alone.");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a failed task summarizes the first line of the error", async () => {
+	const h = harness();
+	try {
+		const task = h.start();
+		h.children[0]!.emit("exit", 1, null);
+		await h.runner.waitFor(task.id);
+		assert.equal(h.store.get(task.id)!.summary, "pi exited with code 1 before settling");
+	} finally {
+		h.cleanup();
+	}
+});
 
 test("promptText appends the context block", () => {
 	assert.equal(promptText({ task: "do it" }), "do it");

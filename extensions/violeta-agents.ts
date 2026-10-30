@@ -24,6 +24,7 @@ import { FINISHED_TTL_MS, renderAgentsCard, type CardFg } from "../src/agents/ca
 import { listAgentDefinitions, type AgentDefinition } from "../src/agents/definitions.ts";
 import { loadTaskHistory } from "../src/agents/history.ts";
 import { SubagentRunner } from "../src/agents/runner.ts";
+import { displayTitle } from "../src/agents/summary.ts";
 import { isFinished, getAgentStore, type AgentTask } from "../src/agents/store.ts";
 import {
 	initialOverlayState,
@@ -76,9 +77,9 @@ export default function (pi: ExtensionAPI) {
 		pi.sendMessage(
 			{
 				customType: "violeta-subagent-result",
-				content: `Subagent finished: ${task.name} (${task.id})\nStatus: ${task.status}\n\n${task.result ?? task.error ?? "(no output)"}`,
+				content: `Subagent finished: ${displayTitle(task)} (${task.name}, ${task.id})\nStatus: ${task.status}\n\n${task.result ?? task.error ?? "(no output)"}`,
 				display: true,
-				details: { taskId: task.id, name: task.name, status: task.status, tokens: task.tokens, cost: task.cost },
+				details: { taskId: task.id, name: task.name, title: displayTitle(task), status: task.status, tokens: task.tokens, cost: task.cost },
 			},
 			{ triggerTurn: true },
 		);
@@ -107,6 +108,7 @@ export default function (pi: ExtensionAPI) {
 		return {
 			id: task.id,
 			name: task.name,
+			title: displayTitle(task),
 			label: task.label,
 			status: task.status,
 			model: task.model,
@@ -114,12 +116,13 @@ export default function (pi: ExtensionAPI) {
 			tokens: task.tokens,
 			cost: task.cost,
 			endedAt: task.endedAt ?? null,
+			summary: task.summary,
 			error: task.error,
 		};
 	}
 
 	function taskText(task: AgentTask): string {
-		return `${task.name} (${task.id}): ${task.status}${task.error ? ` — ${task.error}` : ""}`;
+		return `${displayTitle(task)} — ${task.name} (${task.id}): ${task.status}${task.error ? ` — ${task.error}` : ""}`;
 	}
 
 	pi.registerTool({
@@ -145,7 +148,7 @@ export default function (pi: ExtensionAPI) {
 		parameters: Type.Object({
 			agent: Type.String({ description: "Name of the agent definition to run (from subagent_list_agents)." }),
 			task: Type.String({ description: "What the subagent should do." }),
-			label: Type.Optional(Type.String({ description: "Short display label for progress views (defaults to the task text)." })),
+			label: Type.String({ description: "what this agent does, 3 to 6 words, phrased as an action" }),
 			context: Type.Optional(Type.String({ description: "Extra context the subagent needs (paths, constraints, prior findings)." })),
 			mode: ModeParam,
 		}),
@@ -234,8 +237,8 @@ export default function (pi: ExtensionAPI) {
 			}
 			const body = task.status === "completed" ? task.result ?? "(no answer)" : task.error ?? `task ${task.status}`;
 			return {
-				content: [{ type: "text" as const, text: `${task.name} (${task.id}) ${task.status}:\n\n${body}` }],
-				details: { found: true, status: task.status, tokens: task.tokens, cost: task.cost },
+				content: [{ type: "text" as const, text: `${displayTitle(task)} — ${task.name} (${task.id}) ${task.status}:\n\n${body}` }],
+				details: { found: true, status: task.status, title: displayTitle(task), summary: task.summary, tokens: task.tokens, cost: task.cost },
 				isError: task.status !== "completed",
 			};
 		},

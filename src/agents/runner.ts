@@ -24,6 +24,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createReducer, type Reducer } from "./reduce.ts";
 import { saveTaskToHistory } from "./history.ts";
+import { extractSummary, firstLine, taskTitle } from "./summary.ts";
 import { isFinished, type AgentStore, type AgentTask } from "./store.ts";
 
 const HISTORY_SUBDIR = "agents-history";
@@ -166,6 +167,9 @@ export class SubagentRunner {
 			id,
 			name: definition.name,
 			label: (params.label?.trim() || params.task).slice(0, 80),
+			// Tolerant even though subagent_run now requires the label: a blank or
+			// missing label falls back to the task's first sentence.
+			title: taskTitle(params.label, params.task),
 			status: "queued",
 			model: definition.model,
 			effort: definition.thinking ?? "default",
@@ -395,9 +399,14 @@ export class SubagentRunner {
 		const live = this.live.get(id);
 		if (live) live.terminal = true;
 		live?.cancelStall();
+		// The one-line summary: the result handoff's summary (or first line) for
+		// completed tasks, the first line of the error/abort reason otherwise.
+		const reason = patch.error ?? task.error;
+		const summary = status === "completed" ? extractSummary(task.result) : firstLine(reason);
 		this.store.update(id, {
 			status,
 			endedAt: this.options.now(),
+			summary: summary ?? undefined,
 			...(status === "completed" ? {} : { result: undefined }),
 			...patch,
 		});

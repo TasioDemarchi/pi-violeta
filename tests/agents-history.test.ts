@@ -11,6 +11,8 @@ function task(id: string, status: AgentTask["status"] = "completed"): AgentTask 
 		id,
 		name: "probe",
 		label: `label ${id}`,
+		title: `title ${id}`,
+		summary: `summary ${id}`,
 		status,
 		model: "nan/deepseek-v4-flash",
 		effort: "low",
@@ -37,6 +39,36 @@ test("saveTaskToHistory writes one JSON file per task and loadTaskHistory reads 
 		const a = loaded.find((t) => t.id === "a")!;
 		assert.equal(a.result, "result a");
 		assert.deepEqual(a.thread, [{ kind: "text", text: "hi" }]);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("history round-trips the title and summary fields", () => {
+	const dir = scratch();
+	try {
+		saveTaskToHistory(dir, task("a"));
+		const loaded = loadTaskHistory(dir);
+		assert.equal(loaded.length, 1);
+		assert.equal(loaded[0]!.title, "title a");
+		assert.equal(loaded[0]!.summary, "summary a");
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("old history files without title/summary fall back to the label and never crash", () => {
+	const dir = scratch();
+	try {
+		const legacy = task("old") as unknown as Record<string, unknown>;
+		delete legacy.title;
+		delete legacy.summary;
+		writeFileSync(join(dir, "old.json"), JSON.stringify(legacy));
+		writeFileSync(join(dir, "corrupt.json"), "{oops");
+		const loaded = loadTaskHistory(dir);
+		assert.deepEqual(loaded.map((t) => t.id), ["old"]);
+		assert.equal(loaded[0]!.title, "label old");
+		assert.equal(loaded[0]!.summary, undefined);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

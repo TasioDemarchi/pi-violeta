@@ -26,6 +26,9 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | `src/changes.ts`, `src/format.ts`, `src/sidebar-content.ts`, `src/sidebar-state.ts`, `src/activity.ts` | Pure logic (tested) |
 | `extensions/violeta-agents.ts` | Subagent tools, card and `alt+a` view |
 | `src/agents/` | Store, runner, definitions, history, card and view rendering (tested) |
+| `extensions/violeta-guard.ts`, `src/guard/` | Destructive-command guard and outside-project grants |
+| `extensions/violeta-todo.ts`, `src/todo/` | Todo tool and card |
+| `extensions/violeta-jobs.ts`, `src/jobs/` | Background jobs, monitors, `/jobs` |
 | `config/models.json` | NaN model catalog |
 | `themes/violeta.json` | Palette |
 
@@ -35,9 +38,29 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 
 - **Define an agent:** a markdown file in `~/.violeta/agent/agents/<name>.md` (frontmatter: `name`, `description`, `model`, `thinking`, `tools`; the body is the prompt).
 - **Tools for the model:** `subagent_list_agents`, `subagent_run` (`task` waits, `background` returns an id and delivers the result later), `subagent_status`, `subagent_result`, `subagent_cancel`. Each task is a `pi --mode rpc` child; at most 3 run at once (`VIOLETA_AGENTS_MAX_CONCURRENCY`), the rest are `queued`. Children cannot spawn children.
-- **Card above the editor:** `Agents · N active · M done`, one row per task with status glyph, name, label and right-aligned columns `model · effort`, tokens, cost (hidden while $0), elapsed. Finished rows stay one minute; extra rows fold into `… N more · alt+a to view`.
-- **`alt+a` or `/agents`:** full-terminal view. Task list on the left (history after active tasks), thread on the right. Keys: `j`/`k` select, `ctrl+j`/`ctrl+k` scroll, `f` follow, `esc` back, `q` close (never cancels children), `alt+s` cancel all active tasks (asks first). Under 60 columns it shows the list only.
-- **History:** finished tasks are stored in `~/.violeta/agent/agents-history/` (last 200).
+- **Titles:** `label` is required in `subagent_run` (what the agent does, 3 to 6 words, phrased as an action), so you can tell tasks apart without reading their context. If it is missing, the first sentence of the task is used.
+- **Card above the editor:** `Agents · N active · M done`, one row per task: status glyph, **title**, the agent role dimmed, then tokens, cost (hidden while $0) and elapsed; `model · effort` shows when there is room. Finished rows stay one minute; extra rows fold into `… N more · alt+a to view`.
+- **`alt+a` or `/agents`:** full-terminal view. Task list on the left (glyph + title, history after active tasks). On the right: title, `role · status · model · tokens · elapsed`, a **Result** section (the task's `summary:` line, else the first line of its answer, plus a few more lines), then the full **Thread**. Keys: `j`/`k` select, `ctrl+j`/`ctrl+k` scroll, `f` follow, `esc` back, `q` close (never cancels children), `alt+s` cancel all active tasks (asks first). Under 60 columns it shows the list only.
+- **History:** finished tasks are stored in `~/.violeta/agent/agents-history/` (last 200), with title and summary.
+
+## Safety guard
+
+`extensions/violeta-guard.ts` checks every `bash`, `bash_background` and `monitor` call, and every file tool.
+
+- **Destructive commands** (recursive/forced removal, `find -delete`, `shred`, `dd` to devices, `mkfs`, recursive `chmod`/`chown`, force push including `+refspec`, hard reset, `clean -f`, whole-tree checkout/restore, `branch -D`, `stash drop|clear`, SQL `DROP`/`TRUNCATE`/`DELETE` without `WHERE`) ask for confirmation showing the exact command. Targets like `/`, `~`, `$HOME` and their globs are denied outright. Quoted text, heredoc data and look-alikes are not flagged. It recognises common forms; it is not a sandbox.
+- **Outside the project:** a path outside the working directory asks once per directory per session. Grants live in memory only. `/grants` lists them, `/grants revoke` clears them. The violeta agent dir is always allowed.
+- **Subagent children** have no UI, so anything that would ask is blocked instead.
+
+## Todo list
+
+The `todo` tool (`write`, `add`, `update`, `clear`, `list`; statuses `pending`, `in_progress`, `blocked` (needs a note), `done`, `dropped`) keeps a list that is saved in the session and restored on resume. A card above the editor shows `Todo · N open · M done`; `/todo` hides or shows it. It disappears a minute after everything is finished.
+
+## Background jobs
+
+- `bash_background` starts a command and returns at once; the model is woken once when it exits, with the exit code and the last lines of output (full output in a 0600 temp file).
+- `monitor` turns each output line of a long-running command into an event (batched in 200 ms, at most 20 lines per notice; `timeout_seconds` 1–1800 is mandatory; it stops itself after more than 120 lines in 60 s).
+- `job_list` and `job_stop` (kills the whole process tree). At most 25 run at once, and all are killed when violeta exits.
+- `/jobs` opens the list (`j`/`k`, `s` then `s` again to stop, `q` to close); `jobs: N running` shows above the editor.
 
 ## Notes
 

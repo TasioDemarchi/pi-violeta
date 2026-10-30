@@ -13,6 +13,7 @@ function task(overrides: Partial<AgentTask>): AgentTask {
 		id: "t1",
 		name: "probe",
 		label: "hello",
+		title: "hello",
 		status: "running",
 		model: "gpt/x",
 		effort: "low",
@@ -63,19 +64,35 @@ test("renderAgentsCard returns no lines when there is nothing to show", () => {
 	);
 });
 
-test("renderAgentsCard aligns the metadata columns across rows of different widths", () => {
+test("renderAgentsCard shows the title as the primary column with the role dimmed to its right", () => {
 	const now = 25_000;
 	const tasks = [
-		task({ id: "a", name: "explore", label: "map footer", tokens: 34_000, cost: 0.27 }),
-		task({ id: "b", name: "worker", label: "write shell", status: "completed", tokens: 120_000, cost: 12.5, endedAt: 20_000 }),
+		task({ id: "a", name: "explore", title: "Map the footer sources", tokens: 34_000, cost: 0.27 }),
+		task({ id: "b", name: "worker", title: "Write the shell", status: "completed", tokens: 120_000, cost: 12.5, endedAt: 20_000 }),
 	];
 	const lines = renderAgentsCard(tasks, { width: 70, now }, plain);
 	assert.deepEqual(lines, [
 		"╭─ Agents · 1 active · 1 done " + "─".repeat(33) + " 25s ─╮",
-		"│ ◐  explore  map footer" + " ".repeat(9) + "gpt/x · low ·  34.0k ·  $0.27 · 25s │",
-		"│ ✓  worker   write shell" + " ".repeat(8) + "gpt/x · low · 120.0k · $12.50 · 20s │",
+		"│ ◐  Map the footer sources" + " ".repeat(10) + "explore ·  34.0k ·  $0.27 · 25s │",
+		"│ ✓  Write the shell" + " ".repeat(17) + "worker  · 120.0k · $12.50 · 20s │",
 		"╰" + "─".repeat(68) + "╯",
 	]);
+});
+
+test("model·effort stays when the title keeps room for it and yields when it would not", () => {
+	// Wide card: the role · model·effort · elapsed block fits beside the title.
+	const wide = renderAgentsCard([task({ id: "a", title: "Small task" })], { width: 90, now: 25_000 }, plain);
+	assert.ok(wide[1]!.includes("probe · gpt/x · low · 25s"), wide[1]);
+	// A 70-column card with a long title: model·effort yields so the title
+	// stays whole; the role, tokens and elapsed columns remain.
+	const narrow = renderAgentsCard(
+		[task({ id: "a", title: "Implementar vista del sidebar", model: "nan/deepseek-v4-flash", tokens: 41_000 })],
+		{ width: 70, now: 80_000 },
+		plain,
+	);
+	assert.ok(narrow[1]!.includes("Implementar vista del sidebar"), narrow[1]);
+	assert.ok(narrow[1]!.includes("probe · 41.0k · 1m20s"), narrow[1]);
+	assert.ok(!narrow[1]!.includes("gpt/x"), narrow[1]);
 });
 
 test("renderAgentsCard paints the card through theme roles only", () => {
@@ -84,38 +101,40 @@ test("renderAgentsCard paints the card through theme roles only", () => {
 	assert.ok(lines[0]!.includes("<accent>Agents · 0 active · 1 done</accent>"));
 	assert.ok(lines[0]!.startsWith("<borderAccent>╭"));
 	assert.ok(lines[1]!.includes("<success>✓</success>"));
+	assert.ok(lines[1]!.includes("<text>hello</text>"), "the title is the primary text");
+	assert.ok(lines[1]!.includes("<dim>probe · gpt/x · low · 1.0k · $0.01 · 9s</dim>"), "role and metadata are dimmed");
 	assert.ok(lines[2]!.startsWith("<borderAccent>╰"));
 });
 
-test("a queued row shows only the word queued in the elapsed column", () => {
+test("a queued row shows its title, its role and the word queued", () => {
 	const tasks = [task({ id: "a", status: "queued", startedAt: 0 })];
 	const lines = renderAgentsCard(tasks, { width: 40, now: 5_000 }, plain);
 	assert.deepEqual(lines, [
 		"╭─ Agents · 1 active · 0 done " + "─".repeat(4) + " 5s ─╮",
-		"│ ◌  probe  hello" + " ".repeat(15) + "queued │",
+		"│ ◌  hello" + " ".repeat(14) + "probe · queued │",
 		"╰" + "─".repeat(38) + "╯",
 	]);
 });
 
-test("narrow cards drop the task text first, then model·effort, then tokens; cost and elapsed stay", () => {
+test("narrow cards drop the role first, then model·effort, then tokens; the title truncates last", () => {
 	const tasks = [
-		task({ id: "a", label: "greet", model: "very-long-model-name", effort: "high", tokens: 120_000, cost: 12.5 }),
+		task({ id: "a", title: "Greet the world and more", model: "very-long-model-name", effort: "high", tokens: 120_000, cost: 12.5 }),
 	];
-	// 66 columns: the task text and the model·effort label no longer fit.
+	// 66 columns: the role and the model·effort label no longer fit.
 	const lines = renderAgentsCard(tasks, { width: 66, now: 25_000 }, plain);
 	assert.deepEqual(lines, [
 		"╭─ Agents · 1 active · 0 done " + "─".repeat(29) + " 25s ─╮",
-		"│ ◐  probe  120.0k · $12.50 · 25s" + " ".repeat(31) + " │",
+		"│ ◐  Greet the world and more" + " ".repeat(14) + "120.0k · $12.50 · 25s │",
 		"╰" + "─".repeat(64) + "╯",
 	]);
-	// 34 columns: the header elapsed goes first, then tokens drop; cost and
-	// elapsed are the last columns standing.
+	// 34 columns: tokens drop too and the title finally truncates with `…`;
+	// cost and elapsed are the last non-title columns standing.
 	const narrower = renderAgentsCard(tasks, { width: 34, now: 25_000 }, plain);
 	assert.equal(narrower[0], "╭─ Agents · 1 active · 0 done " + "─".repeat(2) + "╮");
-	assert.equal(narrower[1], "│ ◐  probe  $12.50 · 25s" + " ".repeat(8) + " │");
-	// 16 columns: only the identity survives.
+	assert.equal(narrower[1], "│ ◐  Greet the wo…  $12.50 · 25s" + " ".repeat(0) + " │");
+	// 16 columns: the title shares the row with elapsed only.
 	const narrowest = renderAgentsCard(tasks, { width: 16, now: 25_000 }, plain);
-	assert.equal(narrowest[1], "│ ◐  probe" + " ".repeat(4) + " │");
+	assert.equal(narrowest[1], "│ ◐  Gre…  25s │");
 });
 
 test("the card folds overflow into one `… N more · alt+a to view` row and keeps active work first", () => {

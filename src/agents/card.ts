@@ -5,6 +5,7 @@
 
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { fmtCost, fmtTokens } from "../format.ts";
+import { displayTitle } from "./summary.ts";
 import { isFinished, type AgentTask, type TaskStatus } from "./store.ts";
 
 export type CardFg = (role: string, text: string) => string;
@@ -22,7 +23,10 @@ const GLYPHS: Record<TaskStatus, { glyph: string; role: string }> = {
 };
 
 const NAME_MAX = 20;
-const TASK_MIN = 8;
+const TITLE_MIN = 8;
+// model·effort is a luxury column: it also yields when keeping it would
+// squeeze the title below this width.
+const EXEC_TITLE_MIN = 20;
 const SEP = " · ";
 const ELLIPSIS = "…";
 
@@ -66,6 +70,7 @@ function clip(text: string, width: number): string {
 }
 
 interface Fields {
+	role: string;
 	exec: string;
 	tokens: string;
 	cost: string;
@@ -73,9 +78,10 @@ interface Fields {
 }
 
 function metaFields(task: AgentTask, now: number): Fields {
-	if (task.status === "queued") return { exec: "", tokens: "", cost: "", elapsed: "queued" };
+	if (task.status === "queued") return { role: task.name, exec: "", tokens: "", cost: "", elapsed: "queued" };
 	const end = task.endedAt ?? now;
 	return {
+		role: task.name,
 		exec: `${task.model} · ${task.effort}`,
 		tokens: task.tokens > 0 ? fmtTokens(task.tokens) : "",
 		cost: task.cost > 0 ? fmtCost(task.cost) : "",
@@ -83,65 +89,63 @@ function metaFields(task: AgentTask, now: number): Fields {
 	};
 }
 
-const EMPTY_FIELDS: Fields = { exec: "", tokens: "", cost: "", elapsed: "" };
+const EMPTY_FIELDS: Fields = { role: "", exec: "", tokens: "", cost: "", elapsed: "" };
 
 function columnWidths(tasks: readonly AgentTask[], now: number): Fields {
 	const widths = { ...EMPTY_FIELDS };
 	for (const task of tasks) {
 		const fields = metaFields(task, now);
-		for (const key of ["exec", "tokens", "cost", "elapsed"] as const) {
+		for (const key of ["role", "exec", "tokens", "cost", "elapsed"] as const) {
 			widths[key] = Math.max(widths[key], visibleWidth(fields[key]));
 		}
 	}
+	// The role column never grows past NAME_MAX; longer names clip.
+	widths.role = Math.min(widths.role, NAME_MAX);
 	return widths;
 }
 
 /** Total width of the metadata area: the surviving columns plus separators. */
 function metaTotal(widths: Fields): number {
-	const live = (["exec", "tokens", "cost", "elapsed"] as const).filter((key) => widths[key] > 0);
+	const live = (["role", "exec", "tokens", "cost", "elapsed"] as const).filter((key) => widths[key] > 0);
 	return live.reduce((sum, key) => sum + widths[key], 0) + Math.max(0, live.length - 1) * visibleWidth(SEP);
 }
 
 function metaText(task: AgentTask, now: number, widths: Fields): string {
 	const fields = metaFields(task, now);
 	const parts: string[] = [];
-	for (const key of ["exec", "tokens", "cost", "elapsed"] as const) {
-		if (widths[key] > 0) parts.push(fields[key].padStart(widths[key]));
+	for (const key of ["role", "exec", "tokens", "cost", "elapsed"] as const) {
+		if (widths[key] <= 0) continue;
+		// The role is left-aligned in its column; the counters right-align.
+		parts.push(key === "role" ? clip(fields.role, widths.role).padEnd(widths.role) : fields[key].padStart(widths[key]));
 	}
 	return parts.join(SEP);
 }
 
 interface CardLayout {
-	name: number;
-	task: number;
+	title: number;
 	columnar: boolean;
 	widths: Fields;
 }
 
 // Narrow cards degrade one column at a time, the same way for every row: the
-// task text goes first, then the model·effort label, then tokens, then cost.
-// Elapsed is the last column standing. When even elapsed does not fit, the row
-// falls back to glyph + name only.
+// role (agent name) goes first, then the model·effort label, then tokens, then
+// cost. The title is primary and never drops: it only truncates with `…` last,
+// and elapsed is the last non-title column standing.
 function cardLayout(tasks: readonly AgentTask[], inner: number, now: number): CardLayout {
-	const name = Math.min(NAME_MAX, Math.max(0, ...tasks.map((task) => visibleWidth(task.name))), Math.max(0, inner - 3));
-	const fixed = 1 + 2 + name + 2;
+	const base = 1 + 2 + 2; // glyph + gap after the glyph + gap before the meta block
 	let widths = columnWidths(tasks, now);
-	const taskWidth = inner - fixed - 2 - metaTotal(widths);
-	if (taskWidth >= TASK_MIN) return { name, task: taskWidth, columnar: true, widths };
-	for (const drop of ["task", "exec", "tokens", "cost"] as const) {
-		if (drop === "task") {
-			if (fixed + 2 + metaTotal(widths) <= inner) return { name, task: 0, columnar: true, widths };
-			continue;
+	const fits = (fields: Fields) => base + metaTotal(fields) + TITLE_MIN <= inner;
+	if (!fits(widths)) {
+		for (const drop of ["role", "exec", "tokens", "cost"] as const) {
+			widths = { ...widths, [drop]: "" };
+			if (fits(widths)) break;
 		}
-		widths = { ...widths, [drop]: 0 };
-		if (fixed + 2 + metaTotal(widths) <= inner) return { name, task: 0, columnar: true, widths };
+	} else if (widths.exec > 0 && base + metaTotal(widths) + EXEC_TITLE_MIN > inner) {
+		widths = { ...widths, exec: "" };
 	}
-	// Elapsed last: keep it when it fits beside the name.
-	const elapsedOnly: Fields = { ...EMPTY_FIELDS, elapsed: widths.elapsed };
-	if (widths.elapsed > 0 && fixed + 2 + metaTotal(elapsedOnly) <= inner) {
-		return { name, task: 0, columnar: true, widths: elapsedOnly };
-	}
-	return { name, task: 0, columnar: false, widths: EMPTY_FIELDS };
+	const title = inner - base - metaTotal(widths);
+	if (title >= 1) return { title, columnar: true, widths };
+	return { title: Math.max(1, inner - 3), columnar: false, widths: EMPTY_FIELDS };
 }
 
 function cardCounts(tasks: readonly AgentTask[]): string {
@@ -212,14 +216,11 @@ export function renderAgentsCard(tasks: readonly AgentTask[], opts: CardOptions,
 
 	const body = listed.map((task) => {
 		const look = GLYPHS[task.status];
-		const name = clip(task.name, layout.name);
-		const head = fg(look.role, look.glyph) + "  " + fg("text", name) + " ".repeat(Math.max(0, layout.name - visibleWidth(name)));
+		const text = clip(displayTitle(task), layout.title);
+		const head = fg(look.role, look.glyph) + "  " + fg("text", text) + " ".repeat(Math.max(0, layout.title - visibleWidth(text)));
 		let content: string;
 		if (!layout.columnar) {
 			content = head;
-		} else if (layout.task > 0) {
-			const label = clip(task.label, layout.task);
-			content = head + "  " + fg("muted", label) + " ".repeat(Math.max(0, layout.task - visibleWidth(label))) + "  " + fg("dim", metaText(task, opts.now, layout.widths));
 		} else {
 			content = head + "  " + fg("dim", metaText(task, opts.now, layout.widths));
 		}

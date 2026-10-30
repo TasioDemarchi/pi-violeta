@@ -5,6 +5,7 @@
 
 import { readdirSync, readFileSync, statSync, unlinkSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { displayTitle } from "./summary.ts";
 import { isFinished, type AgentTask } from "./store.ts";
 
 export const HISTORY_CAP = 200;
@@ -68,6 +69,14 @@ export function capTaskHistory(dir: string, cap: number): void {
 	}
 }
 
+/** Old history files predate `title`/`summary`: restore the title from the
+ * label (or name) and drop empty summaries so the views always have a title. */
+function withTitleFallback(task: AgentTask): AgentTask {
+	const restored: AgentTask = { ...task, title: displayTitle(task) };
+	if (typeof restored.summary !== "string" || restored.summary.trim() === "") delete restored.summary;
+	return restored;
+}
+
 /** Load every valid persisted task, oldest first. Corrupt files are skipped. */
 export function loadTaskHistory(dir: string): AgentTask[] {
 	let files: string[];
@@ -80,7 +89,7 @@ export function loadTaskHistory(dir: string): AgentTask[] {
 	for (const file of files) {
 		try {
 			const parsed: unknown = JSON.parse(readFileSync(join(dir, file), "utf8"));
-			if (validTask(parsed)) tasks.push(parsed);
+			if (validTask(parsed)) tasks.push(withTitleFallback(parsed));
 		} catch {
 			// corrupt file: skip it, keep the rest
 		}
