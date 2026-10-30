@@ -22,26 +22,26 @@ test("renders every section with counts, file names, model and usage", () => {
 	assert.deepEqual(
 		lines.slice(0, 20),
 		[
-			row("PROJECT"),
+			row("PROYECTO"),
 			row("violeta"),
 			row("/home/t/Documents/violeta"),
 			row("main"),
 			row(""),
-			row("CHANGES"),
-			row("+1 created"),
-			row("~2 updated"),
-			row("−1 deleted"),
+			row("CAMBIOS"),
+			row("+1 creado"),
+			row("~2 modificados"),
+			row("−1 eliminado"),
 			row("+ new.txt"),
 			row("~ src/a.ts"),
 			row("~ b.ts"),
 			row("− old.ts"),
 			row(""),
-			row("MODEL"),
+			row("MODELO"),
 			row("nan/deepseek-v4-flash"),
 			row("thinking off"),
 			row("ctx 43% ████░░░░░░ 43.2k/1.0M"),
 			row(""),
-			row("USAGE"),
+			row("USO"),
 		],
 	);
 	assert.equal(lines[20], row("↑1.5k ↓2.4M"));
@@ -66,26 +66,26 @@ test("caps the file list at 12 entries with an N-more line", () => {
 	assert.equal(fileLines.length, SIDEBAR_MAX_FILES);
 	assert.equal(fileLines[0], row("+ f1.txt"));
 	assert.equal(fileLines[SIDEBAR_MAX_FILES - 1], row("+ f12.txt"));
-	assert.ok(lines.includes(row("+3 more")));
+	assert.ok(lines.includes(row("+3 más")));
 });
 
-test("a clean tree shows clean and no file lines", () => {
+test("a clean tree shows limpio and no file lines", () => {
 	const lines = buildSidebarLines(
 		{ ...fullData, changes: { created: [], updated: [], deleted: [] } },
 		{ width: W, rows: 40 },
 		plain,
 	);
-	assert.ok(lines.includes(row("clean")));
-	assert.ok(!lines.some((l) => l.includes("created")));
+	assert.ok(lines.includes(row("limpio")));
+	assert.ok(!lines.some((l) => l.includes("creado ")));
 });
 
-test("no repository shows the no-repo hint and no branch line", () => {
+test("no repository shows the sin-repo hint and no branch line", () => {
 	const lines = buildSidebarLines(
 		{ ...fullData, project: { name: "violeta", path: "/home/t/Documents/violeta", branch: null }, changes: null },
 		{ width: W, rows: 40 },
 		plain,
 	);
-	assert.ok(lines.includes(row("no repo")));
+	assert.ok(lines.includes(row("sin repo")));
 	assert.ok(!lines.includes(row("main")));
 });
 
@@ -95,7 +95,7 @@ test("without a model the id line says so and context is omitted", () => {
 		{ width: W, rows: 40 },
 		plain,
 	);
-	assert.ok(lines.includes(row("no model")));
+	assert.ok(lines.includes(row("sin modelo")));
 	assert.ok(!lines.some((l) => l.includes("ctx ")));
 });
 
@@ -113,10 +113,10 @@ test("sections are labeled with the accent role and statuses with their palette 
 		seen.push(role);
 		return `<${role}>${text}`;
 	});
-	assert.ok(lines[0].startsWith("<borderAccent>│ <accent>PROJECT"));
-	assert.ok(lines.some((l) => l.includes("<success>+1 created")));
-	assert.ok(lines.some((l) => l.includes("<warning>~2 updated")));
-	assert.ok(lines.some((l) => l.includes("<error>−1 deleted")));
+	assert.ok(lines[0].startsWith("<borderAccent>│ <accent>PROYECTO"));
+	assert.ok(lines.some((l) => l.includes("<success>+1 creado")));
+	assert.ok(lines.some((l) => l.includes("<warning>~2 modificados")));
+	assert.ok(lines.some((l) => l.includes("<error>−1 eliminado")));
 	assert.ok(seen.includes("text") && seen.includes("muted") && seen.includes("dim"));
 });
 

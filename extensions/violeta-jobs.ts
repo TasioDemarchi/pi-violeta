@@ -32,6 +32,7 @@ import { createMonitorController, type MonitorNotice } from "../src/jobs/monitor
 import { JobRegistry, MAX_RUNNING_JOBS, type JobRecord } from "../src/jobs/registry.ts";
 import { jobExitNotice, jobStartText, monitorEventsNotice, monitorStartText, monitorStoppedNotice } from "../src/jobs/notices.ts";
 import { indicatorLine, initialOverlayState, listText, orderedJobs, reduceOverlay, renderJobOverlay, type OverlayAction } from "../src/jobs/view.ts";
+import { jobs as t } from "../src/i18n.ts";
 
 const INDICATOR_KEY = "jobs-indicator";
 const OVERLAY_REFRESH_MS = 500;
@@ -118,7 +119,7 @@ export default function (pi: ExtensionAPI) {
 			} catch (error) {
 				return error(error instanceof Error ? error.message : String(error));
 			}
-			return { ...text(`${jobStartText(job)}\nYou will be notified once when it exits; keep working or end your turn.`), details: { jobId: job.id, outputPath: job.outputPath } };
+			return { ...text(`${jobStartText(job)}\n${t.willNotify}`), details: { jobId: job.id, outputPath: job.outputPath } };
 		},
 	});
 
@@ -139,10 +140,10 @@ export default function (pi: ExtensionAPI) {
 			try {
 				const seconds = typeof params.timeout_seconds === "number" ? params.timeout_seconds : Number.NaN;
 				if (!Number.isInteger(seconds) || seconds < 1 || seconds > 1800) {
-					return error("timeout_seconds is required and must be a whole number from 1 to 1800.");
+					return error(t.timeoutSecondsInvalid(1800));
 				}
 				const job = startJob(params.command, ctx.cwd, params.label, "monitor", seconds);
-				return { ...text(`${monitorStartText(job)}\nEach new output line reaches you as an event; keep working or end your turn.`), details: { jobId: job.id, outputPath: job.outputPath, timeoutSeconds: seconds } };
+				return { ...text(`${monitorStartText(job)}\n${t.monitorWillNotify}`), details: { jobId: job.id, outputPath: job.outputPath, timeoutSeconds: seconds } };
 			} catch (caught) {
 				return error(caught instanceof Error ? caught.message : String(caught));
 			}
@@ -158,7 +159,7 @@ export default function (pi: ExtensionAPI) {
 			const jobs = registry.list();
 			const body = listText(jobs, Date.now());
 			return {
-				...text(jobs.length > 0 ? body : "No jobs yet. Start one with bash_background or monitor."),
+				...text(jobs.length > 0 ? body : t.listEmptyHint),
 				details: { count: jobs.length, running: registry.runningCount() },
 			};
 		},
@@ -174,14 +175,14 @@ export default function (pi: ExtensionAPI) {
 		async execute(_id, params) {
 			const job = registry.get(params.job_id);
 			if (!job) {
-				return error(`Unknown job id ${params.job_id}. Use job_list to see the current jobs.`);
+				return error(t.jobStopUnknown(params.job_id));
 			}
 			if (job.status !== "running") {
-				return error(`Job ${job.id} (${job.label}) is not running anymore: ${job.status === "stopped" ? "stopped" : "finished"}.`);
+				return error(t.jobStopNotRunning(job.id, job.label, job.status === "stopped" ? t.jobStopped : t.jobFinished));
 			}
 			monitors.cancel(job.id);
 			registry.stop(job.id);
-			return { ...text(`Stopped job ${job.id} (${job.label}).`), details: { jobId: job.id, stopped: true } };
+			return { ...text(t.jobStoppedNotice(job.id, job.label)), details: { jobId: job.id, stopped: true } };
 		},
 	});
 
@@ -209,7 +210,7 @@ export default function (pi: ExtensionAPI) {
 
 	const openOverlay = async (ctx: ExtensionContext): Promise<void> => {
 		if (ctx.mode !== "tui" || !ctx.hasUI) {
-			ctx.ui.notify("The jobs overlay requires interactive mode.", "warning");
+			ctx.ui.notify(t.overlayNeedsTui, "warning");
 			return;
 		}
 		await ctx.ui.custom<void>(
@@ -263,7 +264,7 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	pi.registerCommand("jobs", {
-		description: "Show the background jobs overlay (running and finished)",
+		description: t.description,
 		handler: async (_args: string, ctx: ExtensionContext) => openOverlay(ctx),
 	});
 

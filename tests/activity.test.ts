@@ -16,48 +16,48 @@ test("dotsFrame cycles through empty, one, two and three dots", () => {
 	assert.equal(dotsFrame(7), "...");
 });
 
-test("phaseForTool maps read-only tools to exploring", () => {
+test("phaseForTool maps read-only tools to explorando", () => {
 	for (const name of ["read", "grep", "find", "ls", "codegraph_search"]) {
-		assert.equal(phaseForTool(name, {}), "exploring", name);
+		assert.equal(phaseForTool(name, {}), "explorando", name);
 	}
 });
 
-test("phaseForTool maps edit and write to implementing", () => {
-	assert.equal(phaseForTool("edit", {}), "implementing");
-	assert.equal(phaseForTool("write", {}), "implementing");
+test("phaseForTool maps edit and write to implementando", () => {
+	assert.equal(phaseForTool("edit", {}), "implementando");
+	assert.equal(phaseForTool("write", {}), "implementando");
 });
 
-test("phaseForTool maps test-like bash commands to checking", () => {
+test("phaseForTool maps test-like bash commands to verificando", () => {
 	const checks = ["npm test", "npx vitest run", "pytest -q", "node --test tests/", "tsc --noEmit", "eslint src/", "npm run lint"];
 	for (const command of checks) {
-		assert.equal(phaseForTool("bash", { command }), "checking", command);
+		assert.equal(phaseForTool("bash", { command }), "verificando", command);
 	}
 });
 
-test("phaseForTool maps other bash commands to running", () => {
-	assert.equal(phaseForTool("bash", { command: "git status" }), "running");
-	assert.equal(phaseForTool("bash", { command: "echo hola" }), "running");
-	assert.equal(phaseForTool("bash", {}), "running");
+test("phaseForTool maps other bash commands to ejecutando", () => {
+	assert.equal(phaseForTool("bash", { command: "git status" }), "ejecutando");
+	assert.equal(phaseForTool("bash", { command: "echo hola" }), "ejecutando");
+	assert.equal(phaseForTool("bash", {}), "ejecutando");
 });
 
-test("phaseForTool falls back to thinking for unknown tools", () => {
-	assert.equal(phaseForTool("totally_unknown", {}), "thinking");
+test("phaseForTool falls back to pensando for unknown tools", () => {
+	assert.equal(phaseForTool("totally_unknown", {}), "pensando");
 });
 
 test("activityLine renders the marker, the phase and the padded dots with the right roles", () => {
 	const roles: string[] = [];
-	const line = activityLine("implementing", 2, (role, text) => {
+	const line = activityLine("implementando", 2, (role, text) => {
 		roles.push(role);
 		return `<${role}>${text}`;
 	});
-	assert.equal(line, "<borderAccent>▍ <accent>implementing<muted>.. ");
+	assert.equal(line, "<borderAccent>▍ <accent>implementando<muted>.. ");
 	assert.ok(roles.includes("borderAccent") && roles.includes("accent") && roles.includes("muted"));
 });
 
 test("activityLine keeps a constant width while the dots animate", () => {
 	const widths = new Set<string>();
-	for (let tick = 0; tick < 8; tick++) widths.add(String(activityLine("checking", tick, plain).length));
+	for (let tick = 0; tick < 8; tick++) widths.add(String(activityLine("verificando", tick, plain).length));
 	assert.equal(widths.size, 1);
-	assert.equal(activityLine("checking", 0, plain), "▍ checking   ");
-	assert.equal(activityLine("checking", 3, plain), "▍ checking...");
+	assert.equal(activityLine("verificando", 0, plain), "▍ verificando   ");
+	assert.equal(activityLine("verificando", 3, plain), "▍ verificando...");
 });

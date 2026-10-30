@@ -107,7 +107,7 @@ test("look-alikes are not flagged: prose, quoted strings, heredoc data and safe 
 });
 
 test("each match names its family in the reason", () => {
-	assert.match(recognizeDestructiveCommands("rm -rf build")[0].reason, /removal/);
+	assert.match(recognizeDestructiveCommands("rm -rf build")[0].reason, /borrado recursivo/);
 	assert.match(recognizeDestructiveCommands("git push -f")[0].reason, /push/);
 	assert.match(recognizeDestructiveCommands('psql -c "DROP TABLE users"')[0].reason, /DROP/);
 });
@@ -132,7 +132,7 @@ test("guardDecision hard-denies catastrophic targets with no prompt", () => {
 		assert.equal(withUi.action, "deny", command);
 		const withoutUi = guardDecision(command, false);
 		assert.equal(withoutUi.action, "deny", command);
-		assert.ok(withUi.action === "deny" && /removed|denied|catastrophic/i.test(withUi.reason));
+		assert.ok(withUi.action === "deny" && /denegado|catastrófico/i.test(withUi.reason));
 	}
 });
 

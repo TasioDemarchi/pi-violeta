@@ -3,6 +3,7 @@
  * feeds the state, the width, the clock and a theme-like `fg` function. */
 
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { todo as t } from "../i18n.ts";
 import { doneCount, openCount, type TodoState, type TodoStatus } from "./store.ts";
 
 export type CardFg = (role: string, text: string) => string;
@@ -62,7 +63,7 @@ export function renderTodoCard(state: TodoState, opts: CardOptions, fg: CardFg):
 	const inner = width - 4;
 	const maxRows = Math.max(1, opts.maxRows ?? CARD_MAX_ROWS);
 
-	const title = `Todo · ${openCount(state.tasks)} open · ${doneCount(state.tasks)} done`;
+	const title = t.cardTitle(openCount(state.tasks), doneCount(state.tasks));
 	const fill = Math.max(1, width - 5 - visibleWidth(title));
 	const top = fg("borderAccent", "╭─ ") + fg("accent", clip(title, Math.max(1, width - 6))) + " " + fg("borderAccent", "─".repeat(fill) + "╮");
 
@@ -79,7 +80,7 @@ export function renderTodoCard(state: TodoState, opts: CardOptions, fg: CardFg):
 		return fg("borderAccent", "│ ") + content + pad + fg("borderAccent", " │");
 	});
 	if (hidden > 0) {
-		const hint = `… ${hidden} more`;
+		const hint = t.fold(hidden);
 		const pad = " ".repeat(Math.max(0, inner - visibleWidth(hint)));
 		body.push(fg("borderAccent", "│ ") + fg("dim", hint) + pad + fg("borderAccent", " │"));
 	}

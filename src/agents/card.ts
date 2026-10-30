@@ -5,6 +5,7 @@
 
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { fmtCost, fmtTokens } from "../format.ts";
+import { agents as t } from "../i18n.ts";
 import { displayTitle } from "./summary.ts";
 import { isFinished, type AgentTask, type TaskStatus } from "./store.ts";
 
@@ -78,7 +79,7 @@ interface Fields {
 }
 
 function metaFields(task: AgentTask, now: number): Fields {
-	if (task.status === "queued") return { role: task.name, exec: "", tokens: "", cost: "", elapsed: "queued" };
+	if (task.status === "queued") return { role: task.name, exec: "", tokens: "", cost: "", elapsed: t.queued };
 	const end = task.endedAt ?? now;
 	return {
 		role: task.name,
@@ -152,9 +153,7 @@ function cardCounts(tasks: readonly AgentTask[]): string {
 	const active = tasks.filter((t) => t.status === "queued" || t.status === "running").length;
 	const done = tasks.filter((t) => t.status === "completed").length;
 	const failed = tasks.filter((t) => t.status === "failed" || t.status === "aborted").length;
-	const parts = [`${active} active`, `${done} done`];
-	if (failed > 0) parts.push(`${failed} failed`);
-	return parts.join(SEP);
+	return t.cardTitle(active, done, failed);
 }
 
 /** The batch clock: first start among the shown tasks until now, or until the
@@ -202,7 +201,7 @@ export function renderAgentsCard(tasks: readonly AgentTask[], opts: CardOptions,
 	const { listed, hidden } = visibleRows(shown, cardMaxRows(opts.rows) - 2);
 
 	// Header: title left, batch elapsed right-aligned.
-	const title = `Agents · ${cardCounts(shown)}`;
+	const title = cardCounts(shown);
 	let top: string;
 	const elapsed = batchElapsed(shown, opts.now);
 	const dash = width - 8 - visibleWidth(title) - visibleWidth(elapsed);
@@ -229,7 +228,7 @@ export function renderAgentsCard(tasks: readonly AgentTask[], opts: CardOptions,
 	});
 
 	if (hidden > 0) {
-		const hint = `… ${hidden} more · ${opts.viewKey ?? CARD_VIEW_KEY} to view`;
+		const hint = t.fold(hidden, opts.viewKey ?? CARD_VIEW_KEY);
 		const pad = " ".repeat(Math.max(0, inner - visibleWidth(hint)));
 		body.push(fg("borderAccent", "│ ") + fg("dim", hint) + pad + fg("borderAccent", " │"));
 	}

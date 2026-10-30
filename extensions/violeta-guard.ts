@@ -25,6 +25,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { SHELL_COMMAND_TOOLS, guardDecision } from "../src/guard/command-guard.ts";
 import { OutsideGrants } from "../src/guard/grants.ts";
 import { allowedLocation, bashPathTargets, resolvePath, targetDir, toolCallPaths } from "../src/guard/paths.ts";
+import { guard as t } from "../src/i18n.ts";
 
 // Shell tools (bash, bash_background, monitor) get the destructive-command
 // check and the outside-project path grant; the file tools only the grant.
@@ -56,12 +57,13 @@ export default function (pi: ExtensionAPI) {
 		if (!ctx.hasUI || !canAsk()) {
 			return {
 				block: true,
-				reason: `Access outside the project (${dir}) needs a grant and there is no UI to ask. Grant it in an interactive session, or keep work inside ${ctx.cwd}.`,
+				reason: t.outsideNeedsGrant(dir, ctx.cwd),
 			};
 		}
-		const approved = await ctx.ui.confirm("Outside-project access", `Allow access outside the project: ${dir}? The grant lasts only for this session.`);
+		// select instead of confirm so the OPTIONS are Spanish; only "Sí" approves.
+		const approved = (await ctx.ui.select(`${t.outsideTitle}\n${t.outsideBody(dir)}`, [t.yes, t.no])) === t.yes;
 		if (!approved) {
-			return { block: true, reason: `Access to ${dir} was not approved. Stay inside ${ctx.cwd} or ask the user to grant it.` };
+			return { block: true, reason: t.outsideDeclined(dir, ctx.cwd) };
 		}
 		grants.grant(dir);
 		return {};
@@ -86,18 +88,16 @@ export default function (pi: ExtensionAPI) {
 			const command = event.input.command;
 			const decision = guardDecision(command, ctx.hasUI && canAsk());
 			if (decision.action === "deny") {
-				return { block: true, reason: `Blocked without a prompt: ${decision.reason}` };
+				return { block: true, reason: decision.reason };
 			}
 			if (decision.action === "block") {
-				return { block: true, reason: `Blocked: ${decision.reasons.join("; ")}. No interactive user is available to approve it.` };
+				return { block: true, reason: t.blocked(decision.reasons) };
 			}
 			if (decision.action === "confirm") {
-				const approved = await ctx.ui.confirm(
-					"Destructive command",
-					`${command}\n\nWhy: ${decision.reasons.join("; ")}. Run it anyway?`,
-				);
+				// select instead of confirm so the OPTIONS are Spanish; only "Sí" approves.
+				const approved = (await ctx.ui.select(`${t.destructiveTitle}\n${t.destructiveBody(command, decision.reasons)}`, [t.yes, t.no])) === t.yes;
 				if (!approved) {
-					return { block: true, reason: `The user declined this destructive command: ${command}. Find a safer way.` };
+					return { block: true, reason: t.declined(command) };
 				}
 			}
 			const denied = await authorizePaths(ctx, bashPathTargets(command, ctx.cwd, home()));
@@ -110,19 +110,17 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("grants", {
-		description: "List outside-project grants, or clear them with /grants revoke",
+		description: t.grantsDescription,
 		handler: async (args: string, ctx: ExtensionContext) => {
 			if (args.trim().toLowerCase() === "revoke") {
 				const cleared = grants.clear();
-				ctx.ui.notify(cleared > 0 ? `Revoked ${cleared} outside-project grant(s).` : "No outside-project grants to revoke.", "info");
+				ctx.ui.notify(cleared > 0 ? t.grantsRevoked(cleared) : t.grantsNothingToRevoke, "info");
 				return;
 			}
 			grants.sync(ctx.sessionManager.getSessionId());
 			const list = grants.list();
 			ctx.ui.notify(
-				list.length > 0
-					? `Outside-project grants for this session:\n${list.map((dir) => `- ${dir}`).join("\n")}\n\n/grants revoke clears them.`
-					: "No outside-project grants in this session.",
+				list.length > 0 ? t.grantsList(list) : t.grantsEmpty,
 				"info",
 			);
 		},

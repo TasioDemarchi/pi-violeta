@@ -3,6 +3,8 @@
  * and how the animated dots look at a given animation tick.
  */
 
+import { activity as t } from "./i18n.ts";
+
 export type Fg = (role: string, text: string) => string;
 
 /** The three dots animate through these frames, one per tick. */
@@ -26,11 +28,11 @@ export function dotsFrame(tick: number): string {
 export function phaseForTool(name: string, args: unknown): string {
 	if (name === "bash") {
 		const command = (args as { command?: unknown } | undefined)?.command;
-		return typeof command === "string" && CHECK_PATTERN.test(command) ? "checking" : "running";
+		return typeof command === "string" && CHECK_PATTERN.test(command) ? t.phases.checking : t.phases.running;
 	}
-	if (EDIT_TOOLS.has(name)) return "implementing";
-	if (READ_ONLY_TOOLS.has(name) || name.includes("codegraph")) return "exploring";
-	return "thinking";
+	if (EDIT_TOOLS.has(name)) return t.phases.implementing;
+	if (READ_ONLY_TOOLS.has(name) || name.includes("codegraph")) return t.phases.exploring;
+	return t.phases.thinking;
 }
 
 /**

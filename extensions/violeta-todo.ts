@@ -23,6 +23,7 @@ import { Type } from "typebox";
 import { cardVisible, renderTodoCard, TODO_HIDE_MS, type CardFg } from "../src/todo/card.ts";
 import { TODO_ENTRY_TYPE, replayTodo, todoSnapshot } from "../src/todo/persist.ts";
 import { applyTodo, doneCount, emptyTodo, openCount, type TodoParams, type TodoState } from "../src/todo/store.ts";
+import { todo as t } from "../src/i18n.ts";
 
 const WIDGET_KEY = "todo-card";
 
@@ -132,10 +133,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("todo", {
-		description: "Toggle the todo card above the editor",
+		description: t.description,
 		handler: async (_args: string, ctx: ExtensionContext) => {
 			visible = !visible;
-			if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.notify(visible ? "Todo card shown." : "Todo card hidden.", "info");
+			if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.notify(visible ? t.shown : t.hidden, "info");
 			requestRender();
 		},
 	});

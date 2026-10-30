@@ -51,7 +51,7 @@ test("listLines put the header first, glyph + title rows, active before finished
 		task({ id: "newer", name: "newer", title: "newer work", status: "failed", endedAt: 9_000 }),
 	];
 	const lines = listLines(tasks, { width: 40, selectedId: "live" }, plain);
-	assert.equal(lines[0], "1 active · 2 finished");
+	assert.equal(lines[0], "1 activo · 2 terminados");
 	assert.ok(lines[1]!.startsWith("› ◐ grind away"), "the list row is glyph + title");
 	assert.ok(!lines[1]!.includes("worker"), "the agent name is not part of the list row");
 	assert.ok(lines[2]!.startsWith("  ✗ newer work"));
@@ -65,12 +65,12 @@ test("listLines put the header first, glyph + title rows, active before finished
 
 test("threadHeader reads `role · status · model · tokens · elapsed`", () => {
 	const running = task({ tokens: 34_000 });
-	assert.equal(threadHeader(running, 25_000, plain), "probe · running · gpt/x · 34.0k · 25s");
+	assert.equal(threadHeader(running, 25_000, plain), "probe · en curso · gpt/x · 34.0k · 25s");
 	const done = task({ status: "completed", tokens: 1000, endedAt: 10_000 });
-	assert.equal(threadHeader(done, 99_999, plain), "probe · completed · gpt/x · 1.0k · 10s");
+	assert.equal(threadHeader(done, 99_999, plain), "probe · completado · gpt/x · 1.0k · 10s");
 });
 
-test("threadLines render thinking dimmed, text plain, and tool calls as `⚙ toolName status`", () => {
+test("threadLines render thinking dimmed, text plain, and tool calls as `⚙ toolName estado`", () => {
 	const one = task({
 		thread: [
 			{ kind: "thinking", text: "hmm" },
@@ -81,7 +81,7 @@ test("threadLines render thinking dimmed, text plain, and tool calls as `⚙ too
 		],
 	});
 	const lines = threadLines(one, 60, plain);
-	assert.deepEqual(lines, ["hmm", "hello", "world", "⚙ bash running", "⚙ read error", "⚙ read done"]);
+	assert.deepEqual(lines, ["hmm", "hello", "world", "⚙ bash en curso", "⚙ read error", "⚙ read listo"]);
 	const roles = threadLines(one, 60, tagged);
 	assert.ok(roles[0]!.startsWith("<dim>"));
 	assert.ok(roles[1]!.startsWith("<text>"));
@@ -126,8 +126,8 @@ test("the key reducer selects, scrolls, follows, goes back and closes", () => {
 });
 
 test("hintLine lists the keys for the current view", () => {
-	assert.equal(hintLine("split", plain), "j/k task  ctrl+j/k scroll  f follow  esc back  q close");
-	assert.equal(hintLine("narrow", plain), "j/k select  enter thread  esc back  q close");
+	assert.equal(hintLine("split", plain), "j/k tarea  ctrl+j/k desplazar  f seguir  esc volver  q cerrar");
+	assert.equal(hintLine("narrow", plain), "j/k seleccionar  enter hilo  esc volver  q cerrar");
 });
 
 test("resultLines shows the summary plus further result lines, the error, or a running placeholder", () => {
@@ -142,7 +142,7 @@ test("resultLines shows the summary plus further result lines, the error, or a r
 	const failed = task({ status: "failed", error: "pi exited with code 1\nstderr: boom" });
 	assert.deepEqual(resultLines(failed), ["pi exited with code 1", "stderr: boom"]);
 	const running = task({});
-	assert.deepEqual(resultLines(running), ["in progress…"]);
+	assert.deepEqual(resultLines(running), ["en curso…"]);
 	// at most six further lines beyond the summary
 	const many = task({
 		status: "completed",
@@ -170,14 +170,14 @@ test("renderOverlay draws the list, the Title/Result/Thread pane and the hint at
 		const layout = overlayLayout(80, 10);
 		const lines = renderOverlay(tasks, initialOverlayState(["a"]), layout, now, plain);
 		assert.equal(lines.length, 10);
-		assert.ok(lines[0]!.includes("1 active · 1 finished"));
+		assert.ok(lines[0]!.includes("1 activo · 1 terminado"));
 		assert.ok(lines[1]!.includes("› ◐ Prepare the launch"), "list row is glyph + title");
 		assert.ok(lines[1]!.includes("Prepare the launch"), "the right pane starts with the title");
-		assert.ok(lines[2]!.includes("alpha · running · gpt/x · 34.0k · 25s"), "meta line: role · status · model · tokens · elapsed");
+		assert.ok(lines[2]!.includes("alpha · en curso · gpt/x · 34.0k · 25s"), "meta line: role · status · model · tokens · elapsed");
 		assert.ok(lines[2]!.includes("✓ Finish the report"));
-		assert.ok(lines[3]!.includes("── Result ──"));
-		assert.ok(lines[4]!.includes("in progress…"), "a running task shows the placeholder");
-		assert.ok(lines[5]!.includes("── Thread ──"));
+		assert.ok(lines[3]!.includes("── Resultado ──"));
+		assert.ok(lines[4]!.includes("en curso…"), "a running task shows the placeholder");
+		assert.ok(lines[5]!.includes("── Hilo ──"));
 		assert.ok(lines[6]!.includes("working"));
 		assert.ok(lines[9]!.startsWith(hintLine("split", plain)));
 		// every line fits the terminal width
@@ -185,7 +185,7 @@ test("renderOverlay draws the list, the Title/Result/Thread pane and the hint at
 		// narrow mode without detail still shows the list only
 		const narrow = renderOverlay(tasks, initialOverlayState(["a"]), overlayLayout(50, 10), now, plain);
 		assert.equal(narrow.length, 10);
-		assert.ok(narrow[0]!.includes("1 active · 1 finished"));
+		assert.ok(narrow[0]!.includes("1 activo · 1 terminado"));
 		assert.ok(!narrow[0]!.includes("gpt/x"));
 		assert.ok(narrow[9]!.startsWith(hintLine("narrow", plain)));
 });
@@ -199,10 +199,10 @@ test("narrow mode detail view shows the same Title/Result/Thread layout", () => 
 	const lines = renderOverlay(tasks, state, overlayLayout(50, 10), now, plain);
 	assert.equal(lines.length, 8, "one blank top row, six pane lines, one hint row");
 	assert.ok(lines[1]!.includes("Prepare the launch"), "the title line is first");
-	assert.ok(lines[2]!.includes("alpha · running · gpt/x · 34.0k · 25s"));
-	assert.ok(lines[3]!.includes("── Result ──"));
-	assert.ok(lines[4]!.includes("in progress…"));
-	assert.ok(lines[5]!.includes("── Thread ──"));
+	assert.ok(lines[2]!.includes("alpha · en curso · gpt/x · 34.0k · 25s"));
+	assert.ok(lines[3]!.includes("── Resultado ──"));
+	assert.ok(lines[4]!.includes("en curso…"));
+	assert.ok(lines[5]!.includes("── Hilo ──"));
 	assert.ok(lines[6]!.includes("working"));
 	assert.ok(lines[7]!.startsWith(hintLine("narrow", plain)));
 });

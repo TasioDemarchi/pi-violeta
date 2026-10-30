@@ -5,6 +5,7 @@
 
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { fmtTokens } from "../format.ts";
+import { agents as t } from "../i18n.ts";
 import { formatElapsed } from "./card.ts";
 import { displayTitle } from "./summary.ts";
 import { isFinished, type AgentTask, type TaskStatus, type ThreadItem } from "./store.ts";
@@ -79,14 +80,11 @@ export function overlayTasks(tasks: readonly AgentTask[]): AgentTask[] {
 	return [...active, ...finished];
 }
 
-/** `N active · M finished` (zero segments are skipped). */
+/** `N activos · M terminados` (cero segments are skipped, never all of them). */
 export function listHeader(tasks: readonly AgentTask[]): string {
 	const active = tasks.filter((t) => t.status === "queued" || t.status === "running").length;
 	const finished = tasks.filter((t) => isFinished(t.status)).length;
-	const parts: string[] = [];
-	if (active > 0) parts.push(`${active} active`);
-	if (finished > 0) parts.push(`${finished} finished`);
-	return parts.length > 0 ? parts.join(" · ") : "0 active · 0 finished";
+	return t.listHeader(active, finished);
 }
 
 /** One line per task: `› ◐ title` with the selected row marked. */
@@ -114,9 +112,9 @@ export const RESULT_MAX_LINES = 6;
  * summary was taken from the result's own first line (or its `summary:`
  * line), that source line is skipped so it is not shown twice. */
 export function resultLines(task: AgentTask): string[] {
-	if (task.status === "queued" || task.status === "running") return ["in progress…"];
+	if (task.status === "queued" || task.status === "running") return [t.inProgress];
 	if (task.status === "failed" || task.status === "aborted") {
-		const error = task.error ?? `task ${task.status}`;
+		const error = task.error ?? t.taskStatusWord(task.status);
 		return error.split("\n").map((l) => l.trimEnd()).filter((l) => l !== "").slice(0, RESULT_MAX_LINES);
 	}
 	const out: string[] = [];
@@ -140,9 +138,9 @@ export function paneLines(task: AgentTask, width: number, now: number, fg: ViewF
 	return [
 		fg("accent", displayTitle(task)),
 		threadHeader(task, now, fg),
-		fg("dim", "── Result ──"),
+		fg("dim", t.sectionResult),
 		...resultLines(task),
-		fg("dim", "── Thread ──"),
+		fg("dim", t.sectionThread),
 		...threadLines(task, width, fg),
 	];
 }
@@ -155,7 +153,7 @@ export function threadHeader(task: AgentTask, now: number, fg: ViewFg): string {
 	const elapsed = formatElapsed((task.endedAt ?? now) - task.startedAt);
 	const segments = [
 		fg("accent", task.name),
-		fg(STATUS_ROLES[task.status], task.status),
+		fg(STATUS_ROLES[task.status], t.statuses[task.status] ?? task.status),
 		fg("dim", task.model),
 		fg("muted", task.tokens > 0 ? fmtTokens(task.tokens) : "0"),
 		fg("muted", elapsed),
@@ -164,7 +162,7 @@ export function threadHeader(task: AgentTask, now: number, fg: ViewFg): string {
 }
 
 /** The thread as lines: thinking dimmed, text plain, tool calls
- * `⚙ toolName status`, info muted. Long text wraps to `width`. */
+ * `⚙ toolName estado`, info muted. Long text wraps to `width`. */
 export function threadLines(task: AgentTask, width: number, fg: ViewFg): string[] {
 	const lines: string[] = [];
 	for (const item of task.thread) {
@@ -185,7 +183,7 @@ function threadItemLines(item: ThreadItem, width: number, fg: ViewFg): string[] 
 			return wrap(item.text).map((line) => fg("muted", line));
 		case "tool": {
 			const status = item.toolStatus ?? "done";
-			return [fg("accent", `⚙ ${item.toolName ?? "tool"}`) + " " + fg(TOOL_STATUS_ROLES[status], status)];
+			return [fg("accent", `⚙ ${item.toolName ?? "tool"}`) + " " + fg(TOOL_STATUS_ROLES[status], t.toolStatuses[status] ?? status)];
 		}
 		default:
 			return [];
@@ -244,10 +242,7 @@ export function reduceOverlay(state: OverlayState, action: OverlayAction, ids: r
 
 /** The bottom hint row for the current view. */
 export function hintLine(mode: "split" | "narrow", fg: ViewFg): string {
-	const keys = mode === "split"
-		? "j/k task  ctrl+j/k scroll  f follow  esc back  q close"
-		: "j/k select  enter thread  esc back  q close";
-	return fg("dim", keys);
+	return fg("dim", t.hint(mode));
 }
 
 export interface OverlayFrameOptions {

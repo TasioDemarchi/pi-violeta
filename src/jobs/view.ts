@@ -5,6 +5,7 @@
  */
 
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { jobs as t } from "../i18n.ts";
 import type { JobRecord } from "./registry.ts";
 
 export type ViewFg = (role: string, text: string) => string;
@@ -31,14 +32,14 @@ export function orderedJobs(jobs: readonly JobRecord[]): JobRecord[] {
 
 /** One-line outcome, shared by the list and the notices. */
 export function jobStatusText(job: JobRecord): string {
-	if (job.status === "running") return "running";
-	if (job.status === "stopped") return "stopped";
-	if (job.status === "failed") return `failed: ${job.error ?? "unknown error"}`;
-	if (job.exitCode === null || job.exitCode === undefined) return `killed by signal ${job.signal ?? "unknown"}`;
-	return `exited with code ${job.exitCode}`;
+	if (job.status === "running") return t.jobRunning;
+	if (job.status === "stopped") return t.jobStopped;
+	if (job.status === "failed") return t.jobFailed(job.error);
+	if (job.exitCode === null || job.exitCode === undefined) return t.jobSignal(job.signal);
+	return t.jobExited(job.exitCode);
 }
 
-/** `job-1 · job · build check · exited with code 0 · 4s` */
+/** `job-1 · job · build check · salió con código 0 · 4s` */
 export function listLine(job: JobRecord, now: number): string {
 	const elapsed = formatDuration((job.endedAt ?? now) - job.startedAt);
 	return `${job.id} · ${job.kind} · ${job.label} · ${jobStatusText(job)} · ${elapsed}`;
@@ -47,13 +48,13 @@ export function listLine(job: JobRecord, now: number): string {
 /** The model-facing list text: running first, newest first. */
 export function listText(jobs: readonly JobRecord[], now: number): string {
 	const ordered = orderedJobs(jobs);
-	return ordered.length > 0 ? ordered.map((job) => listLine(job, now)).join("\n") : "No jobs.";
+	return ordered.length > 0 ? ordered.map((job) => listLine(job, now)).join("\n") : t.listEmpty;
 }
 
 /** `jobs: N running` while anything runs; empty otherwise (the widget hides). */
 export function indicatorLine(jobs: readonly JobRecord[]): string {
 	const running = jobs.filter((job) => job.status === "running").length;
-	return running > 0 ? `jobs: ${running} running` : "";
+	return running > 0 ? t.indicator(running) : "";
 }
 
 // --- Overlay (/jobs) ---------------------------------------------------------
@@ -122,13 +123,10 @@ export function reduceOverlay(
 /** `Jobs · 1 running · 1 finished` */
 export function overlayHeader(jobs: readonly JobRecord[]): string {
 	const running = jobs.filter((job) => job.status === "running").length;
-	const parts = [`${running} running`];
-	const finished = jobs.length - running;
-	if (finished > 0) parts.push(`${finished} finished`);
-	return `Jobs · ${parts.join(" · ")}`;
+	return t.overlayHeader(running, jobs.length - running);
 }
 
-const EMPTY_JOBS_LINE = "No jobs. Start one with bash_background or monitor.";
+const EMPTY_JOBS_LINE = t.listEmptyHint;
 
 /** The overlay body: header, one row per job (selected marked), an optional
  * confirm row, and the hint. Rows clip to the width, never overflow it. */
@@ -157,10 +155,10 @@ export function renderJobOverlay(
 		}
 	}
 	const running = ordered.find((job) => job.id === state.confirmId);
-	if (running) lines.push(truncateToWidth(fg("warning", `s again to stop ${running.id} (${running.label})`), layout.width));
+	if (running) lines.push(truncateToWidth(fg("warning", t.confirmStop(running.id, running.label)), layout.width));
 	const rows = Math.max(3, layout.rows);
 	while (lines.length < rows - 1) lines.push("");
-	lines.push(truncateToWidth(fg("dim", "j/k select  s stop  q close"), layout.width));
+	lines.push(truncateToWidth(fg("dim", t.hint), layout.width));
 	return lines.slice(0, rows);
 }
 

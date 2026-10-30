@@ -26,6 +26,7 @@ import { loadTaskHistory } from "../src/agents/history.ts";
 import { SubagentRunner } from "../src/agents/runner.ts";
 import { displayTitle } from "../src/agents/summary.ts";
 import { isFinished, getAgentStore, type AgentTask } from "../src/agents/store.ts";
+import { agents as t } from "../src/i18n.ts";
 import {
 	initialOverlayState,
 	overlayLayout,
@@ -77,7 +78,7 @@ export default function (pi: ExtensionAPI) {
 		pi.sendMessage(
 			{
 				customType: "violeta-subagent-result",
-				content: `Subagent finished: ${displayTitle(task)} (${task.name}, ${task.id})\nStatus: ${task.status}\n\n${task.result ?? task.error ?? "(no output)"}`,
+				content: `${t.finishedMessage(displayTitle(task), task.name, task.id, t.statuses[task.status] ?? task.status)}\n\n${task.result ?? task.error ?? t.noOutput}`,
 				display: true,
 				details: { taskId: task.id, name: task.name, title: displayTitle(task), status: task.status, tokens: task.tokens, cost: task.cost },
 			},
@@ -122,7 +123,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function taskText(task: AgentTask): string {
-		return `${displayTitle(task)} — ${task.name} (${task.id}): ${task.status}${task.error ? ` — ${task.error}` : ""}`;
+		return `${displayTitle(task)} — ${task.name} (${task.id}): ${t.statuses[task.status] ?? task.status}${task.error ? ` — ${task.error}` : ""}`;
 	}
 
 	pi.registerTool({
@@ -136,7 +137,7 @@ export default function (pi: ExtensionAPI) {
 				`- ${def.name}${def.description ? `: ${def.description}` : ""} (model: ${def.model}${def.thinking ? `, thinking: ${def.thinking}` : ""}${def.tools.length ? `, tools: ${def.tools.join(", ")}` : ""})`,
 			);
 			for (const error of errors) lines.push(`- ! ${error.source}: ${error.message}`);
-			const text = lines.length > 0 ? lines.join("\n") : "No subagent definitions found. Create markdown files with YAML frontmatter (name, description, model, thinking, tools) and a system prompt body in the agents directory.";
+			const text = lines.length > 0 ? lines.join("\n") : t.noDefinitions;
 			return { content: [{ type: "text" as const, text }], details: { count: definitions.length, errors } };
 		},
 	});
@@ -156,9 +157,9 @@ export default function (pi: ExtensionAPI) {
 			const { definitions } = listDefinitions();
 			const definition = definitions.find((def) => def.name === params.agent);
 			if (!definition) {
-				const available = definitions.map((def) => def.name).join(", ") || "(none)";
+				const available = definitions.map((def) => def.name).join(", ") || "(ninguno)";
 				return {
-					content: [{ type: "text" as const, text: `Unknown agent "${params.agent}". Available: ${available}. Use subagent_list_agents first.` }],
+					content: [{ type: "text" as const, text: t.unknownAgent(params.agent, available) }],
 					details: { error: "unknown agent" },
 					isError: true,
 				};
@@ -171,7 +172,7 @@ export default function (pi: ExtensionAPI) {
 			});
 			if ((params.mode ?? "task") === "background") {
 				return {
-					content: [{ type: "text" as const, text: `Subagent "${params.agent}" started in the background with task id ${started.id}. Its result will be delivered when it finishes; check progress with subagent_status.` }],
+					content: [{ type: "text" as const, text: t.backgroundStarted(params.agent, started.id) }],
 					details: { taskId: started.id, mode: "background" },
 				};
 			}
@@ -181,13 +182,13 @@ export default function (pi: ExtensionAPI) {
 				// running unattended.
 				store.cancel(started.id);
 				return {
-					content: [{ type: "text" as const, text: `Subagent "${params.agent}" (${started.id}) was cancelled because the caller aborted.` }],
+					content: [{ type: "text" as const, text: t.cancelledByCaller(params.agent, started.id) }],
 					details: { taskId: started.id, cancelled: true },
 					isError: true,
 				};
 			}
 			return {
-				content: [{ type: "text" as const, text: finished.status === "completed" ? finished.result ?? "(no answer)" : `${taskText(finished)}` }],
+				content: [{ type: "text" as const, text: finished.status === "completed" ? finished.result ?? t.noAnswer : `${taskText(finished)}` }],
 				details: { taskId: finished.id, status: finished.status, tokens: finished.tokens, cost: finished.cost, error: finished.error },
 				isError: finished.status !== "completed",
 			};
@@ -213,11 +214,11 @@ export default function (pi: ExtensionAPI) {
 		async execute(_id, params) {
 			if (params.id) {
 				const task = store.get(params.id);
-				const text = task ? JSON.stringify(summarize(task), null, 2) : `Unknown task id ${params.id}.`;
+				const text = task ? JSON.stringify(summarize(task), null, 2) : t.unknownTaskId(params.id);
 				return { content: [{ type: "text" as const, text }], details: { found: !!task }, isError: !task };
 			}
 			const tasks = store.list();
-			const text = tasks.length > 0 ? tasks.map(taskText).join("\n") : "No subagent tasks yet.";
+			const text = tasks.length > 0 ? tasks.map(taskText).join("\n") : t.noTasksYet;
 			return { content: [{ type: "text" as const, text }], details: { count: tasks.length, active: store.activeCount() } };
 		},
 	});
@@ -230,12 +231,12 @@ export default function (pi: ExtensionAPI) {
 		async execute(_id, params) {
 			const task = store.get(params.id);
 			if (!task) {
-				return { content: [{ type: "text" as const, text: `Unknown task id ${params.id}.` }], details: { found: false }, isError: true };
+				return { content: [{ type: "text" as const, text: t.unknownTaskId(params.id) }], details: { found: false }, isError: true };
 			}
 			if (task.status === "queued" || task.status === "running") {
-				return { content: [{ type: "text" as const, text: `${taskText(task)} — no result yet.` }], details: { found: true, status: task.status } };
+				return { content: [{ type: "text" as const, text: `${taskText(task)} ${t.noResultYet}` }], details: { found: true, status: task.status } };
 			}
-			const body = task.status === "completed" ? task.result ?? "(no answer)" : task.error ?? `task ${task.status}`;
+			const body = task.status === "completed" ? task.result ?? t.noAnswer : task.error ?? t.taskStatusWord(task.status);
 			return {
 				content: [{ type: "text" as const, text: `${displayTitle(task)} — ${task.name} (${task.id}) ${task.status}:\n\n${body}` }],
 				details: { found: true, status: task.status, title: displayTitle(task), summary: task.summary, tokens: task.tokens, cost: task.cost },
@@ -252,8 +253,8 @@ export default function (pi: ExtensionAPI) {
 		async execute(_id, params) {
 			const cancelled = store.cancel(params.id);
 			const text = cancelled
-				? `Cancelled task ${params.id}.`
-				: `Task ${params.id} cannot be cancelled (unknown id or already finished).`;
+				? t.cancelled(params.id)
+				: t.notCancellable(params.id);
 			return { content: [{ type: "text" as const, text }], details: { cancelled }, isError: !cancelled };
 		},
 	});
@@ -389,7 +390,7 @@ export default function (pi: ExtensionAPI) {
 
 	const openOverlay = async (ctx: ExtensionContext): Promise<void> => {
 		if (ctx.mode !== "tui") {
-			ctx.ui.notify("The agents overlay requires interactive mode.", "warning");
+			ctx.ui.notify(t.overlayNeedsTui, "warning");
 			return;
 		}
 		// Closing the overlay never cancels the children: done() only disposes it.
@@ -403,27 +404,28 @@ export default function (pi: ExtensionAPI) {
 		if (ctx.mode !== "tui") return;
 		const count = store.activeCount();
 		if (count === 0) {
-			ctx.ui.notify("No active subagent tasks.", "info");
+			ctx.ui.notify(t.stopNone, "info");
 			return;
 		}
-		const confirmed = await ctx.ui.confirm("Stop subagents", `Cancel ${count} active subagent task(s)? The children are stopped.`);
+		// select instead of confirm so the OPTIONS are Spanish; only "Sí" approves.
+		const confirmed = (await ctx.ui.select(`${t.stopTitle}\n${t.stopBody(count)}`, [t.yes, t.no])) === t.yes;
 		if (!confirmed) return;
 		const cancelled = store.cancelAll();
-		ctx.ui.notify(`Cancelled ${cancelled} subagent task(s).`, "info");
+		ctx.ui.notify(t.stopCancelled(cancelled), "info");
 	};
 
 	pi.registerCommand("agents", {
-		description: "Show the subagents overlay (active tasks and their threads)",
+		description: t.agentsDescription,
 		handler: async (_args: string, ctx: ExtensionContext) => openOverlay(ctx),
 	});
 
 	pi.registerShortcut("alt+a", {
-		description: "Show the subagents overlay",
+		description: t.shortcutOverlay,
 		handler: async (ctx) => openOverlay(ctx),
 	});
 
 	pi.registerShortcut("alt+s", {
-		description: "Stop active subagent(s) (asks for confirmation)",
+		description: t.shortcutStop,
 		handler: async (ctx) => stopAllActive(ctx),
 	});
 

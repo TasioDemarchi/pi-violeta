@@ -6,6 +6,7 @@
  * `deliver` callback; the caller decides how they reach the model.
  */
 
+import { jobs as t } from "../i18n.ts";
 import { MONITOR_BATCH_MS, MONITOR_MAX_TIMEOUT_SECONDS, createEventBatcher, type MonitorBatch } from "./lines.ts";
 import type { JobRecord, JobRegistry } from "./registry.ts";
 
@@ -34,7 +35,7 @@ export interface MonitorStartRequest {
 /** Mandatory timeout: a clear error for anything but a whole 1-1800 number. */
 export function validateTimeoutSeconds(value: unknown): number {
 	if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > MONITOR_MAX_TIMEOUT_SECONDS) {
-		throw new Error(`timeout_seconds is required and must be a whole number from 1 to ${MONITOR_MAX_TIMEOUT_SECONDS}.`);
+		throw new Error(t.timeoutSecondsInvalid(MONITOR_MAX_TIMEOUT_SECONDS));
 	}
 	return value;
 }

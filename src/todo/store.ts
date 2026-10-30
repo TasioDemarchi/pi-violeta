@@ -3,6 +3,8 @@
  * returns the ORIGINAL state (never a copy) so "unchanged" is observable, and
  * every successful call's text is the compact rendering of the current list. */
 
+import { todo as t } from "../i18n.ts";
+
 export const TODO_STATUSES = ["pending", "in_progress", "blocked", "done", "dropped"] as const;
 export type TodoStatus = (typeof TODO_STATUSES)[number];
 
@@ -44,8 +46,8 @@ export interface TodoResult {
 	error?: string;
 }
 
-const STATUS_LIST = "pending, in_progress, blocked, done, or dropped";
-const BLOCKED_NEEDS_NOTE = "blocked needs a note naming what it waits for";
+const STATUS_LIST = t.statusList;
+const BLOCKED_NEEDS_NOTE = t.blockedNeedsNote;
 
 export function emptyTodo(): TodoState {
 	return { tasks: [], nextId: 1 };
@@ -70,7 +72,7 @@ export function doneCount(tasks: readonly TodoTask[]): number {
 
 /** `#2 [in_progress] Run tests — npm test` per task, in list order. */
 export function renderTodoText(state: TodoState): string {
-	if (state.tasks.length === 0) return "No tasks.";
+	if (state.tasks.length === 0) return t.empty;
 	return state.tasks
 		.map((task) => `#${task.id} [${task.status}] ${task.title}${task.note ? ` — ${task.note}` : ""}`)
 		.join("\n");
@@ -96,9 +98,9 @@ function withSettled(tasks: TodoTask[], nextId: number, settledAt: number | unde
 /** Validate one task input; returns the task or the error message. */
 function buildTask(input: TodoTaskInput, id: number): TodoTask | string {
 	const title = cleanText(input.title);
-	if (title.length === 0) return "title is required";
+	if (title.length === 0) return t.titleRequired;
 	const status = input.status === undefined || input.status === "" ? "pending" : parseStatus(input.status);
-	if (!status) return `unknown status "${input.status}" (use ${STATUS_LIST})`;
+	if (!status) return t.unknownStatus(String(input.status));
 	const note = cleanText(input.note);
 	if (status === "blocked" && note.length === 0) return BLOCKED_NEEDS_NOTE;
 	return { id, title, status, ...(note ? { note } : {}) };
@@ -122,9 +124,9 @@ function write(state: TodoState, inputs: readonly TodoTaskInput[] | undefined, n
 
 function update(state: TodoState, params: TodoParams, now: number): TodoResult {
 	const task = state.tasks.find((candidate) => candidate.id === params.id);
-	if (!task) return { state, text: `Error: no task #${params.id}`, error: `no task #${params.id}` };
+	if (!task) return { state, text: `Error: ${t.noTask(params.id)}`, error: t.noTask(params.id) };
 	if (params.status === undefined && params.title === undefined && params.note === undefined) {
-		const error = "nothing to update: pass status, title, or note";
+		const error = t.nothingToUpdate;
 		return { state, text: `Error: ${error}`, error };
 	}
 	const built = buildTask(
@@ -152,11 +154,11 @@ export function applyTodo(state: TodoState, params: TodoParams, now: number = Da
 		case "update":
 			return update(state, params, now);
 		case "clear":
-			return { state: { tasks: [], nextId: state.nextId }, text: "No tasks." };
+			return { state: { tasks: [], nextId: state.nextId }, text: t.empty };
 		case "list":
 			return { state, text: renderTodoText(state) };
 		default: {
-			const error = `unknown action "${params.action}" (use write, add, update, clear, or list)`;
+			const error = t.unknownAction(params.action);
 			return { state, text: `Error: ${error}`, error };
 		}
 	}

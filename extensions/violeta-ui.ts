@@ -8,6 +8,7 @@ import { activityLine, phaseForTool } from "../src/activity.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "../src/format.ts";
 import { buildSidebarLines, type SidebarData } from "../src/sidebar-content.ts";
 import { readSidebarEnabled, writeSidebarEnabled } from "../src/sidebar-state.ts";
+import { activity as activityT, sidebar as t, ui as uiT } from "../src/i18n.ts";
 
 const SEP = "  ";
 const SIDEBAR_WIDTH = 44;
@@ -53,7 +54,7 @@ export default function (pi: ExtensionAPI) {
 						if (activityWidget === component) activityWidget = undefined;
 					},
 					render: () => [
-						activityLine(activityPhase ?? "thinking", activityTick, (role, text) => theme.fg(role as ThemeColor, text)),
+						activityLine(activityPhase ?? activityT.phases.thinking, activityTick, (role, text) => theme.fg(role as ThemeColor, text)),
 					],
 				};
 				activityWidget = component;
@@ -98,7 +99,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("agent_start", async (_event, ctx) => {
 		if (!inTui(ctx) || !uiCtx) return;
-		activityPhase = "thinking";
+		activityPhase = activityT.phases.thinking;
 		startActivity();
 		showActivity();
 	});
@@ -237,18 +238,18 @@ export default function (pi: ExtensionAPI) {
 		sidebarEnabled = cfg ? readSidebarEnabled(cfg) : false;
 
 		pi.registerCommand("sidebar", {
-			description: "Toggle the right sidebar (the footer hides while it is active)",
+			description: uiT.sidebarDescription,
 			handler: async (args: string) => {
 				const arg = args.trim().toLowerCase();
 				if (arg && arg !== "on" && arg !== "off" && arg !== "toggle") {
-					ctx.ui.notify("usage: /sidebar [on|off]", "warning");
+					ctx.ui.notify(uiT.sidebarUsage, "warning");
 					return;
 				}
 				sidebarEnabled = arg === "on" ? true : arg === "off" ? false : !sidebarEnabled;
 				const file = configFile();
 				if (file) writeSidebarEnabled(file, sidebarEnabled);
 				if (sidebarEnabled && tuiRef && tuiRef.mode !== "fullscreen") {
-					ctx.ui.notify("Sidebar needs fullscreen mode; showing the footer instead.", "warning");
+					ctx.ui.notify(uiT.sidebarNeedsFullscreen, "warning");
 				}
 				applySidebar(sidebarEnabled);
 				tuiRef?.requestRender();
@@ -304,18 +305,18 @@ export default function (pi: ExtensionAPI) {
 					const left: string[] = [theme.fg("accent", basename(ctx.cwd))];
 					if (branch) left.push(theme.fg("muted", branch));
 					if (changes === null) {
-						left.push(theme.fg("dim", "no repo"));
+						left.push(theme.fg("dim", t.noRepo));
 					} else if (changes) {
 						const parts: string[] = [];
 						if (changes.created.length) parts.push(theme.fg("success", `+${changes.created.length}`));
 						if (changes.updated.length) parts.push(theme.fg("warning", `~${changes.updated.length}`));
 						if (changes.deleted.length) parts.push(theme.fg("error", `−${changes.deleted.length}`));
-						left.push(parts.length ? parts.join(" ") : theme.fg("dim", "clean"));
+						left.push(parts.length ? parts.join(" ") : theme.fg("dim", t.clean));
 					}
 
 					const usage = ctx.getContextUsage();
 					const modelId = ctx.model && ctx.model.id !== "unknown" ? ctx.model.id : undefined;
-					const right: string[] = [modelId ? theme.fg("text", modelId) : theme.fg("dim", "no model")];
+					const right: string[] = [modelId ? theme.fg("text", modelId) : theme.fg("dim", t.noModel)];
 					if (usage?.percent != null) right.push(theme.fg("muted", `ctx ${fmtPercent(usage.percent / 100)}`));
 					right.push(theme.fg("dim", `↑${fmtTokens(input)} ↓${fmtTokens(output)}`));
 					right.push(theme.fg("muted", fmtCost(cost)));

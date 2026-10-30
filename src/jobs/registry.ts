@@ -15,6 +15,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { chmodSync, closeSync, createWriteStream, existsSync, mkdirSync, openSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { jobs as t } from "../i18n.ts";
 import { killTree, killTreeEscalating, type ScheduleFn } from "./kill.ts";
 import { createTail, MAX_LINE_CHARS, TAIL_LINES } from "./lines.ts";
 
@@ -121,7 +122,7 @@ export class JobRegistry {
 	/** Start one job. Throws a clear error when the running cap is reached. */
 	start(request: StartRequest): JobRecord {
 		if (this.runningCount() >= this.options.maxRunning) {
-			throw new Error(`At most ${this.options.maxRunning} jobs can run at once; stop one with job_stop first.`);
+			throw new Error(t.capError(this.options.maxRunning));
 		}
 		this.ensureDir();
 		const id = `job-${++this.counter}`;

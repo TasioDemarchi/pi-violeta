@@ -9,6 +9,8 @@
  * gentle-pi's MIT-licensed destructive-command-guard.
  */
 
+import { guardReasons, guard as i18nGuard } from "../i18n.ts";
+
 export type DestructionKind = "filesystem" | "git" | "database";
 
 /** Tools whose `command` input runs in a shell. The guard treats every one of
@@ -134,7 +136,7 @@ function rmMatches(args: readonly Token[]): DestructiveMatch | undefined {
 	const hardDeny = recursive && targets.some((target) => CATASTROPHIC.test(target));
 	return {
 		kind: "filesystem",
-		reason: recursive ? "recursive file removal" : "forced file removal",
+		reason: recursive ? guardReasons.recursiveRemoval : guardReasons.forcedRemoval,
 		hardDeny,
 	};
 }
@@ -153,15 +155,15 @@ function gitMatches(args: readonly Token[]): DestructiveMatch | undefined {
 	const match = (reason: string): DestructiveMatch => ({ kind: "git", reason, hardDeny: false });
 	// Targets that mean "the whole tree" for checkout/restore.
 	const wholeTree = (values: readonly string[]) => values.some((v) => v === "." || v === ".*" || v.startsWith(":/"));
-	if (action === "push" && force) return match("git force push");
-	if (action === "reset" && flags.includes("--hard")) return match("git reset --hard");
-	if (action === "clean" && force) return match("git clean -f");
+	if (action === "push" && force) return match(guardReasons.gitForcePush);
+	if (action === "reset" && flags.includes("--hard")) return match(guardReasons.gitResetHard);
+	if (action === "clean" && force) return match(guardReasons.gitCleanForce);
 	if (action === "branch" && (hasShortFlag(flags, "D") || (force && (flags.includes("--delete") || hasShortFlag(flags, "d"))))) {
-		return match("git branch -D");
+		return match(guardReasons.gitBranchDelete);
 	}
-	if (action === "stash" && flags.some((flag) => flag === "drop" || flag === "clear")) return match("git stash drop/clear");
-	if (action === "checkout" && (force || wholeTree(flags))) return match("git checkout of the whole tree");
-	if (action === "restore" && wholeTree(flags)) return match("git restore of the whole tree");
+	if (action === "stash" && flags.some((flag) => flag === "drop" || flag === "clear")) return match(guardReasons.gitStashDropClear);
+	if (action === "checkout" && (force || wholeTree(flags))) return match(guardReasons.gitCheckoutWholeTree);
+	if (action === "restore" && wholeTree(flags)) return match(guardReasons.gitRestoreWholeTree);
 	// rebase is deliberately not covered.
 	return undefined;
 }
@@ -173,9 +175,9 @@ function sqlDestroys(sql: string): string | undefined {
 		(raw) => (/^["`[]/.test(raw) ? "identifier" : " "),
 	);
 	for (const statement of code.split(";")) {
-		if (/^\s*(?:DROP\s+(?:TABLE|DATABASE|SCHEMA)\b|TRUNCATE\s+(?:TABLE\s+)?\S)/i.test(statement)) return "SQL DROP/TRUNCATE statement";
+		if (/^\s*(?:DROP\s+(?:TABLE|DATABASE|SCHEMA)\b|TRUNCATE\s+(?:TABLE\s+)?\S)/i.test(statement)) return guardReasons.sqlDropTruncate;
 		if (!/^\s*DELETE\s+FROM\s+\S/i.test(statement)) continue;
-		if (!/\bWHERE\b/i.test(statement) || /\bWHERE\s+(?:1\s*=\s*1|TRUE)\s*$/i.test(statement.trim())) return "DELETE without WHERE";
+		if (!/\bWHERE\b/i.test(statement) || /\bWHERE\s+(?:1\s*=\s*1|TRUE)\s*$/i.test(statement.trim())) return guardReasons.sqlDeleteWithoutWhere;
 	}
 	return undefined;
 }
@@ -211,16 +213,16 @@ function matchSegment(command: string, segment: readonly Token[], depth: number)
 		const match = rmMatches(args);
 		if (match) add(match);
 	}
-	if (name === "find" && values.includes("-delete")) add({ kind: "filesystem", reason: "find -delete", hardDeny: false });
-	if (name === "shred" && values.length > 0) add({ kind: "filesystem", reason: "shred", hardDeny: false });
+	if (name === "find" && values.includes("-delete")) add({ kind: "filesystem", reason: guardReasons.findDelete, hardDeny: false });
+	if (name === "shred" && values.length > 0) add({ kind: "filesystem", reason: guardReasons.shred, hardDeny: false });
 	if (name === "dd" && values.some((value) => /^of=\/dev\//.test(value))) {
-		add({ kind: "filesystem", reason: "dd writes to a device", hardDeny: false });
+		add({ kind: "filesystem", reason: guardReasons.ddDevice, hardDeny: false });
 	}
-	if (name === "mkfs" || name.startsWith("mkfs.")) add({ kind: "filesystem", reason: "mkfs", hardDeny: false });
+	if (name === "mkfs" || name.startsWith("mkfs.")) add({ kind: "filesystem", reason: guardReasons.mkfs, hardDeny: false });
 	if ((name === "chmod" || name === "chown") && (hasShortFlag(values, "R") || values.includes("--recursive"))) {
 		const targets = args.filter((arg) => arg.raw === arg.value && !arg.value.startsWith("-")).map((arg) => arg.value);
 		if (targets.some((target) => BROAD_DIR.test(target))) {
-			add({ kind: "filesystem", reason: `recursive ${name} on a broad path`, hardDeny: false });
+			add({ kind: "filesystem", reason: guardReasons.recursiveBroadPath(name), hardDeny: false });
 		}
 	}
 	if (name === "git") {
@@ -263,7 +265,7 @@ export function guardDecision(command: string, canAsk: boolean): DestructiveDeci
 	const matches = recognizeDestructiveCommands(command);
 	if (matches.length === 0) return { action: "allow" };
 	const catastrophic = matches.find((match) => match.hardDeny);
-	if (catastrophic) return { action: "deny", reason: `Catastrophic target denied without a prompt: ${catastrophic.reason}.` };
+	if (catastrophic) return { action: "deny", reason: i18nGuard.catastrophic(catastrophic.reason) };
 	const reasons = [...new Set(matches.map((match) => match.reason))];
 	return canAsk ? { action: "confirm", reasons } : { action: "block", reasons };
 }

@@ -1,5 +1,6 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { fmtCost, fmtPercent, fmtTokens } from "./format.ts";
+import { sidebar as t } from "./i18n.ts";
 
 export type Fg = (role: string, text: string) => string;
 
@@ -40,25 +41,25 @@ export function buildSidebarLines(data: SidebarData, opts: { width: number; rows
 		out.push(fg("borderAccent", "│") + " " + fitted + " ".repeat(Math.max(0, contentWidth - visibleWidth(fitted))));
 	};
 
-	// PROJECT
-	push(fg("accent", "PROJECT"));
+	// PROYECTO
+	push(fg("accent", t.project));
 	push(fg("text", data.project.name));
 	push(fg("dim", data.project.path));
 	if (data.project.branch) push(fg("muted", data.project.branch));
 
-	// CHANGES
+	// CAMBIOS
 	push("");
-	push(fg("accent", "CHANGES"));
+	push(fg("accent", t.changes));
 	if (data.changes === null) {
-		push(fg("dim", "no repo"));
+		push(fg("dim", t.noRepo));
 	} else {
 		const { created, updated, deleted } = data.changes;
 		if (!created.length && !updated.length && !deleted.length) {
-			push(fg("dim", "clean"));
+			push(fg("dim", t.clean));
 		} else {
-			if (created.length) push(fg("success", `+${created.length} created`));
-			if (updated.length) push(fg("warning", `~${updated.length} updated`));
-			if (deleted.length) push(fg("error", `−${deleted.length} deleted`));
+			if (created.length) push(fg("success", t.created(created.length)));
+			if (updated.length) push(fg("warning", t.updated(updated.length)));
+			if (deleted.length) push(fg("error", t.deleted(deleted.length)));
 			const max = Math.max(0, opts.maxFiles ?? SIDEBAR_MAX_FILES);
 			const files: Array<[marker: "+" | "~" | "−", name: string]> = [
 				...created.map((f) => ["+", f] as const),
@@ -68,14 +69,14 @@ export function buildSidebarLines(data: SidebarData, opts: { width: number; rows
 			for (const [marker, name] of files.slice(0, max)) {
 				push(fg(marker === "+" ? "success" : marker === "~" ? "warning" : "error", `${marker} ${name}`));
 			}
-			if (files.length > max) push(fg("dim", `+${files.length - max} more`));
+			if (files.length > max) push(fg("dim", t.more(files.length - max)));
 		}
 	}
 
-	// MODEL
+	// MODELO
 	push("");
-	push(fg("accent", "MODEL"));
-	push(data.model.id ? fg("text", data.model.id) : fg("dim", "no model"));
+	push(fg("accent", t.model));
+	push(data.model.id ? fg("text", data.model.id) : fg("dim", t.noModel));
 	if (data.model.thinking) push(fg("muted", `thinking ${data.model.thinking}`));
 	const ctx = data.model.context;
 	if (ctx) {
@@ -83,9 +84,9 @@ export function buildSidebarLines(data: SidebarData, opts: { width: number; rows
 		push(fg("muted", `ctx ${pct} `) + fg("accent", contextBar(ctx.percent)) + " " + fg("dim", `${fmtTokens(ctx.used)}/${fmtTokens(ctx.window)}`));
 	}
 
-	// USAGE
+	// USO
 	push("");
-	push(fg("accent", "USAGE"));
+	push(fg("accent", t.usage));
 	push(fg("dim", `↑${fmtTokens(data.usage.tokensIn)} ↓${fmtTokens(data.usage.tokensOut)}`));
 	push(fg("muted", fmtCost(data.usage.cost)));
 
