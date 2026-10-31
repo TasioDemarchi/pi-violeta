@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import guardExtension from "../extensions/violeta-guard.ts";
-import { guard } from "../src/i18n.ts";
+import { guard, setLanguage } from "../src/i18n.ts";
 
 type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>;
 
@@ -50,6 +50,9 @@ function makeCtx(selectResult: string | undefined, options: { hasUI?: boolean } 
 }
 
 const OUTSIDE_DIR = "/tmp/violeta-guard-es/fuera";
+// A different directory from the Spanish tests: grants are remembered per
+// session and every mocked context here shares session id "s1".
+const OUTSIDE_DIR_EN = "/tmp/violeta-guard-en/fuera";
 
 test("the destructive dialog uses ctx.ui.select with the Spanish title, body and options", async () => {
 	const { toolCall } = loadGuard();
@@ -189,4 +192,97 @@ test("no English user-facing literal remains in any guard dialog, decline or blo
 	// And the Spanish dictionary is actually shown.
 	assert.ok(seen.some((text) => text.includes("Comando destructivo")));
 	assert.ok(seen.includes("Sí") && seen.includes("No"));
+});
+
+// --- English mode (S3): the same dialogs with the original English strings ----
+
+test("in English mode the destructive dialog shows Destructive command / Why / Run it anyway? with Yes|No", async () => {
+	try {
+		setLanguage("en");
+		const { toolCall } = loadGuard();
+		const { ctx, selects } = makeCtx(undefined);
+		const command = "rm -rf build";
+		await toolCall({ toolName: "bash", input: { command } }, ctx);
+		assert.equal(selects.length, 1);
+		assert.equal(selects[0]!.options.join("|"), "Yes|No");
+		assert.ok(selects[0]!.prompt.includes("Destructive command"), selects[0]!.prompt);
+		assert.ok(selects[0]!.prompt.includes(command), selects[0]!.prompt);
+		assert.ok(selects[0]!.prompt.includes("Why: recursive file removal. Run it anyway?"), selects[0]!.prompt);
+	} finally {
+		setLanguage("es");
+	}
+});
+
+test("in English mode only Yes approves the destructive dialog; No, cancel and undefined decline", async () => {
+	try {
+		setLanguage("en");
+		const { toolCall } = loadGuard();
+		const command = "rm -rf build";
+		for (const [answer, approved] of [["Yes", true], ["No", false], [undefined, false]] as const) {
+			const { ctx } = makeCtx(answer);
+			const result = await toolCall({ toolName: "bash", input: { command } }, ctx);
+			if (approved) {
+				assert.equal(result, undefined, `answer ${String(answer)} must approve`);
+			} else {
+				assert.ok(result?.block, `answer ${String(answer)} must decline`);
+				assert.equal(result?.reason, guard.declined(command));
+			}
+		}
+	} finally {
+		setLanguage("es");
+	}
+});
+
+test("in English mode the outside-project dialog is English and approves only with Yes", async () => {
+	try {
+		setLanguage("en");
+		const { toolCall } = loadGuard();
+		const path = `${OUTSIDE_DIR_EN}/x.md`;
+		{
+			const { ctx, selects } = makeCtx(undefined);
+			await toolCall({ toolName: "read", input: { path } }, ctx);
+			assert.equal(selects.length, 1);
+			assert.equal(selects[0]!.options.join("|"), "Yes|No");
+			assert.ok(selects[0]!.prompt.includes("Outside-project access"), selects[0]!.prompt);
+			assert.ok(selects[0]!.prompt.includes("Allow access outside the project"), selects[0]!.prompt);
+			assert.ok(selects[0]!.prompt.includes(OUTSIDE_DIR_EN), selects[0]!.prompt);
+			assert.ok(selects[0]!.prompt.includes("The grant lasts only for this session."), selects[0]!.prompt);
+			const declined = await toolCall({ toolName: "read", input: { path } }, ctx);
+			assert.ok(declined?.block);
+			assert.equal(declined?.reason, guard.outsideDeclined(OUTSIDE_DIR_EN, "/repo"));
+		}
+		{
+			const { ctx, selects } = makeCtx("Yes");
+			await toolCall({ toolName: "read", input: { path } }, ctx);
+			assert.equal(selects.length, 1);
+			const again = await toolCall({ toolName: "read", input: { path } }, ctx);
+			assert.equal(again, undefined);
+			assert.equal(selects.length, 1);
+		}
+	} finally {
+		setLanguage("es");
+	}
+});
+
+test("in English mode the no-UI block and catastrophic deny texts are the original English", async () => {
+	try {
+		setLanguage("en");
+		const { toolCall } = loadGuard();
+		{
+			const { ctx, selects } = makeCtx("Yes");
+			const result = await toolCall({ toolName: "bash", input: { command: "rm -rf /" } }, ctx);
+			assert.ok(result?.block);
+			assert.equal(result?.reason, "Catastrophic target denied without a prompt: recursive file removal.");
+			assert.equal(selects.length, 0);
+		}
+		{
+			const { ctx, selects } = makeCtx(undefined, { hasUI: false });
+			const result = await toolCall({ toolName: "bash", input: { command: "rm -rf build" } }, ctx);
+			assert.ok(result?.block);
+			assert.equal(result?.reason, "Blocked: recursive file removal. No interactive user is available to approve it.");
+			assert.equal(selects.length, 0);
+		}
+	} finally {
+		setLanguage("es");
+	}
 });

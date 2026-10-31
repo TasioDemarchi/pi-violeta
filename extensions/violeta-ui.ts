@@ -8,7 +8,10 @@ import { activityLine, phaseForTool } from "../src/activity.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "../src/format.ts";
 import { buildSidebarLines, type SidebarData } from "../src/sidebar-content.ts";
 import { readSidebarEnabled, writeSidebarEnabled } from "../src/sidebar-state.ts";
+import { readLanguage, writeLanguage } from "../src/language-state.ts";
+import { getShared, setShared } from "../src/shared-hub.ts";
 import { activity as activityT, sidebar as t, ui as uiT } from "../src/i18n.ts";
+import { getLanguage, setLanguage, type Language } from "../src/i18n.ts";
 
 const SEP = "  ";
 const SIDEBAR_WIDTH = 44;
@@ -31,6 +34,8 @@ export default function (pi: ExtensionAPI) {
 	let tuiRef: TUI | undefined;
 	let sidebarComponent: Component | undefined;
 	let sidebarEnabled = false;
+	/** Last sidebar-active value published to the shared hub. */
+	let sharedActive: boolean | undefined;
 	const sidebarCleanups: Array<() => void> = [];
 
 	// --- Activity line: `▍ <phase>` with three dots appearing/disappearing above the editor ---
@@ -217,9 +222,14 @@ export default function (pi: ExtensionAPI) {
 		const ctx = uiCtx!;
 		const usage = ctx.getContextUsage();
 		const s = sessionUsage();
+		// The todo list comes from the shared hub (violeta-todo publishes it); the
+		// TAREAS section is drawn only when the card would be visible.
+		const shared = getShared();
 		return {
 			project: { name: basename(ctx.cwd), path: ctx.cwd, branch: branchOf?.() ?? null },
 			changes: changes ?? null,
+			todos: shared.todoVisible !== false && shared.todoState ? shared.todoState : null,
+			now: Date.now(),
 			model: {
 				id: ctx.model && ctx.model.id !== "unknown" ? ctx.model.id : undefined,
 				thinking: pi.getThinkingLevel(),
@@ -235,7 +245,37 @@ export default function (pi: ExtensionAPI) {
 		ctx.ui.setTitle(`violeta · ${basename(ctx.cwd)}`);
 
 		const cfg = configFile();
+		// The persisted language is honored everywhere — including subagent
+		// children, which load this extension too — before any text is rendered
+		// or registered for the session (S3).
+		setLanguage(cfg ? readLanguage(cfg) : "es");
 		sidebarEnabled = cfg ? readSidebarEnabled(cfg) : false;
+
+		// /idioma (alias /language): switch es|en, no argument toggles. Children
+		// have no UI of their own, so they honor the persisted language but do
+		// not register the command.
+		if (process.env.VIOLETA_AGENTS_CHILD !== "1") {
+			const idioma = async (args: string, commandCtx: ExtensionContext) => {
+				const arg = args.trim().toLowerCase();
+				let next: Language | undefined;
+				if (arg === "") next = getLanguage() === "es" ? "en" : "es";
+				else if (arg === "es" || arg === "en") next = arg;
+				if (!next) {
+					commandCtx.ui.notify(uiT.languageUsage, "warning");
+					return;
+				}
+				setLanguage(next);
+				const file = configFile();
+				if (file) writeLanguage(file, next);
+				// The notification is shown in the NEW language, and a render
+				// makes cards, sidebar, footer and overlays repaint at once.
+				commandCtx.ui.notify(uiT.languageSet, "info");
+				tuiRef?.requestRender();
+			};
+			// registerCommand has no alias support: register both names.
+			pi.registerCommand("idioma", { description: uiT.languageDescription, handler: idioma });
+			pi.registerCommand("language", { description: uiT.languageDescription, handler: idioma });
+		}
 
 		pi.registerCommand("sidebar", {
 			description: uiT.sidebarDescription,
@@ -290,11 +330,24 @@ export default function (pi: ExtensionAPI) {
 					unsub();
 					requestRender = undefined;
 					applySidebar(false);
+					if (sharedActive !== false) {
+						sharedActive = false;
+						setShared({ sidebarActive: false });
+					}
 				},
 				invalidate() {},
 				render(width: number): string[] {
+					// Publish the placement flag for violeta-todo (and any other
+					// listener) whenever it changes; the footer renders on every
+					// frame, so /sidebar toggles, resizes and fullscreen changes
+					// all re-evaluate the placement live.
+					const active = sidebarActive(tui);
+					if (active !== sharedActive) {
+						sharedActive = active;
+						setShared({ sidebarActive: active });
+					}
 					// The sidebar owns the right edge; the footer paints nothing while it is active.
-					if (sidebarActive(tui)) return [];
+					if (active) return [];
 
 					const s = sessionUsage();
 					const input = s.input;

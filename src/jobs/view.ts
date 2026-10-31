@@ -126,8 +126,6 @@ export function overlayHeader(jobs: readonly JobRecord[]): string {
 	return t.overlayHeader(running, jobs.length - running);
 }
 
-const EMPTY_JOBS_LINE = t.listEmptyHint;
-
 /** The overlay body: header, one row per job (selected marked), an optional
  * confirm row, and the hint. Rows clip to the width, never overflow it. */
 export function renderJobOverlay(
@@ -140,7 +138,7 @@ export function renderJobOverlay(
 	const ordered = orderedJobs(jobs);
 	const lines: string[] = [truncateToWidth(fg("accent", overlayHeader(ordered)), layout.width)];
 	if (ordered.length === 0) {
-		lines.push(truncateToWidth(fg("dim", EMPTY_JOBS_LINE), layout.width));
+		lines.push(truncateToWidth(fg("dim", t.listEmptyHint), layout.width));
 	} else {
 		for (const job of ordered) {
 			const look = glyph(job);

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { activityLine, dotsFrame, phaseForTool } from "../src/activity.ts";
+import { setLanguage } from "../src/i18n.ts";
 
 // Identity theme: keeps exact text visible in assertions.
 const plain = (_role: string, text: string) => text;
@@ -60,4 +61,23 @@ test("activityLine keeps a constant width while the dots animate", () => {
 	assert.equal(widths.size, 1);
 	assert.equal(activityLine("verificando", 0, plain), "▍ verificando   ");
 	assert.equal(activityLine("verificando", 3, plain), "▍ verificando...");
+});
+
+// --- English mode (S3): the original English phase labels ----------------------
+
+test("in English the activity phases are the original English words", () => {
+	try {
+		setLanguage("en");
+		for (const name of ["read", "grep", "find", "ls", "codegraph_search"]) {
+			assert.equal(phaseForTool(name, {}), "exploring", name);
+		}
+		assert.equal(phaseForTool("edit", {}), "implementing");
+		assert.equal(phaseForTool("write", {}), "implementing");
+		assert.equal(phaseForTool("bash", { command: "npm test" }), "checking");
+		assert.equal(phaseForTool("bash", { command: "git status" }), "running");
+		assert.equal(phaseForTool("totally_unknown", {}), "thinking");
+		assert.equal(activityLine("checking", 0, plain), "▍ checking   ");
+	} finally {
+		setLanguage("es");
+	}
 });

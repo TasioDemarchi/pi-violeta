@@ -4,7 +4,7 @@
 
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { todo as t } from "../i18n.ts";
-import { doneCount, openCount, type TodoState, type TodoStatus } from "./store.ts";
+import { doneCount, openCount, type TodoState, type TodoStatus, type TodoTask } from "./store.ts";
 
 export type CardFg = (role: string, text: string) => string;
 
@@ -12,6 +12,15 @@ export type CardFg = (role: string, text: string) => string;
 export const TODO_HIDE_MS = 60_000;
 /** Task rows shown before the rest folds into `… N more`. */
 export const CARD_MAX_ROWS = 8;
+
+/** Where the todo card lives: a `TAREAS` section inside the sidebar when the
+ * sidebar is active, otherwise the widget above the editor (T1/S2). */
+export type TodoPlacement = "sidebar" | "widget";
+
+/** Pure placement decision: the sidebar active flag decides the placement. */
+export function todoPlacement(sidebarActive: boolean): TodoPlacement {
+	return sidebarActive ? "sidebar" : "widget";
+}
 
 const GLYPHS: Record<TodoStatus, { glyph: string; role: string }> = {
 	pending: { glyph: "○", role: "muted" },
@@ -48,6 +57,16 @@ function clip(text: string, width: number): string {
 	return `${out}…`;
 }
 
+/** One row's content, role-applied and clipped to `inner` columns: glyph,
+ * title and (for blocked rows) the note. Shared by the framed card and the
+ * sidebar section so the two placements cannot drift. */
+function taskRowContent(task: TodoTask, inner: number, fg: CardFg): string {
+	const look = GLYPHS[task.status];
+	const finished = task.status === "done" || task.status === "dropped";
+	const note = task.status === "blocked" && task.note ? fg("dim", `  · ${task.note}`) : "";
+	return clip(fg(look.role, look.glyph) + "  " + fg(finished ? "dim" : "text", task.title) + note, inner);
+}
+
 export interface CardOptions {
 	width: number;
 	now: number;
@@ -69,13 +88,7 @@ export function renderTodoCard(state: TodoState, opts: CardOptions, fg: CardFg):
 
 	const { listed, hidden } = cardRows(state.tasks, maxRows);
 	const body = state.tasks.slice(0, listed).map((task) => {
-		const look = GLYPHS[task.status];
-		const finished = task.status === "done" || task.status === "dropped";
-		const note = task.status === "blocked" && task.note ? fg("dim", `  · ${task.note}`) : "";
-		const content = clip(
-			fg(look.role, look.glyph) + "  " + fg(finished ? "dim" : "text", task.title) + note,
-			inner,
-		);
+		const content = taskRowContent(task, inner, fg);
 		const pad = " ".repeat(Math.max(0, inner - visibleWidth(content)));
 		return fg("borderAccent", "│ ") + content + pad + fg("borderAccent", " │");
 	});
@@ -87,4 +100,26 @@ export function renderTodoCard(state: TodoState, opts: CardOptions, fg: CardFg):
 
 	const bottom = fg("borderAccent", "╰" + "─".repeat(width - 2) + "╯");
 	return [top, ...body, bottom];
+}
+
+export interface SectionOptions {
+	/** The width the row content must fit (the sidebar's content width). */
+	width: number;
+	now: number;
+	/** Task rows before folding; defaults to 8. */
+	maxRows?: number;
+}
+
+/** The sidebar `TAREAS` section rows, content only (no frame): one line per
+ * shown task plus the fold line, clipped to `opts.width` columns. Empty when
+ * the list is empty or the hide window has passed — the same visibility rules
+ * and the same row/fold logic as the framed card (shared helpers). */
+export function todoSectionRows(state: TodoState, opts: SectionOptions, fg: CardFg): string[] {
+	if (!cardVisible(state, opts.now)) return [];
+	const width = Math.max(8, opts.width);
+	const maxRows = Math.max(1, opts.maxRows ?? CARD_MAX_ROWS);
+	const { listed, hidden } = cardRows(state.tasks, maxRows);
+	const rows = state.tasks.slice(0, listed).map((task) => taskRowContent(task, width, fg));
+	if (hidden > 0) rows.push(fg("dim", t.fold(hidden)));
+	return rows;
 }

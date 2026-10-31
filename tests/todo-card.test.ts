@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { cardVisible, renderTodoCard, TODO_HIDE_MS, type CardFg } from "../src/todo/card.ts";
+import { cardVisible, renderTodoCard, todoPlacement, todoSectionRows, TODO_HIDE_MS, type CardFg } from "../src/todo/card.ts";
+import { setLanguage } from "../src/i18n.ts";
 import { applyTodo, emptyTodo, type TodoState } from "../src/todo/store.ts";
 
 // Identity theme: roles must not change the visible text in layout tests.
@@ -111,4 +112,68 @@ test("renderTodoCard renders nothing once the hide window has passed", () => {
 	state = applyTodo(state, { action: "update", id: 3, status: "done" }, NOW).state;
 	assert.equal(renderTodoCard(state, { width: WIDTH, now: NOW + TODO_HIDE_MS + 1 }, plain).length, 0);
 	assert.ok(renderTodoCard(state, { width: WIDTH, now: NOW + 1 }, plain).length > 0);
+});
+
+// --- Sidebar section (T1/S2): the same rows the card draws, without the frame ---
+
+const SIDEBAR_INNER = 44 - 2; // sidebar width minus the divider column and one space
+
+test("todoSectionRows mirrors the card rows (glyphs, notes) at the given width", () => {
+	assert.deepEqual(todoSectionRows(taskList(), { width: SIDEBAR_INNER, now: NOW }, plain), [
+		"○  Write the parser",
+		"◐  Run tests",
+		"⏸  Deploy  · waiting for CI",
+	]);
+});
+
+test("todoSectionRows folds past 8 rows with the same `… N más` line as the card", () => {
+	let state = emptyTodo();
+	for (let i = 1; i <= 10; i++) state = applyTodo(state, { action: "add", title: `task ${i}` }, NOW).state;
+	const rows = todoSectionRows(state, { width: SIDEBAR_INNER, now: NOW }, plain);
+	assert.equal(rows.length, 9); // 8 task rows + fold
+	assert.equal(rows[7], "○  task 8");
+	assert.ok(!rows.some((r) => r.includes("task 9")));
+	assert.equal(rows[8], "… 2 más");
+});
+
+test("todoSectionRows returns nothing for an empty list or one settled past the hide window", () => {
+	assert.deepEqual(todoSectionRows(emptyTodo(), { width: SIDEBAR_INNER, now: NOW }, plain), []);
+	let state = taskList();
+	state = applyTodo(state, { action: "update", id: 1, status: "done" }, NOW).state;
+	state = applyTodo(state, { action: "update", id: 2, status: "done" }, NOW).state;
+	state = applyTodo(state, { action: "update", id: 3, status: "done" }, NOW).state;
+	assert.deepEqual(todoSectionRows(state, { width: SIDEBAR_INNER, now: NOW + TODO_HIDE_MS }, plain), []);
+	assert.ok(todoSectionRows(state, { width: SIDEBAR_INNER, now: NOW + 1 }, plain).length > 0);
+});
+
+test("todoSectionRows never exceeds the width it is given (sidebar-safe)", () => {
+	const long = "una tarea con un título extremadamente largo que no entra en el ancho de la barra lateral";
+	let state = emptyTodo();
+	state = applyTodo(state, { action: "add", title: long, status: "blocked", note: long }, NOW).state;
+	const rows = todoSectionRows(state, { width: SIDEBAR_INNER, now: NOW }, plain);
+	for (const line of rows) assert.ok(visibleWidth(line) <= SIDEBAR_INNER, `too wide: ${JSON.stringify(line)}`);
+	assert.match(rows[0]!, /…/);
+});
+
+test("todoPlacement: sidebar active renders the section, otherwise the above-editor widget", () => {
+	assert.equal(todoPlacement(true), "sidebar");
+	assert.equal(todoPlacement(false), "widget");
+});
+
+// --- English mode (S3): the original English card, rendered live --------------
+
+test("in English the todo card reads `Todo · N open · M done` and folds into `… N more`", () => {
+	try {
+		setLanguage("en");
+		const lines = renderTodoCard(taskList(), { width: WIDTH, now: NOW }, plain);
+		assert.equal(lines[0], "╭─ Todo · 3 open · 0 done " + "─".repeat(21) + "╮");
+		assert.match(lines[0]!, /Todo · 3 open · 0 done/);
+		let ten = emptyTodo();
+		for (let i = 1; i <= 10; i++) ten = applyTodo(ten, { action: "add", title: `task ${i}` }, NOW).state;
+		const folded = renderTodoCard(ten, { width: WIDTH, now: NOW }, plain);
+		assert.equal(folded[9], "│ " + "… 2 more" + " ".repeat(36) + " │");
+		assert.match(folded[0]!, /Todo · 10 open · 0 done/);
+	} finally {
+		setLanguage("es");
+	}
 });

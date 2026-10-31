@@ -157,7 +157,7 @@ export default function (pi: ExtensionAPI) {
 			const { definitions } = listDefinitions();
 			const definition = definitions.find((def) => def.name === params.agent);
 			if (!definition) {
-				const available = definitions.map((def) => def.name).join(", ") || "(ninguno)";
+				const available = definitions.map((def) => def.name).join(", ") || t.noneAvailable;
 				return {
 					content: [{ type: "text" as const, text: t.unknownAgent(params.agent, available) }],
 					details: { error: "unknown agent" },

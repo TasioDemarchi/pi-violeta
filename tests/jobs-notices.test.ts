@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatDuration, jobStatusText, listLine } from "../src/jobs/view.ts";
+import { formatDuration, indicatorLine, jobStatusText, listLine } from "../src/jobs/view.ts";
+import { setLanguage } from "../src/i18n.ts";
 import { jobExitNotice, jobStartText, monitorEventsNotice, monitorStartText, monitorStoppedNotice } from "../src/jobs/notices.ts";
 import type { JobRecord } from "../src/jobs/registry.ts";
 
@@ -110,4 +111,37 @@ test("monitorStoppedNotice says why", () => {
 		monitorStoppedNotice(job({ id: "job-2", kind: "monitor" }), "flood"),
 		"El monitor job-2 (build check) fue detenido: imprimió más de 120 líneas en 60 segundos. Salida completa: /tmp/violeta-jobs-123/job-1.log",
 	);
+});
+
+// --- English mode (S3): the original English notices, rendered live ------------
+
+test("in English the job texts are the original English words, including `jobs: N running`", () => {
+	try {
+		setLanguage("en");
+		assert.equal(jobStatusText(job({ status: "running" })), "running");
+		assert.equal(jobStatusText(job()), "exited with code 0");
+		assert.equal(jobStatusText(job({ exitCode: null, signal: "SIGTERM" })), "killed by signal SIGTERM");
+		assert.equal(jobStatusText(job({ status: "stopped" })), "stopped");
+		assert.equal(jobStatusText(job({ status: "failed", error: "spawn bash ENOENT" })), "failed: spawn bash ENOENT");
+		assert.equal(
+			jobStartText(job()),
+			"Started job job-1 (build check). Output: /tmp/violeta-jobs-123/job-1.log",
+		);
+		assert.equal(
+			monitorStartText(job({ id: "job-2", kind: "monitor", timeoutSeconds: 20 })),
+			"Started monitor job-2 (build check) for up to 20s. Output: /tmp/violeta-jobs-123/job-1.log",
+		);
+		assert.match(jobExitNotice(job()), /^Job job-1 \(build check\) exited with code 0 after 4s\.\nCommand: /);
+		assert.equal(
+			monitorEventsNotice(job({ id: "job-2", kind: "monitor" }), { lines: ["one"], dropped: 0 }),
+			["Monitor job-2 (build check) reported 1 new line:", "one"].join("\n"),
+		);
+		assert.equal(
+			monitorStoppedNotice(job({ id: "job-2", kind: "monitor", timeoutSeconds: 20 }), "timeout"),
+			"Monitor job-2 (build check) was stopped: it reached its 20s timeout. Full output: /tmp/violeta-jobs-123/job-1.log",
+		);
+		assert.equal(indicatorLine([job({ status: "running" }), job({ id: "job-3", status: "running" })]), "jobs: 2 running");
+	} finally {
+		setLanguage("es");
+	}
 });

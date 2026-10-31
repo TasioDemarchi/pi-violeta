@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { buildSidebarLines, contextBar, SIDEBAR_MAX_FILES, type SidebarData } from "../src/sidebar-content.ts";
+import { setLanguage } from "../src/i18n.ts";
+import { TODO_HIDE_MS } from "../src/todo/card.ts";
+import { applyTodo, emptyTodo, type TodoState } from "../src/todo/store.ts";
 
 // Identity theme: keeps exact text visible in assertions.
 const plain = (_role: string, text: string) => text;
@@ -16,6 +19,15 @@ const fullData: SidebarData = {
 const W = 60;
 const CW = W - 2; // divider + one space
 const row = (content: string) => "│ " + content + " ".repeat(CW - content.length);
+
+const NOW = 1_000_000;
+
+/** A todo list with the given pending titles. */
+function todoState(...titles: string[]): TodoState {
+	let state = emptyTodo();
+	for (const title of titles) state = applyTodo(state, { action: "add", title }, NOW).state;
+	return state;
+}
 
 test("renders every section with counts, file names, model and usage", () => {
 	const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
@@ -55,7 +67,7 @@ test("pads output to the terminal height so the divider spans full height", () =
 	assert.equal(lines[39], row(""));
 });
 
-test("caps the file list at 12 entries with an N-more line", () => {
+test("caps the file rows at 8: 7 names plus a dim … row when there are more", () => {
 	const created = Array.from({ length: 15 }, (_, i) => `f${i + 1}.txt`);
 	const lines = buildSidebarLines(
 		{ ...fullData, changes: { created, updated: [], deleted: [] } },
@@ -63,10 +75,79 @@ test("caps the file list at 12 entries with an N-more line", () => {
 		plain,
 	);
 	const fileLines = lines.filter((l) => /\+ f\d+\.txt/.test(l));
-	assert.equal(fileLines.length, SIDEBAR_MAX_FILES);
+	assert.equal(SIDEBAR_MAX_FILES, 8);
+	assert.equal(fileLines.length, 7);
 	assert.equal(fileLines[0], row("+ f1.txt"));
-	assert.equal(fileLines[SIDEBAR_MAX_FILES - 1], row("+ f12.txt"));
-	assert.ok(lines.includes(row("+3 más")));
+	assert.equal(fileLines[6], row("+ f7.txt"));
+	assert.ok(!fileLines.some((l) => l.includes("f8.txt")));
+	assert.ok(lines.includes(row("…")), "the 8th row must be the dim ellipsis");
+	assert.ok(!lines.includes(row("+7 más")), "the old +N más row must be gone");
+	// The counters line still shows the true totals.
+	assert.ok(lines.includes(row("+15 creados")));
+});
+
+test("exactly 8 files shows all 8 names with no ellipsis row", () => {
+	const created = Array.from({ length: 8 }, (_, i) => `g${i + 1}.txt`);
+	const lines = buildSidebarLines(
+		{ ...fullData, changes: { created, updated: [], deleted: [] } },
+		{ width: W, rows: 40 },
+		plain,
+	);
+	const fileLines = lines.filter((l) => /\+ g\d+\.txt/.test(l));
+	assert.equal(fileLines.length, 8);
+	assert.equal(fileLines[7], row("+ g8.txt"));
+	assert.ok(!lines.includes(row("…")));
+});
+
+test("renders the TAREAS section between CAMBIOS and MODELO with one row per task", () => {
+	const lines = buildSidebarLines({ ...fullData, todos: todoState("alpha", "beta"), now: NOW }, { width: W, rows: 40 }, plain);
+	const cambios = lines.findIndex((l) => l.includes("+1 creado"));
+	const tareas = lines.findIndex((l) => l.includes("TAREAS"));
+	const modelo = lines.findIndex((l) => l.includes("MODELO"));
+	assert.ok(cambios >= 0 && tareas > cambios && tareas < modelo, `TAREAS at ${tareas} between ${cambios} and ${modelo}`);
+	assert.ok(lines.includes(row("○  alpha")));
+	assert.ok(lines.includes(row("○  beta")));
+});
+
+test("the TAREAS section folds past 8 task rows with `… N más`", () => {
+	const titles = Array.from({ length: 10 }, (_, i) => `task ${i + 1}`);
+	const lines = buildSidebarLines({ ...fullData, todos: todoState(...titles), now: NOW }, { width: W, rows: 40 }, plain);
+	const tareas = lines.findIndex((l) => l.includes("TAREAS"));
+	const modelo = lines.findIndex((l) => l.includes("MODELO"));
+	const section = lines.slice(tareas + 1, modelo - 1); // exclude the blank line before MODELO
+	assert.equal(section.length, 9); // 8 task rows + fold
+	assert.equal(section[7], row("○  task 8"));
+	assert.ok(!section.some((l) => l.includes("task 9")));
+	assert.equal(section[8], row("… 2 más"));
+});
+
+test("the TAREAS section is hidden for an empty list or a list settled past one minute", () => {
+	const withoutTodos = buildSidebarLines(fullData, { width: W, rows: 40, now: NOW }, plain);
+	assert.ok(!withoutTodos.some((l) => l.includes("TAREAS")));
+	const empty = buildSidebarLines({ ...fullData, todos: emptyTodo() }, { width: W, rows: 40, now: NOW }, plain);
+	assert.ok(!empty.some((l) => l.includes("TAREAS")));
+
+	let settled = todoState("alpha", "beta");
+	settled = applyTodo(settled, { action: "update", id: 1, status: "done" }, NOW).state;
+	settled = applyTodo(settled, { action: "update", id: 2, status: "done" }, NOW + 1).state;
+	const settledAt = NOW + 1;
+	const inside = buildSidebarLines({ ...fullData, todos: settled, now: settledAt + 1 }, { width: W, rows: 40 }, plain);
+	assert.ok(inside.some((l) => l.includes("TAREAS")));
+	const outside = buildSidebarLines({ ...fullData, todos: settled, now: settledAt + TODO_HIDE_MS }, { width: W, rows: 40 }, plain);
+	assert.ok(!outside.some((l) => l.includes("TAREAS")));
+});
+
+test("TAREAS rows fit the real sidebar content width (44 columns minus padding)", () => {
+	const long = "una tarea con un título extremadamente largo que no entra en el ancho de la barra lateral";
+	const lines = buildSidebarLines(
+		{ ...fullData, todos: todoState(long, "corta"), now: NOW },
+		{ width: 44, rows: 40 },
+		plain,
+	);
+	for (const line of lines) assert.ok(visibleWidth(line) <= 44, `too wide: ${JSON.stringify(line)}`);
+	const longRow = lines.find((l) => l.includes("título extremadamente"));
+	assert.ok(longRow!.includes("…"), "the long title is clipped with an ellipsis");
+	assert.ok(lines.some((l) => l.includes("corta")));
 });
 
 test("a clean tree shows limpio and no file lines", () => {
@@ -125,4 +206,64 @@ test("contextBar fills proportionally and shows an empty bar for unknown usage",
 	assert.equal(contextBar(43), "████░░░░░░");
 	assert.equal(contextBar(96), "██████████");
 	assert.equal(contextBar(null), "░░░░░░░░░░");
+});
+
+// --- English mode (S3): the original English sidebar, rendered live ------------
+
+test("in English the sidebar shows PROJECT/CHANGES/MODEL/USAGE and `+1 created`", () => {
+	try {
+		setLanguage("en");
+		const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
+		assert.deepEqual(
+			lines.slice(0, 20),
+			[
+				row("PROJECT"),
+				row("violeta"),
+				row("/home/t/Documents/violeta"),
+				row("main"),
+				row(""),
+				row("CHANGES"),
+				row("+1 created"),
+				row("~2 updated"),
+				row("−1 deleted"),
+				row("+ new.txt"),
+				row("~ src/a.ts"),
+				row("~ b.ts"),
+				row("− old.ts"),
+				row(""),
+				row("MODEL"),
+				row("nan/deepseek-v4-flash"),
+				row("thinking off"),
+				row("ctx 43% ████░░░░░░ 43.2k/1.0M"),
+				row(""),
+				row("USAGE"),
+			],
+		);
+		// The TASKS section header in English, with the todo list present.
+		const withTodos = buildSidebarLines({ ...fullData, todos: todoState("alpha"), now: NOW }, { width: W, rows: 40 }, plain);
+		assert.ok(withTodos.some((l) => l.includes("TASKS")), "the TAREAS section renders in English as TASKS");
+		assert.ok(withTodos.includes(row("○  alpha")));
+	} finally {
+		setLanguage("es");
+	}
+});
+
+test("in English a clean tree says `clean` and a missing repo says `no repo`", () => {
+	try {
+		setLanguage("en");
+		const clean = buildSidebarLines(
+			{ ...fullData, changes: { created: [], updated: [], deleted: [] } },
+			{ width: W, rows: 40 },
+			plain,
+		);
+		assert.ok(clean.includes(row("clean")));
+		const noRepo = buildSidebarLines(
+			{ ...fullData, project: { name: "violeta", path: "/home/t/Documents/violeta", branch: null }, changes: null },
+			{ width: W, rows: 40 },
+			plain,
+		);
+		assert.ok(noRepo.includes(row("no repo")));
+	} finally {
+		setLanguage("es");
+	}
 });

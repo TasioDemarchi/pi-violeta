@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cardMaxRows, cardTasks, formatElapsed, renderAgentsCard, type CardFg } from "../src/agents/card.ts";
+import { setLanguage } from "../src/i18n.ts";
 import type { AgentTask } from "../src/agents/store.ts";
 
 // Identity theme: roles must not change the visible text in layout tests.
@@ -156,4 +157,28 @@ test("the card folds overflow into one `… N más · alt+a para ver` row and ke
 	const two = renderAgentsCard(tasks, { width: 60, rows: 16, now, viewKey: "alt+a" }, plain);
 	assert.ok(two[1]!.includes("hello"), two[1]);
 	assert.ok(two[2]!.includes("… 3 más · alt+a para ver"), two[2]);
+});
+
+// --- English mode (S3): the original English card, rendered live --------------
+
+test("in English the card reads `Agents · N active · M done` with a queued row and `… N more · alt+a to view`", () => {
+	try {
+		setLanguage("en");
+		const queued = renderAgentsCard([task({ id: "a", status: "queued", startedAt: 0 })], { width: 40, now: 5_000 }, plain);
+		assert.equal(queued[0], "╭─ Agents · 1 active · 0 done " + "─".repeat(4) + " 5s ─╮");
+		assert.equal(queued[1], "│ ◌  hello" + " ".repeat(14) + "probe · queued │");
+
+		const now = 10_000;
+		const tasks = [
+			task({ id: "done1", status: "completed", endedAt: now - 1_000 }),
+			task({ id: "done2", status: "completed", endedAt: now - 2_000 }),
+			task({ id: "run1", status: "running" }),
+			task({ id: "queue1", status: "queued" }),
+		];
+		const folded = renderAgentsCard(tasks, { width: 60, rows: 12, now, viewKey: "alt+a" }, plain);
+		assert.equal(folded[0], "╭─ Agents · 2 active · 2 done " + "─".repeat(23) + " 10s ─╮");
+		assert.equal(folded[1], "│ … 4 more · alt+a to view" + " ".repeat(32) + " │");
+	} finally {
+		setLanguage("es");
+	}
 });

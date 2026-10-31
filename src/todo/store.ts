@@ -46,9 +46,6 @@ export interface TodoResult {
 	error?: string;
 }
 
-const STATUS_LIST = t.statusList;
-const BLOCKED_NEEDS_NOTE = t.blockedNeedsNote;
-
 export function emptyTodo(): TodoState {
 	return { tasks: [], nextId: 1 };
 }
@@ -102,7 +99,7 @@ function buildTask(input: TodoTaskInput, id: number): TodoTask | string {
 	const status = input.status === undefined || input.status === "" ? "pending" : parseStatus(input.status);
 	if (!status) return t.unknownStatus(String(input.status));
 	const note = cleanText(input.note);
-	if (status === "blocked" && note.length === 0) return BLOCKED_NEEDS_NOTE;
+	if (status === "blocked" && note.length === 0) return t.blockedNeedsNote;
 	return { id, title, status, ...(note ? { note } : {}) };
 }
 

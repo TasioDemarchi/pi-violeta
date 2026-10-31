@@ -23,6 +23,7 @@ import { Type } from "typebox";
 import { cardVisible, renderTodoCard, TODO_HIDE_MS, type CardFg } from "../src/todo/card.ts";
 import { TODO_ENTRY_TYPE, replayTodo, todoSnapshot } from "../src/todo/persist.ts";
 import { applyTodo, doneCount, emptyTodo, openCount, type TodoParams, type TodoState } from "../src/todo/store.ts";
+import { getShared, setShared, subscribeShared } from "../src/shared-hub.ts";
 import { todo as t } from "../src/i18n.ts";
 
 const WIDGET_KEY = "todo-card";
@@ -52,6 +53,12 @@ export default function (pi: ExtensionAPI) {
 
 	function requestRender(): void {
 		tuiRef?.requestRender();
+	}
+
+	/** Publish the list and the /todo flag to the shared hub, so violeta-ui can
+	 * draw the TAREAS section when the sidebar owns the card (T1/S2). */
+	function publishTodo(): void {
+		setShared({ todoState: state, todoVisible: visible });
 	}
 
 	/** One-shot tick when the hide window closes; only armed while it is pending. */
@@ -124,6 +131,7 @@ export default function (pi: ExtensionAPI) {
 			state = result.state;
 			if (params.action !== "list") pi.appendEntry(TODO_ENTRY_TYPE, todoSnapshot(state));
 			armHideTimer();
+			publishTodo();
 			requestRender();
 			return {
 				content: [{ type: "text" as const, text: result.text }],
@@ -137,6 +145,7 @@ export default function (pi: ExtensionAPI) {
 		handler: async (_args: string, ctx: ExtensionContext) => {
 			visible = !visible;
 			if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.notify(visible ? t.shown : t.hidden, "info");
+			publishTodo();
 			requestRender();
 		},
 	});
@@ -146,12 +155,17 @@ export default function (pi: ExtensionAPI) {
 		// /resume brings the list back and /new (no entries yet) starts empty.
 		state = replayTodo(ctx.sessionManager.getBranch());
 		visible = true;
+		publishTodo();
 		if (ctx.mode !== "tui" || !ctx.hasUI) return;
+		// Re-render when the sidebar flag flips (/sidebar toggle, resize across
+		// the width threshold): the widget must yield to the TAREAS section and
+		// come back without a restart.
+		const unsubShared = subscribeShared(() => requestRender());
 		ctx.ui.setWidget(
 			WIDGET_KEY,
 			(tui, theme) => {
 				tuiRef = tui;
-				return todoCardComponent(theme);
+				return todoCardComponent(theme, () => unsubShared());
 			},
 			{ placement: "aboveEditor" },
 		);
@@ -159,13 +173,19 @@ export default function (pi: ExtensionAPI) {
 		void event;
 	});
 
-	function todoCardComponent(theme: Theme): Component {
+	function todoCardComponent(theme: Theme, onDispose?: () => void): Component {
 		const fg: CardFg = (role, text) => theme.fg(role as ThemeColor, text);
 		return {
 			invalidate() {},
+			dispose() {
+				onDispose?.();
+			},
 			render(width: number): string[] {
 				try {
 					if (!visible) return [];
+					// While the sidebar is active the TAREAS section inside the
+					// sidebar owns the card; draw nothing above the editor.
+					if (getShared().sidebarActive === true) return [];
 					const now = Date.now();
 					if (!cardVisible(state, now)) return [];
 					const lines = renderTodoCard(state, { width, now }, fg);
@@ -183,6 +203,7 @@ export default function (pi: ExtensionAPI) {
 		stopHideTimer();
 		state = emptyTodo();
 		visible = true;
+		publishTodo();
 		tuiRef = undefined;
 		if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.setWidget(WIDGET_KEY, undefined);
 	});

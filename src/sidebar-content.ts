@@ -1,6 +1,8 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { fmtCost, fmtPercent, fmtTokens } from "./format.ts";
 import { sidebar as t } from "./i18n.ts";
+import { todoSectionRows } from "./todo/card.ts";
+import type { TodoState } from "./todo/store.ts";
 
 export type Fg = (role: string, text: string) => string;
 
@@ -8,6 +10,10 @@ export interface SidebarData {
 	project: { name: string; path: string; branch?: string | null };
 	/** null when the directory is not inside a git repository */
 	changes: { created: string[]; updated: string[]; deleted: string[] } | null;
+	/** The current todo list; the TAREAS section renders between CAMBIOS and MODELO (T1/S2). */
+	todos?: TodoState | null;
+	/** Clock for the todo hide rules; defaults to Date.now(). */
+	now?: number;
 	model: {
 		id?: string;
 		thinking?: string;
@@ -17,7 +23,9 @@ export interface SidebarData {
 	usage: { tokensIn: number; tokensOut: number; cost: number };
 }
 
-export const SIDEBAR_MAX_FILES = 12;
+/** File rows under CAMBIOS: 8 rows total — 7 names plus a dim `…` when more
+ * than 8 files exist; all of them (no ellipsis) when there are 8 or fewer. */
+export const SIDEBAR_MAX_FILES = 8;
 const BAR_SLOTS = 10;
 
 /** A 10-slot usage bar; unknown usage renders an empty bar. */
@@ -31,7 +39,11 @@ export function contextBar(percent: number | null): string {
  * padded to `width`, and the output is padded to `rows` so the divider spans
  * the whole terminal height.
  */
-export function buildSidebarLines(data: SidebarData, opts: { width: number; rows: number; maxFiles?: number }, fg: Fg): string[] {
+export function buildSidebarLines(
+	data: SidebarData,
+	opts: { width: number; rows: number; maxFiles?: number; maxTodoRows?: number },
+	fg: Fg,
+): string[] {
 	const width = Math.max(3, opts.width);
 	const contentWidth = width - 2;
 	const rows = Math.max(1, opts.rows);
@@ -60,17 +72,30 @@ export function buildSidebarLines(data: SidebarData, opts: { width: number; rows
 			if (created.length) push(fg("success", t.created(created.length)));
 			if (updated.length) push(fg("warning", t.updated(updated.length)));
 			if (deleted.length) push(fg("error", t.deleted(deleted.length)));
-			const max = Math.max(0, opts.maxFiles ?? SIDEBAR_MAX_FILES);
+			const max = Math.max(1, opts.maxFiles ?? SIDEBAR_MAX_FILES);
 			const files: Array<[marker: "+" | "~" | "−", name: string]> = [
 				...created.map((f) => ["+", f] as const),
 				...updated.map((f) => ["~", f] as const),
 				...deleted.map((f) => ["−", f] as const),
 			];
-			for (const [marker, name] of files.slice(0, max)) {
+			const overflow = files.length > max;
+			for (const [marker, name] of files.slice(0, overflow ? max - 1 : max)) {
 				push(fg(marker === "+" ? "success" : marker === "~" ? "warning" : "error", `${marker} ${name}`));
 			}
-			if (files.length > max) push(fg("dim", t.more(files.length - max)));
+			if (overflow) push(fg("dim", t.ellipsis));
 		}
+	}
+
+	// TAREAS — the todo list as a section inside the sidebar (T1/S2); the same
+	// row, fold and hide rules as the above-editor card (shared helpers in
+	// src/todo/card.ts). Hidden entirely when there is nothing to show.
+	const todoRows = data.todos
+		? todoSectionRows(data.todos, { width: contentWidth, now: data.now ?? Date.now(), maxRows: opts.maxTodoRows }, fg)
+		: [];
+	if (todoRows.length > 0) {
+		push("");
+		push(fg("accent", t.tasks));
+		for (const line of todoRows) push(line);
 	}
 
 	// MODELO
