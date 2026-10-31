@@ -25,9 +25,15 @@ the work to where it belongs.
 
 ## What you receive
 
-The feature document path, and the requirements the user stated. Read the
-document down to `## Log` before writing anything. The user's quoted strings,
-error messages and examples are **exact**: carry them into the specs verbatim.
+The feature document path, and the requirements the user stated. Before writing,
+read its header and `## Specs` — the parts a plan actually depends on. Skip the
+reasoning sections beyond that unless a requirement is unclear; they are the
+record, not the contract. The user's quoted strings, error messages and
+examples are **exact**: carry them into the specs verbatim.
+
+Anything that constrains implementation belongs **inside** a spec's `Accept` or
+in its task, never only in prose elsewhere: whoever builds it reads the specs
+and will not see a good intention written somewhere else.
 
 ## What you write
 

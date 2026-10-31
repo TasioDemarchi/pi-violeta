@@ -135,6 +135,12 @@ L1. <the user's original request, verbatim>
 L2. <corrections, evidence, rationale, appended over time>
 ```
 
+- **Workers read the header, `## Specs` and their own task row — nothing else.**
+  Anything else in the document is the record: it is paid for on every turn of
+  every worker that loads it. So **any decision that constrains implementation
+  belongs inside a spec's `Accept` or in its task**, never only in a prose
+  section, or the worker who builds it will never see it. The spec judge is the
+  only reader that takes the whole document.
 - **Never paraphrase the user.** Handoffs pass the document path, the task ID
   and its `S#` — never a retelling.
 - A requirement change rewrites only the affected spec and reopens only its

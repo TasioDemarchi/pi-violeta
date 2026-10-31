@@ -50,7 +50,9 @@ reporting it anyway is how four focused reviews turn into four generic ones.
   was possible; two specs that contradict each other; a task covering no `S#`
   or an `S#` no task covers; anything ambiguous enough that a mechanical writer
   would have to guess. This lens reads the feature document, **not a diff**:
-  skip the git steps below and read the document whole, down to `## Log`.
+  skip the git steps below and read the document **whole, down to `## Log`** —
+  unlike every other reader, checking whether the plan is coherent is exactly
+  the job, so the reasoning sections are in scope for you and nowhere else.
 
 ## What counts as a finding
 

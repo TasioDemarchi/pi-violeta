@@ -56,12 +56,12 @@ The engine is neutral, so a philosophy enters in exactly one place, as data: a m
 
 The repo ships three: **`odd`** (the default — proportional work, one feature document, ceilings, blind review), **`scout`** (research and learning, read-only) and **`vault`** (notes and ideas, no code). `agents/` and `modes/` live in git and are synced into `~/.violeta/agent/` on every start, so the philosophy survives a reinstall; files you add there yourself are left alone.
 
-**`architect`** is the only agent that costs money; everything else runs on the flat-rate cluster, whose allowances are large enough that a heavy day of iterating spends a few percent of one pool. Roles are therefore assigned by fit, not by pool:
+**No agent costs money** — Claude is reached only by raising the session model with `/models`. Everything runs on the flat-rate cluster, whose allowances are large enough that a heavy day of iterating spends a few percent of one pool. Roles are therefore assigned by fit, not by pool:
 
 | Role | Model | Chosen because |
 | :--- | :--- | :--- |
 | Orchestrator (`odd`) | `deepseek-v4-flash` | the one model with reports praising its natural-language handling, and ~3x the output speed, which matters while talking |
-| `architect` (specs, decomposition) | `claude-bridge/claude-opus-5` | judgment, called once or twice per feature |
+| `architect` (specs, decomposition) | `deepseek-v4-flash` | judgment-heavy but unmetered; Claude is reached only by raising the session model |
 | `planner` (specs already clear) | `deepseek-v4-flash` | structures what was stated; GLM is reported not to reason holistically |
 | `scout` | `deepseek-v4-flash` | general workhorse, 1M context |
 | `builder` | `glm5.3-flash` | reported to execute a detailed plan well |

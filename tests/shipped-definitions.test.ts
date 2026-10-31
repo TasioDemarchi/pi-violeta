@@ -100,13 +100,24 @@ test("raw and vault expose no agents", () => {
 	assert.deepEqual(found.find((m) => m.name === "vault")!.agents, []);
 });
 
-test("architect is the only agent on the metered plan", () => {
-	// The whole cost argument of this harness is that judgment runs on Claude and
-	// volume runs on the flat-rate cluster. A second metered agent appearing by
-	// accident is exactly the regression worth pinning.
+test("no agent is on the metered plan", () => {
+	// ODD runs entirely on the flat-rate cluster; Claude is reached only by the
+	// user raising the session model by hand. An agent creeping back onto the
+	// metered plan would spend money nobody chose to spend.
 	const metered = agents().definitions.filter((d) => d.model.startsWith("claude-bridge/"));
-	assert.deepEqual(metered.map((d) => d.name), ["architect"]);
-	assert.ok(metered[0]!.maxTokens! <= 500_000, "the metered agent needs a tight ceiling");
+	assert.deepEqual(metered.map((d) => d.name), []);
+});
+
+test("every worker reads only the spec surface, and the record stays thin", () => {
+	// A worker that loads the whole document pays for the record on every turn,
+	// and the reasoning sections are the part that grows.
+	for (const name of ["builder", "planner", "verifier"]) {
+		const def = agents().definitions.find((d) => d.name === name)!;
+		assert.match(def.prompt, /skip it|Skip the reasoning|Skip the/i, `${name}: no read narrowing`);
+	}
+	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
+	assert.match(odd, /any decision that constrains implementation/i);
+	assert.match(odd, /only reader that takes the whole document/i);
 });
 
 test("the orchestrator and the writer never share a quota pool", () => {

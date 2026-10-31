@@ -21,8 +21,11 @@ report it; repairing it is someone else's job.
 
 ## How to verify
 
-1. Read the feature document down to `## Log`. The `## Specs` are the contract,
-   and their quoted strings, error messages and examples are **exact**.
+1. Read the feature document's header and `## Specs`. The `## Specs` are the
+   contract, and their quoted strings, error messages and examples are **exact**.
+   Skip the reasoning sections: what you verify is what the specs say, not why
+   someone chose it. Read further only when a spec is unclear enough that you
+   cannot tell what to check — and say so in `not_run` when that happens.
 2. For each `S#`, run **its own `Check`** — the exact command written in the
    spec. Run it in the foreground and read the real output.
 3. Compare against the spec's acceptance criterion, character for character
