@@ -55,7 +55,18 @@ The engine is neutral, so a philosophy enters in exactly one place, as data: a m
 
 The repo ships three: **`odd`** (the default — proportional work, one feature document, ceilings, blind review), **`scout`** (research and learning, read-only) and **`vault`** (notes and ideas, no code). `agents/` and `modes/` live in git and are synced into `~/.violeta/agent/` on every start, so the philosophy survives a reinstall; files you add there yourself are left alone.
 
-The roster splits by cost: **`architect`** runs on Claude and is called only for decisions that are expensive to get wrong downstream, while **`scout`**, **`builder`**, **`fixer`**, **`verifier`** and the two blind judges run on the flat-rate cluster — the judges on the two uncounted models, so a second opinion is free.
+The roster splits by cost: **`architect`** runs on Claude and is called only for decisions that are expensive to get wrong downstream, while everything else runs on the flat-rate cluster. Each NaN model carries its own monthly allowance, so roles are placed to keep the heavy ones off each other's pool — the orchestrator and the writer above all, since those two consume the most.
+
+| Role | Model | Pool |
+| :--- | :--- | :--- |
+| Orchestrator (`odd`) | `deepseek-v4-flash` | 3B/mo |
+| `builder` | `glm5.3-flash` | 2B/mo |
+| `scout` | `mimo-v2.6-flash` | 1B/mo |
+| `fixer`, `verifier` | `qwen3.8-flash` | 500M/mo, both rare |
+| `judge-a`, `judge-b` | `qwen3.6`, `gemma4` | uncounted — a second opinion is free |
+| `architect` | `claude-bridge/claude-opus-5` | metered, tightest ceiling |
+
+`config/models.json` is the catalogue for the **nan_member** plan. `glm5.3` (as opposed to `glm5.3-flash`) belongs to the 200 EUR premium tier and is deliberately absent: a model that is real but out of plan fails at request time rather than at startup, so a test pins its absence.
 
 ## Subagents
 

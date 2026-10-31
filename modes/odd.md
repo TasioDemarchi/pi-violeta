@@ -1,7 +1,7 @@
 ---
 name: odd
 description: Organic Driven Development — work proportional to the request, ceilings enforced
-model: nan/glm5.3
+model: nan/deepseek-v4-flash
 agents: [scout, architect, builder, fixer, judge-a, judge-b, verifier]
 ---
 

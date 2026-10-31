@@ -1,7 +1,7 @@
 ---
 name: fixer
 description: Applies only confirmed review findings. Adds nothing, improves nothing, refactors nothing.
-model: nan/mimo-v2.6-flash
+model: nan/qwen3.8-flash
 thinking: medium
 maxTurns: 20
 maxTokens: 2000000

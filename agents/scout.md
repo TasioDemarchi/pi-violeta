@@ -1,7 +1,7 @@
 ---
 name: scout
 description: Read-only explorer. Maps code and returns a dense brief with path:line evidence. Never edits.
-model: nan/deepseek-v4-flash
+model: nan/mimo-v2.6-flash
 thinking: medium
 maxTurns: 25
 maxTokens: 3000000

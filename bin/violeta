@@ -14,7 +14,7 @@ if [ ! -f "$PI_CODING_AGENT_DIR/settings.json" ]; then
   "theme": "violeta",
   "quietStartup": true,
   "defaultProvider": "nan",
-  "defaultModel": "glm5.3",
+  "defaultModel": "deepseek-v4-flash",
   "packages": ["$ROOT"]
 }
 JSON

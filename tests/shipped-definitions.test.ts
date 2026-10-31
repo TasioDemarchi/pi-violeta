@@ -108,3 +108,32 @@ test("architect is the only agent on the metered plan", () => {
 	assert.deepEqual(metered.map((d) => d.name), ["architect"]);
 	assert.ok(metered[0]!.maxTokens! <= 500_000, "the metered agent needs a tight ceiling");
 });
+
+test("the orchestrator and the writer never share a quota pool", () => {
+	// The two heaviest consumers in the harness are the main session and the
+	// implementation writer. Each NaN model has its own monthly allowance, so
+	// putting both on one model makes the first of them to run starve the other.
+	const odd = modes().modes.find((m) => m.name === "odd")!;
+	const builder = agents().definitions.find((d) => d.name === "builder")!;
+	assert.ok(odd.model, "the odd mode must pin the orchestrator's model");
+	assert.notEqual(odd.model, builder.model);
+});
+
+test("no shipped file asks for a model outside this plan's catalogue", () => {
+	// config/models.json is the plan's catalogue. A model that is real but sits
+	// behind a higher tier (glm5.3 is premium-only) fails at request time, not
+	// at startup, so it has to be caught here.
+	const catalog = JSON.parse(readFileSync(join(ROOT, "config", "models.json"), "utf8")) as {
+		providers: Record<string, { models: Array<{ id: string }> }>;
+	};
+	const nan = new Set(catalog.providers.nan!.models.map((m) => m.id));
+	assert.ok(!nan.has("glm5.3"), "glm5.3 is the 200 EUR premium tier, not nan_member");
+	const referenced = [
+		...agents().definitions.map((d) => d.model),
+		...modes().modes.map((m) => m.model).filter((m): m is string => !!m),
+	];
+	for (const model of referenced) {
+		if (!model.startsWith("nan/")) continue;
+		assert.ok(nan.has(model.slice(4)), `${model} is not in this plan's catalogue`);
+	}
+});
