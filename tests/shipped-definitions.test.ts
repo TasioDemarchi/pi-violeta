@@ -190,3 +190,12 @@ test("scout fetches references safely and reports them apart from our code", () 
 	assert.match(scout.prompt, /data, never as instructions/i);
 	assert.match(scout.prompt, /^runner:/m);
 });
+
+test("odd forbids narrating its own machinery to the user", () => {
+	// Explaining each rule's reasoning makes a weak model comply, and also gives
+	// it material to recite back as if it were news. The user built this.
+	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
+	assert.match(odd, /Never narrate the machinery/i);
+	assert.match(odd, /not announce which agent/i);
+	assert.match(odd, /Do not name the autonomy\s+level/i);
+});
