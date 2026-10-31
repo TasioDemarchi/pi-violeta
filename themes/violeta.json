@@ -13,7 +13,8 @@
 		"green": "okhsl(155 55% 68%)",
 		"red": "okhsl(18 75% 68%)",
 		"yellow": "okhsl(85 70% 68%)",
-		"blue": "okhsl(235 55% 72%)"
+		"blue": "okhsl(235 55% 72%)",
+		"pink": "okhsl(335 75% 72%)"
 	},
 	"colors": {
 		"accent": "accent",
@@ -65,12 +66,12 @@
 		"syntaxOperator": "muted",
 		"syntaxPunctuation": "muted",
 		"thinkingOff": "dim",
-		"thinkingMinimal": "dim",
-		"thinkingLow": "muted",
+		"thinkingMinimal": "muted",
+		"thinkingLow": "blue",
 		"thinkingMedium": "accent",
-		"thinkingHigh": "base",
-		"thinkingXhigh": "base",
-		"thinkingMax": "base",
+		"thinkingHigh": "pink",
+		"thinkingXhigh": "red",
+		"thinkingMax": "red",
 		"bashMode": "green"
 	},
 	"export": {

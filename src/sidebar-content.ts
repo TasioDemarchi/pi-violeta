@@ -2,6 +2,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { contextRole } from "./context-warning.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "./format.ts";
 import { sidebar as t } from "./i18n.ts";
+import { modelWithThinking } from "./thinking.ts";
 import { todoSectionRows } from "./todo/card.ts";
 import type { TodoState } from "./todo/store.ts";
 
@@ -102,8 +103,7 @@ export function buildSidebarLines(
 	// MODELO
 	push("");
 	push(fg("accent", t.model));
-	push(data.model.id ? fg("text", data.model.id) : fg("dim", t.noModel));
-	if (data.model.thinking) push(fg("muted", `thinking ${data.model.thinking}`));
+	push(modelWithThinking(data.model.id, data.model.thinking, fg, t.noModel));
 	const ctx = data.model.context;
 	if (ctx) {
 		const pct = ctx.percent == null ? "?" : fmtPercent(ctx.percent / 100);

@@ -32,7 +32,7 @@ function todoState(...titles: string[]): TodoState {
 test("renders every section with counts, file names, model and usage", () => {
 	const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
 	assert.deepEqual(
-		lines.slice(0, 20),
+		lines.slice(0, 19),
 		[
 			row("PROYECTO"),
 			row("violeta"),
@@ -49,15 +49,14 @@ test("renders every section with counts, file names, model and usage", () => {
 			row("− old.ts"),
 			row(""),
 			row("MODELO"),
-			row("nan/deepseek-v4-flash"),
-			row("thinking off"),
+			row("nan/deepseek-v4-flash · off"),
 			row("ctx 43% ████░░░░░░ 43.2k/1.0M"),
 			row(""),
 			row("USO"),
 		],
 	);
-	assert.equal(lines[20], row("↑1.5k ↓2.4M"));
-	assert.equal(lines[21], row("$0.05"));
+	assert.equal(lines[19], row("↑1.5k ↓2.4M"));
+	assert.equal(lines[20], row("$0.05"));
 });
 
 test("pads output to the terminal height so the divider spans full height", () => {
@@ -251,7 +250,7 @@ test("in English the sidebar shows PROJECT/CHANGES/MODEL/USAGE and `+1 created`"
 		setLanguage("en");
 		const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
 		assert.deepEqual(
-			lines.slice(0, 20),
+			lines.slice(0, 19),
 			[
 				row("PROJECT"),
 				row("violeta"),
@@ -268,8 +267,7 @@ test("in English the sidebar shows PROJECT/CHANGES/MODEL/USAGE and `+1 created`"
 				row("− old.ts"),
 				row(""),
 				row("MODEL"),
-				row("nan/deepseek-v4-flash"),
-				row("thinking off"),
+				row("nan/deepseek-v4-flash · off"),
 				row("ctx 43% ████░░░░░░ 43.2k/1.0M"),
 				row(""),
 				row("USAGE"),

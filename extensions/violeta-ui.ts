@@ -6,6 +6,7 @@ import { truncateToWidth, visibleWidth, type Component, type TUI } from "@earend
 import { type ChangeFiles, readChangesFiles } from "../src/changes.ts";
 import { activityLine, phaseForTool } from "../src/activity.ts";
 import { contextRole, createCompactWarner } from "../src/context-warning.ts";
+import { modelWithThinking } from "../src/thinking.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "../src/format.ts";
 import { buildSidebarLines, type SidebarData } from "../src/sidebar-content.ts";
 import { readSidebarEnabled, writeSidebarEnabled } from "../src/sidebar-state.ts";
@@ -393,7 +394,7 @@ export default function (pi: ExtensionAPI) {
 
 					const usage = ctx.getContextUsage();
 					const modelId = ctx.model && ctx.model.id !== "unknown" ? ctx.model.id : undefined;
-					const right: string[] = [modelId ? theme.fg("text", modelId) : theme.fg("dim", t.noModel)];
+					const right: string[] = [modelWithThinking(modelId, pi.getThinkingLevel(), (role, text) => theme.fg(role as ThemeColor, text), t.noModel)];
 					if (usage?.percent != null) {
 						const percent = effectivePercent(usage.percent) ?? usage.percent;
 						warnCompact(percent);

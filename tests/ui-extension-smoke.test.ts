@@ -84,6 +84,7 @@ test("with the sidebar on, the sidebar column renders real content and the foote
 		assert.ok(lines.length > 3, `sidebar must not be empty, got: ${JSON.stringify(lines)}`);
 		assert.ok(!text.includes("sidebar:"), `sidebar render threw: ${text}`);
 		assert.match(text, /PROYECTO/);
+		assert.match(text, /nan\/test-model · medium/);
 		assert.match(text, /ctx 42%/);
 		assert.deepEqual(footer.render(140), [], "the footer paints nothing while the sidebar is active");
 	} finally {
@@ -97,7 +98,7 @@ test("with the sidebar off, the footer shows project, model and ctx", async () =
 	const footer = await start(env);
 	try {
 		const text = footer.render(140).join("\n");
-		assert.match(text, /nan\/test-model/);
+		assert.match(text, /nan\/test-model · medium/);
 		assert.match(text, /ctx 42%/);
 	} finally {
 		(footer as unknown as { dispose?(): void }).dispose?.();
