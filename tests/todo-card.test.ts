@@ -126,14 +126,23 @@ test("todoSectionRows mirrors the card rows (glyphs, notes) at the given width",
 	]);
 });
 
-test("todoSectionRows folds past 8 rows with the same `… N más` line as the card", () => {
+test("todoSectionRows shows 5 task rows and then a bare `…` row (compact sidebar)", () => {
 	let state = emptyTodo();
 	for (let i = 1; i <= 10; i++) state = applyTodo(state, { action: "add", title: `task ${i}` }, NOW).state;
 	const rows = todoSectionRows(state, { width: SIDEBAR_INNER, now: NOW }, plain);
-	assert.equal(rows.length, 9); // 8 task rows + fold
-	assert.equal(rows[7], "○  task 8");
-	assert.ok(!rows.some((r) => r.includes("task 9")));
-	assert.equal(rows[8], "… 2 más");
+	assert.equal(rows.length, 6); // 5 task rows + the ellipsis row
+	assert.equal(rows[4], "○  task 5");
+	assert.ok(!rows.some((r) => r.includes("task 6")));
+	assert.equal(rows[5], "…");
+});
+
+test("todoSectionRows shows exactly 5 rows with no ellipsis when there are 5", () => {
+	let state = emptyTodo();
+	for (let i = 1; i <= 5; i++) state = applyTodo(state, { action: "add", title: `task ${i}` }, NOW).state;
+	const rows = todoSectionRows(state, { width: SIDEBAR_INNER, now: NOW }, plain);
+	assert.equal(rows.length, 5);
+	assert.equal(rows[4], "○  task 5");
+	assert.ok(!rows.includes("…"));
 });
 
 test("todoSectionRows returns nothing for an empty list or one settled past the hide window", () => {

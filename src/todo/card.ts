@@ -70,7 +70,7 @@ function taskRowContent(task: TodoTask, inner: number, fg: CardFg): string {
 export interface CardOptions {
 	width: number;
 	now: number;
-	/** Task rows before folding; defaults to 8. */
+	/** Task rows before folding; defaults to SIDEBAR_MAX_TASK_ROWS. */
 	maxRows?: number;
 }
 
@@ -110,16 +110,21 @@ export interface SectionOptions {
 	maxRows?: number;
 }
 
+/** Task rows the sidebar section shows before folding. The section is tighter
+ * than the card above the editor: it shares the screen with CAMBIOS/MODELO. */
+export const SIDEBAR_MAX_TASK_ROWS = 5;
+
 /** The sidebar `TAREAS` section rows, content only (no frame): one line per
- * shown task plus the fold line, clipped to `opts.width` columns. Empty when
+ * shown task plus a bare `…` fold line (no count: the sidebar is compact and
+ * the count is one `/todo` away), clipped to `opts.width` columns. Empty when
  * the list is empty or the hide window has passed — the same visibility rules
- * and the same row/fold logic as the framed card (shared helpers). */
+ * as the framed card. */
 export function todoSectionRows(state: TodoState, opts: SectionOptions, fg: CardFg): string[] {
 	if (!cardVisible(state, opts.now)) return [];
 	const width = Math.max(8, opts.width);
-	const maxRows = Math.max(1, opts.maxRows ?? CARD_MAX_ROWS);
+	const maxRows = Math.max(1, opts.maxRows ?? SIDEBAR_MAX_TASK_ROWS);
 	const { listed, hidden } = cardRows(state.tasks, maxRows);
 	const rows = state.tasks.slice(0, listed).map((task) => taskRowContent(task, width, fg));
-	if (hidden > 0) rows.push(fg("dim", t.fold(hidden)));
+	if (hidden > 0) rows.push(fg("dim", t.ellipsis));
 	return rows;
 }

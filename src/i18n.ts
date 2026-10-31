@@ -174,6 +174,7 @@ const es = {
 			return `Tareas · ${plural(open, "abierta", "abiertas")} · ${plural(done, "hecha", "hechas")}`;
 		},
 		fold: (n: number) => `… ${n} más`,
+		ellipsis: "…",
 		empty: "Sin tareas.",
 		blockedNeedsNote: "una tarea bloqueada necesita una nota que diga qué espera",
 		titleRequired: "falta el título",
@@ -235,6 +236,9 @@ const es = {
 	},
 	sidebar: {
 		project: "PROYECTO",
+		created: (n: number) => `+${n} ${n === 1 ? "creado" : "creados"}`,
+		updated: (n: number) => `~${n} ${n === 1 ? "modificado" : "modificados"}`,
+		deleted: (n: number) => `−${n} ${n === 1 ? "eliminado" : "eliminados"}`,
 		changes: "CAMBIOS",
 		/** TAREAS section header (the todo list inside the sidebar, T1/S2). */
 		tasks: "TAREAS",
@@ -451,6 +455,7 @@ const en: typeof es = {
 	todo: {
 		cardTitle: (open: number, done: number) => `Todo · ${open} open · ${done} done`,
 		fold: (n: number) => `… ${n} more`,
+		ellipsis: "…",
 		empty: "No tasks.",
 		blockedNeedsNote: "blocked needs a note naming what it waits for",
 		titleRequired: "title is required",
@@ -510,6 +515,9 @@ const en: typeof es = {
 	},
 	sidebar: {
 		project: "PROJECT",
+		created: (n: number) => `+${n} created`,
+		updated: (n: number) => `~${n} updated`,
+		deleted: (n: number) => `−${n} deleted`,
 		changes: "CHANGES",
 		tasks: "TASKS",
 		model: "MODEL",

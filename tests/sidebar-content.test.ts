@@ -82,6 +82,26 @@ test("caps the file rows at 8: 7 names plus a dim … row when there are more", 
 	assert.ok(!lines.some((l) => l.includes("15 creados")), "no per-group count line");
 });
 
+test("a full list with mixed change types shows the three per-group counts instead of names", () => {
+	const created = Array.from({ length: 6 }, (_, i) => `c${i + 1}.txt`);
+	const updated = Array.from({ length: 3 }, (_, i) => `u${i + 1}.txt`);
+	const deleted = ["d1.txt"];
+	const lines = buildSidebarLines({ ...fullData, changes: { created, updated, deleted } }, { width: W, rows: 40 }, plain);
+	const cambios = lines.findIndex((l) => l.includes("CAMBIOS"));
+	const section = lines.slice(cambios + 1, cambios + 4);
+	assert.deepEqual(section, [row("+6 creados"), row("~3 modificados"), row("−1 eliminado")]);
+	assert.ok(!lines.some((l) => /^\│ [cud]\d\.txt/.test(l)), "no file names when the list is full and mixed");
+	assert.ok(!lines.includes(row("…")), "no ellipsis row in the counted form");
+});
+
+test("a full list of a single type keeps the names and the ellipsis, without counts", () => {
+	const created = Array.from({ length: 12 }, (_, i) => `h${i + 1}.txt`);
+	const lines = buildSidebarLines({ ...fullData, changes: { created, updated: [], deleted: [] } }, { width: W, rows: 40 }, plain);
+	assert.ok(lines.includes(row("+ h1.txt")));
+	assert.ok(lines.includes(row("…")));
+	assert.ok(!lines.some((l) => l.includes("creados")));
+});
+
 test("exactly 8 files shows all 8 names with no ellipsis row", () => {
 	const created = Array.from({ length: 8 }, (_, i) => `g${i + 1}.txt`);
 	const lines = buildSidebarLines(
@@ -105,16 +125,16 @@ test("renders the TAREAS section between CAMBIOS and MODELO with one row per tas
 	assert.ok(lines.includes(row("○  beta")));
 });
 
-test("the TAREAS section folds past 8 task rows with `… N más`", () => {
+test("the TAREAS section shows 5 task rows then a bare `…` row", () => {
 	const titles = Array.from({ length: 10 }, (_, i) => `task ${i + 1}`);
 	const lines = buildSidebarLines({ ...fullData, todos: todoState(...titles), now: NOW }, { width: W, rows: 40 }, plain);
 	const tareas = lines.findIndex((l) => l.includes("TAREAS"));
 	const modelo = lines.findIndex((l) => l.includes("MODELO"));
 	const section = lines.slice(tareas + 1, modelo - 1); // exclude the blank line before MODELO
-	assert.equal(section.length, 9); // 8 task rows + fold
-	assert.equal(section[7], row("○  task 8"));
-	assert.ok(!section.some((l) => l.includes("task 9")));
-	assert.equal(section[8], row("… 2 más"));
+	assert.equal(section.length, 6); // 5 task rows + the ellipsis row
+	assert.equal(section[4], row("○  task 5"));
+	assert.ok(!section.some((l) => l.includes("task 6")));
+	assert.equal(section[5], row("…"));
 });
 
 test("the TAREAS section is hidden for an empty list or a list settled past one minute", () => {

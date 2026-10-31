@@ -68,6 +68,7 @@ export function buildSidebarLines(
 		push(fg("dim", t.noRepo));
 	} else {
 		const { created, updated, deleted } = data.changes;
+		const groupCount = [created, updated, deleted].filter((list) => list.length > 0).length;
 		if (!created.length && !updated.length && !deleted.length) {
 			push(fg("dim", t.clean));
 		} else {
@@ -80,10 +81,19 @@ export function buildSidebarLines(
 				...deleted.map((f) => ["−", f] as const),
 			];
 			const overflow = files.length > max;
-			for (const [marker, name] of files.slice(0, overflow ? max - 1 : max)) {
-				push(fg(marker === "+" ? "success" : marker === "~" ? "warning" : "error", `${marker} ${name}`));
+			// A full list with mixed types: cutting the names would hide what is
+			// in there, so show one count per group (at most 3 rows) and leave
+			// the names to /changes.
+			if (overflow && groupCount > 1) {
+				if (created.length) push(fg("success", t.created(created.length)));
+				if (updated.length) push(fg("warning", t.updated(updated.length)));
+				if (deleted.length) push(fg("error", t.deleted(deleted.length)));
+			} else {
+				for (const [marker, name] of files.slice(0, overflow ? max - 1 : max)) {
+					push(fg(marker === "+" ? "success" : marker === "~" ? "warning" : "error", `${marker} ${name}`));
+				}
+				if (overflow) push(fg("dim", t.ellipsis));
 			}
-			if (overflow) push(fg("dim", t.ellipsis));
 		}
 	}
 
