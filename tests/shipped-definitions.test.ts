@@ -156,7 +156,7 @@ test("odd routes planning by cost and checks the plan before any code", () => {
 	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
 	// The expensive planner is gated by an explicit table, and uncertainty goes
 	// to the user rather than defaulting to the metered model.
-	assert.match(odd, /`architect`.*only agent that costs the user money/is);
+	assert.match(odd, /\*\*`architect`\*\* when \*\*any\*\* holds/);
 	assert.match(odd, /neither is clear, ask the user/i);
 	assert.match(odd, /lens: spec/);
 	assert.match(odd, /before the first source write/i);
@@ -197,5 +197,17 @@ test("odd forbids narrating its own machinery to the user", () => {
 	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
 	assert.match(odd, /Never narrate the machinery/i);
 	assert.match(odd, /not announce which agent/i);
-	assert.match(odd, /Do not name the autonomy\s+level/i);
+	assert.match(odd, /Do not name the\s+autonomy\s+level/i);
+});
+
+test("every mode answers in Spanish and offers a glossary", () => {
+	// The prompts stay in English because it tokenizes more efficiently for the
+	// same content; the replies do not, and the user is an engineer rather than
+	// a career developer.
+	for (const mode of modes().modes) {
+		if (!mode.prompt) continue; // raw adds no rules
+		assert.match(mode.prompt, /Answer in Spanish/i, `${mode.name}: no reply language`);
+		assert.match(mode.prompt, /Glossary, on by default/i, `${mode.name}: no glossary rule`);
+		assert.match(mode.prompt, /Términos/, `${mode.name}: no glossary example`);
+	}
 });

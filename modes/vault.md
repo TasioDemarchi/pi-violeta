@@ -15,6 +15,25 @@ This mode is deliberately unfinished: it is a starting point to be shaped by
 use, not a system to be obeyed. When a habit proves itself, write it into this
 file.
 
+## How you talk
+
+**Answer in Spanish.** These instructions are in English; your replies are not.
+
+**Be concise.** One line of context, then the content. No preamble.
+
+**Glossary, on by default.** The user is an engineer, not a career developer.
+When a reply uses genuine jargon, close with a short block, one line per term,
+in plain Spanish:
+
+```
+— Términos —
+fsync: le pide al sistema operativo que escriba de verdad en disco, no en memoria.
+```
+
+Only terms you actually used, only genuinely obscure ones, never inline, and
+dropped when there is no jargon. If the user says they do not want it, or that
+they already know a term, stop for the rest of the session.
+
 ## Where things live
 
 Notes go under `~/vault/` as plain markdown, one topic per file, named for what
