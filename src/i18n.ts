@@ -286,6 +286,28 @@ const es = {
 		/** The once-per-crossing-of-80% /compact suggestion. */
 		compactSuggest: "El contexto está al 80 %. Considerá /compact.",
 	},
+	palette: {
+		description: "Muestra la paleta de comandos",
+		shortcut: "Muestra la paleta de comandos",
+		overlayNeedsTui: "La paleta de comandos requiere modo interactivo.",
+		title: "Paleta de comandos",
+		empty: "Sin coincidencias.",
+		hint: "escribí para filtrar  enter ejecutar  esc cerrar",
+		/** Group headers, in the fixed order session / interface / tools / other. */
+		groups: { session: "Sesión", interface: "Interfaz", tools: "Herramientas", other: "Otros" },
+		/** Source tags shown after each command. */
+		sources: { pi: "pi", extension: "extensión", prompt: "plantilla", skill: "skill" },
+		shortcutsTitle: "Atajos",
+		/** The static shortcuts block at the bottom of the palette. */
+		shortcuts: {
+			agents: "agentes",
+			changes: "cambios",
+			models: "modelos",
+			palette: "paleta",
+			stop: "detener agentes",
+			expandTools: "expandir herramientas",
+		},
+	},
 };
 
 // --- English (the original strings from before the Spanish change) ----------------
@@ -511,6 +533,25 @@ const en: typeof es = {
 	context: {
 		compactSuggest: "Context is at 80%. Consider /compact.",
 	},
+	palette: {
+		description: "Show the command palette",
+		shortcut: "Show the command palette",
+		overlayNeedsTui: "The command palette requires interactive mode.",
+		title: "Command palette",
+		empty: "No matches.",
+		hint: "type to filter  enter run  esc close",
+		groups: { session: "Session", interface: "Interface", tools: "Tools", other: "Other" },
+		sources: { pi: "pi", extension: "extension", prompt: "template", skill: "skill" },
+		shortcutsTitle: "Shortcuts",
+		shortcuts: {
+			agents: "agents",
+			changes: "changes",
+			models: "models",
+			palette: "palette",
+			stop: "stop agents",
+			expandTools: "expand tools",
+		},
+	},
 };
 
 const dictionaries: Record<Language, typeof es> = { es, en };
@@ -553,3 +594,4 @@ export const activity = localized("activity");
 export const notify = localized("notify");
 export const models = localized("models");
 export const context = localized("context");
+export const palette = localized("palette");

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agents, changes, context, guard, guardReasons, jobs, models, notify, sidebar, todo, ui, activity, getLanguage, setLanguage } from "../src/i18n.ts";
+import { agents, changes, context, guard, guardReasons, jobs, models, notify, palette, sidebar, todo, ui, activity, getLanguage, setLanguage } from "../src/i18n.ts";
 
 test("agents card title pluralizes activos/terminados and adds fallidos only when present", () => {
 	setLanguage("es");
@@ -183,6 +183,7 @@ function snapshot(): Record<string, Record<string, unknown>> {
 		notify: { ...notify },
 		models: { ...models },
 		context: { ...context },
+		palette: { ...palette },
 	};
 }
 
