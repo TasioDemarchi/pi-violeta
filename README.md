@@ -29,7 +29,14 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | `extensions/violeta-guard.ts`, `src/guard/` | Destructive-command guard and outside-project grants |
 | `extensions/violeta-todo.ts`, `src/todo/` | Todo tool and card |
 | `extensions/violeta-jobs.ts`, `src/jobs/` | Background jobs, monitors, `/jobs` |
+| `extensions/violeta-changes.ts`, `src/changes-view/` | `/changes` diff viewer |
+| `extensions/violeta-tools.ts`, `src/tools-view/` | Compact one-line tool renderers |
+| `extensions/violeta-notify.ts`, `src/notify/` | `/notify` finish and dialog alerts |
+| `extensions/violeta-models.ts`, `src/models-view/` | `/models` quick selector |
+| `extensions/violeta-palette.ts`, `src/palette/` | `/palette` command palette |
+| `src/context-warning.ts` | Context color thresholds and `/compact` hint |
 | `config/models.json` | NaN model catalog |
+| `config/settings.json` | Settings fragment merged on start (declares the Claude bridge package) |
 | `themes/violeta.json` | Palette |
 
 ## Subagents
@@ -61,6 +68,25 @@ The `todo` tool (`write`, `add`, `update`, `clear`, `list`; statuses `pending`, 
 - `monitor` turns each output line of a long-running command into an event (batched in 200 ms, at most 20 lines per notice; `timeout_seconds` 1–1800 is mandatory; it stops itself after more than 120 lines in 60 s).
 - `job_list` and `job_stop` (kills the whole process tree). At most 25 run at once, and all are killed when violeta exits.
 - `/jobs` opens the list (`j`/`k`, `s` then `s` again to stop, `q` to close); `jobs: N en ejecución` shows above the editor.
+
+## More tools
+
+All on demand; nothing extra is drawn by default.
+
+| Command | Shortcut | What it does |
+|---|---|---|
+| `/changes` | `alt+g` | Full-terminal view: files grouped created/updated/deleted on the left, the diff of the selected one on the right. `j`/`k` file, `ctrl+j`/`ctrl+k` scroll, `g`/`G` top/bottom, `o` opens it in `$VISUAL`/`$EDITOR`, `esc`/`q` close. The sidebar summarizes; this shows everything. |
+| `/models` | `alt+m` | Lists models with auth available (current marked, context window); `Enter` switches for the session. |
+| `/palette` | `alt+k` | Search every command (violeta's, Pi's, extensions') grouped Session/Interface/Tools/Other, plus a shortcuts list. `Enter` puts the command in the editor (Pi has no API to run a slash command without starting a model turn). |
+| `/notify on\|off` | | Opt-in. Terminal bell plus `notify-send` (if installed) when a run longer than 20 s ends or a confirmation dialog waits. Off by default, remembered in `violeta.json`. |
+| `/language es\|en` | | See Language below. |
+
+- **Compact tools:** every tool call collapses to one line (`✓ read README.md`, `✓ bash npm test · 0 · 1.2s`, `✗ bash … · exit 1`); `ctrl+o` expands the full output. Display only: what the model receives is unchanged and the guard still intercepts.
+- **Context warning:** the `ctx N%` indicator turns warning color from 70% and error color from 90%; once per session at 80% a notice suggests `/compact` (re-arms below 60%).
+
+## Claude models
+
+`config/settings.json` declares `npm:pi-claude-bridge`; `bin/violeta` merges it into `~/.violeta/agent/settings.json` on every start (idempotent) and Pi installs the package into `~/.violeta/agent/npm` on first launch (needs network once). The bridge drives your logged-in `claude` CLI: no key or token is copied and nothing under `~/.gentle-shell` or `~/.claude` is touched. Models show up as `claude-bridge/...` in `/models`. Note from the package README: it uses your regular subscription quota like Claude Code, and Anthropic has changed how Agent SDK usage is billed before, so it could be billed as extra usage in the future.
 
 ## Language
 
