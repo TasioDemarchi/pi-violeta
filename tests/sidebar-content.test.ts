@@ -208,6 +208,42 @@ test("contextBar fills proportionally and shows an empty bar for unknown usage",
 	assert.equal(contextBar(null), "░░░░░░░░░░");
 });
 
+// --- Context threshold colors (S5) ----------------------------------------------
+
+const dataAt = (percent: number | null): SidebarData => ({
+	...fullData,
+	model: { id: "nan/deepseek-v4-flash", thinking: "off", context: { percent, used: 43210, window: 1_000_000 } },
+});
+
+const ctxLineIn = (lines: string[]): string => lines.find((l) => l.includes("ctx "))!;
+
+const rolesAt = (percent: number | null): string[] => {
+	const seen: string[] = [];
+	buildSidebarLines(dataAt(percent), { width: W, rows: 40 }, (role, text) => {
+		if (text.startsWith("ctx ")) seen.push(role);
+		return text;
+	});
+	return seen;
+};
+
+test("the sidebar ctx line stays muted below 70% and turns warning at 70", () => {
+	assert.deepEqual(rolesAt(69), ["muted"]);
+	assert.deepEqual(rolesAt(70), ["warning"]);
+	assert.deepEqual(rolesAt(89), ["warning"]);
+});
+
+test("the sidebar ctx line turns error at 90%+", () => {
+	assert.deepEqual(rolesAt(90), ["error"]);
+	assert.deepEqual(rolesAt(96), ["error"]);
+});
+
+test("unknown usage keeps the muted ctx line", () => {
+	assert.deepEqual(rolesAt(null), ["muted"]);
+	// sanity: the plain-rendered line still carries the bar and numbers
+	const line = ctxLineIn(buildSidebarLines(dataAt(43), { width: W, rows: 40 }, plain));
+	assert.ok(line.includes("ctx 43% ████░░░░░░ 43.2k/1.0M"), line);
+});
+
 // --- English mode (S3): the original English sidebar, rendered live ------------
 
 test("in English the sidebar shows PROJECT/CHANGES/MODEL/USAGE and `+1 created`", () => {

@@ -25,6 +25,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { SHELL_COMMAND_TOOLS, guardDecision } from "../src/guard/command-guard.ts";
 import { OutsideGrants } from "../src/guard/grants.ts";
 import { allowedLocation, bashPathTargets, resolvePath, targetDir, toolCallPaths } from "../src/guard/paths.ts";
+import { setShared } from "../src/shared-hub.ts";
 import { guard as t } from "../src/i18n.ts";
 
 // Shell tools (bash, bash_background, monitor) get the destructive-command
@@ -61,7 +62,15 @@ export default function (pi: ExtensionAPI) {
 			};
 		}
 		// select instead of confirm so the OPTIONS are Spanish; only "Sí" approves.
-		const approved = (await ctx.ui.select(`${t.outsideTitle}\n${t.outsideBody(dir)}`, [t.yes, t.no])) === t.yes;
+		// While the dialog waits, the shared hub tells the notify extension (if
+		// loaded) to ping the user; the guard never depends on it being there.
+		setShared({ notifyNeedsAnswer: true });
+		let approved: boolean;
+		try {
+			approved = (await ctx.ui.select(`${t.outsideTitle}\n${t.outsideBody(dir)}`, [t.yes, t.no])) === t.yes;
+		} finally {
+			setShared({ notifyNeedsAnswer: false });
+		}
 		if (!approved) {
 			return { block: true, reason: t.outsideDeclined(dir, ctx.cwd) };
 		}
@@ -95,7 +104,15 @@ export default function (pi: ExtensionAPI) {
 			}
 			if (decision.action === "confirm") {
 				// select instead of confirm so the OPTIONS are Spanish; only "Sí" approves.
-				const approved = (await ctx.ui.select(`${t.destructiveTitle}\n${t.destructiveBody(command, decision.reasons)}`, [t.yes, t.no])) === t.yes;
+				// While the dialog waits, the shared hub tells the notify extension
+				// (if loaded) to ping the user; the guard never depends on it.
+				setShared({ notifyNeedsAnswer: true });
+				let approved: boolean;
+				try {
+					approved = (await ctx.ui.select(`${t.destructiveTitle}\n${t.destructiveBody(command, decision.reasons)}`, [t.yes, t.no])) === t.yes;
+				} finally {
+					setShared({ notifyNeedsAnswer: false });
+				}
 				if (!approved) {
 					return { block: true, reason: t.declined(command) };
 				}

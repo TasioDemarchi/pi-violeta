@@ -1,4 +1,5 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { contextRole } from "./context-warning.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "./format.ts";
 import { sidebar as t } from "./i18n.ts";
 import { todoSectionRows } from "./todo/card.ts";
@@ -106,7 +107,13 @@ export function buildSidebarLines(
 	const ctx = data.model.context;
 	if (ctx) {
 		const pct = ctx.percent == null ? "?" : fmtPercent(ctx.percent / 100);
-		push(fg("muted", `ctx ${pct} `) + fg("accent", contextBar(ctx.percent)) + " " + fg("dim", `${fmtTokens(ctx.used)}/${fmtTokens(ctx.window)}`));
+		// The S5 thresholds: muted below 70%, warning at 70-89%, error at 90%+.
+		push(
+			fg(contextRole(ctx.percent), `ctx ${pct} `) +
+				fg("accent", contextBar(ctx.percent)) +
+				" " +
+				fg("dim", `${fmtTokens(ctx.used)}/${fmtTokens(ctx.window)}`),
+		);
 	}
 
 	// USO

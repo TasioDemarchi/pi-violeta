@@ -262,6 +262,30 @@ const es = {
 			running: "ejecutando",
 		} as Record<string, string>,
 	},
+	notify: {
+		description: "Avisa al terminar una tira larga o cuando un diálogo espera tu respuesta",
+		usage: "uso: /notify [on|off]",
+		enabled: "Avisos activados.",
+		disabled: "Avisos desactivados.",
+		/** Desktop notification body when the agent settles after a long run. */
+		finished: (phrase: string) => `Terminó: ${phrase}`,
+		/** Desktop notification body when a confirmation dialog is waiting. */
+		needsAnswer: "Necesita tu respuesta",
+	},
+	models: {
+		description: "Muestra el selector rápido de modelos",
+		shortcut: "Muestra el selector de modelos",
+		overlayNeedsTui: "El selector de modelos requiere modo interactivo.",
+		title: "Modelos",
+		empty: "No hay modelos con autenticación disponible.",
+		hint: "j/k seleccionar  enter cambiar  esc cerrar",
+		switched: (id: string) => `Modelo cambiado a ${id}.`,
+		switchFailed: (id: string) => `No se pudo cambiar a ${id} (sin autenticación).`,
+	},
+	context: {
+		/** The once-per-crossing-of-80% /compact suggestion. */
+		compactSuggest: "El contexto está al 80 %. Considerá /compact.",
+	},
 };
 
 // --- English (the original strings from before the Spanish change) ----------------
@@ -466,6 +490,27 @@ const en: typeof es = {
 			running: "running",
 		} as Record<string, string>,
 	},
+	notify: {
+		description: "Notify when a long run finishes or a dialog waits for your answer",
+		usage: "usage: /notify [on|off]",
+		enabled: "Notifications on.",
+		disabled: "Notifications off.",
+		finished: (phrase: string) => `Finished: ${phrase}`,
+		needsAnswer: "Needs your answer",
+	},
+	models: {
+		description: "Show the quick model selector",
+		shortcut: "Show the model selector",
+		overlayNeedsTui: "The model selector requires interactive mode.",
+		title: "Models",
+		empty: "No models with available authentication.",
+		hint: "j/k select  enter switch  esc close",
+		switched: (id: string) => `Switched to ${id}.`,
+		switchFailed: (id: string) => `Could not switch to ${id} (no authentication).`,
+	},
+	context: {
+		compactSuggest: "Context is at 80%. Consider /compact.",
+	},
 };
 
 const dictionaries: Record<Language, typeof es> = { es, en };
@@ -505,3 +550,6 @@ export const jobs = localized("jobs");
 export const sidebar = localized("sidebar");
 export const ui = localized("ui");
 export const activity = localized("activity");
+export const notify = localized("notify");
+export const models = localized("models");
+export const context = localized("context");

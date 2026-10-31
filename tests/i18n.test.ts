@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agents, changes, guard, guardReasons, jobs, sidebar, todo, ui, activity, getLanguage, setLanguage } from "../src/i18n.ts";
+import { agents, changes, context, guard, guardReasons, jobs, models, notify, sidebar, todo, ui, activity, getLanguage, setLanguage } from "../src/i18n.ts";
 
 test("agents card title pluralizes activos/terminados and adds fallidos only when present", () => {
 	setLanguage("es");
@@ -84,6 +84,29 @@ test("sidebar markers keep their glyphs and pluralize", () => {
 	assert.equal(sidebar.ellipsis, "…");
 });
 
+test("notify, models and context strings exist in both languages (T3)", () => {
+	setLanguage("es");
+	assert.equal(notify.enabled, "Avisos activados.");
+	assert.equal(notify.disabled, "Avisos desactivados.");
+	assert.equal(notify.needsAnswer, "Necesita tu respuesta");
+	assert.equal(notify.finished("listo"), "Terminó: listo");
+	assert.equal(models.title, "Modelos");
+	assert.equal(models.switched("nan/glm5.3"), "Modelo cambiado a nan/glm5.3.");
+	assert.equal(context.compactSuggest, "El contexto está al 80 %. Considerá /compact.");
+	try {
+		setLanguage("en");
+		assert.equal(notify.enabled, "Notifications on.");
+		assert.equal(notify.disabled, "Notifications off.");
+		assert.equal(notify.needsAnswer, "Needs your answer");
+		assert.equal(notify.finished("done"), "Finished: done");
+		assert.equal(models.title, "Models");
+		assert.equal(models.switched("nan/glm5.3"), "Switched to nan/glm5.3.");
+		assert.equal(context.compactSuggest, "Context is at 80%. Consider /compact.");
+	} finally {
+		setLanguage("es");
+	}
+});
+
 // --- Language switching (S3) ---------------------------------------------------
 
 test("the language defaults to es and setLanguage/getLanguage round-trip", () => {
@@ -157,6 +180,9 @@ function snapshot(): Record<string, Record<string, unknown>> {
 		sidebar: { ...sidebar },
 		ui: { ...ui },
 		activity: { ...activity },
+		notify: { ...notify },
+		models: { ...models },
+		context: { ...context },
 	};
 }
 

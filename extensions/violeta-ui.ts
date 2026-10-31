@@ -5,12 +5,13 @@ import { VERSION } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 import { type ChangeFiles, readChangesFiles } from "../src/changes.ts";
 import { activityLine, phaseForTool } from "../src/activity.ts";
+import { contextRole, createCompactWarner } from "../src/context-warning.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "../src/format.ts";
 import { buildSidebarLines, type SidebarData } from "../src/sidebar-content.ts";
 import { readSidebarEnabled, writeSidebarEnabled } from "../src/sidebar-state.ts";
 import { readLanguage, writeLanguage } from "../src/language-state.ts";
 import { getShared, setShared } from "../src/shared-hub.ts";
-import { activity as activityT, sidebar as t, ui as uiT } from "../src/i18n.ts";
+import { activity as activityT, context as contextT, sidebar as t, ui as uiT } from "../src/i18n.ts";
 import { getLanguage, setLanguage, type Language } from "../src/i18n.ts";
 
 const SEP = "  ";
@@ -233,7 +234,7 @@ export default function (pi: ExtensionAPI) {
 			model: {
 				id: ctx.model && ctx.model.id !== "unknown" ? ctx.model.id : undefined,
 				thinking: pi.getThinkingLevel(),
-				context: usage ? { percent: usage.percent, used: usage.tokens ?? 0, window: usage.contextWindow } : null,
+				context: usage ? { percent: effectivePercent(usage.percent), used: usage.tokens ?? 0, window: usage.contextWindow } : null,
 			},
 			usage: { tokensIn: s.input, tokensOut: s.output, cost: s.cost },
 		};
@@ -243,6 +244,26 @@ export default function (pi: ExtensionAPI) {
 		if (ctx.mode !== "tui") return;
 		uiCtx = ctx;
 		ctx.ui.setTitle(`violeta · ${basename(ctx.cwd)}`);
+
+		// Context warning (S5): one hysteresis warner per session, shared by
+		// the footer and the sidebar renders (exactly one fires per crossing).
+		// VIOLETA_TEST_CTX_PERCENT is a validation-only hook that forces the
+		// percent both surfaces see; unset in every real session, so production
+		// behavior is unchanged.
+		const effectivePercent = (percent: number | null | undefined): number | null | undefined => {
+			const raw = process.env.VIOLETA_TEST_CTX_PERCENT;
+			if (raw === undefined || percent == null) return percent;
+			const forced = Number.parseFloat(raw);
+			return Number.isFinite(forced) ? forced : percent;
+		};
+		const compactWarner = createCompactWarner();
+		const warnCompact = (percent: number | null | undefined): void => {
+			if (!compactWarner.check(percent)) return;
+			const timer = setTimeout(() => {
+				uiCtx?.ui.notify(contextT.compactSuggest, "info");
+			}, 0);
+			timer.unref?.();
+		};
 
 		const cfg = configFile();
 		// The persisted language is honored everywhere — including subagent
@@ -313,7 +334,10 @@ export default function (pi: ExtensionAPI) {
 				invalidate() {},
 				render(width: number): string[] {
 					try {
-						return buildSidebarLines(collectSidebarData(), { width, rows: tui.terminal.rows }, (role, text) =>
+						const data = collectSidebarData();
+						// The sidebar owns the ctx line while the footer hides.
+						warnCompact(data.model.context?.percent ?? null);
+						return buildSidebarLines(data, { width, rows: tui.terminal.rows }, (role, text) =>
 							theme.fg(role as ThemeColor, text),
 						);
 					} catch {
@@ -368,7 +392,12 @@ export default function (pi: ExtensionAPI) {
 					const usage = ctx.getContextUsage();
 					const modelId = ctx.model && ctx.model.id !== "unknown" ? ctx.model.id : undefined;
 					const right: string[] = [modelId ? theme.fg("text", modelId) : theme.fg("dim", t.noModel)];
-					if (usage?.percent != null) right.push(theme.fg("muted", `ctx ${fmtPercent(usage.percent / 100)}`));
+					if (usage?.percent != null) {
+						const percent = effectivePercent(usage.percent) ?? usage.percent;
+						warnCompact(percent);
+						// The color follows the S5 thresholds: muted, warning, error.
+						right.push(theme.fg(contextRole(percent), `ctx ${fmtPercent(percent / 100)}`));
+					}
 					right.push(theme.fg("dim", `↑${fmtTokens(input)} ↓${fmtTokens(output)}`));
 					right.push(theme.fg("muted", fmtCost(cost)));
 

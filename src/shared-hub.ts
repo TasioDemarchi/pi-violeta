@@ -19,6 +19,9 @@ export interface VioletaSharedState {
 	todoVisible?: boolean;
 	/** Sidebar active (installed AND fullscreen AND wide enough), published by violeta-ui. */
 	sidebarActive?: boolean;
+	/** A confirmation dialog is waiting for the user, published by violeta-guard
+	 * while a destructive-command or outside-project dialog is open (T3/S3). */
+	notifyNeedsAnswer?: boolean;
 }
 
 export type SharedListener = (state: VioletaSharedState) => void;
