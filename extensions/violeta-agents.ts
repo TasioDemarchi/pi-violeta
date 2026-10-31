@@ -26,6 +26,7 @@ import { loadTaskHistory } from "../src/agents/history.ts";
 import { SubagentRunner } from "../src/agents/runner.ts";
 import { displayTitle } from "../src/agents/summary.ts";
 import { isFinished, getAgentStore, type AgentTask } from "../src/agents/store.ts";
+import { compactRenderers } from "../src/tools-view/compact.ts";
 import { agents as t } from "../src/i18n.ts";
 import {
 	initialOverlayState,
@@ -140,6 +141,14 @@ export default function (pi: ExtensionAPI) {
 			const text = lines.length > 0 ? lines.join("\n") : t.noDefinitions;
 			return { content: [{ type: "text" as const, text }], details: { count: definitions.length, errors } };
 		},
+
+		// `✓ subagent_list_agents · 3` (display-only, T2/S2).
+		...compactRenderers("subagent_list_agents", {
+			extra: (result) => {
+				const count = (result.details as { count?: number } | undefined)?.count;
+				return typeof count === "number" ? [{ text: String(count) }] : [];
+			},
+		}),
 	});
 
 	pi.registerTool({
@@ -193,6 +202,15 @@ export default function (pi: ExtensionAPI) {
 				isError: finished.status !== "completed",
 			};
 		},
+
+		// `✓ subagent_run coder Fix the login bug · completado`, the status word in
+		// the active language (display-only, T2/S2).
+		...compactRenderers("subagent_run", {
+			extra: (result) => {
+				const status = (result.details as { status?: string } | undefined)?.status;
+				return status ? [{ text: t.statuses[status] ?? status }] : [];
+			},
+		}),
 	});
 
 	async function runnerWait(id: string, signal: AbortSignal | undefined): Promise<AgentTask | undefined> {
@@ -221,6 +239,14 @@ export default function (pi: ExtensionAPI) {
 			const text = tasks.length > 0 ? tasks.map(taskText).join("\n") : t.noTasksYet;
 			return { content: [{ type: "text" as const, text }], details: { count: tasks.length, active: store.activeCount() } };
 		},
+
+		// `✓ subagent_status · 2` (display-only, T2/S2).
+		...compactRenderers("subagent_status", {
+			extra: (result) => {
+				const count = (result.details as { count?: number } | undefined)?.count;
+				return typeof count === "number" ? [{ text: String(count) }] : [];
+			},
+		}),
 	});
 
 	pi.registerTool({
@@ -243,6 +269,9 @@ export default function (pi: ExtensionAPI) {
 				isError: task.status !== "completed",
 			};
 		},
+
+		// `✓ subagent_result task-1` (display-only, T2/S2).
+		...compactRenderers("subagent_result"),
 	});
 
 	pi.registerTool({
@@ -257,6 +286,9 @@ export default function (pi: ExtensionAPI) {
 				: t.notCancellable(params.id);
 			return { content: [{ type: "text" as const, text }], details: { cancelled }, isError: !cancelled };
 		},
+
+		// `✓ subagent_cancel task-1` (display-only, T2/S2).
+		...compactRenderers("subagent_cancel"),
 	});
 
 	// --- Views: the card above the editor and the alt+a · /agents overlay ---

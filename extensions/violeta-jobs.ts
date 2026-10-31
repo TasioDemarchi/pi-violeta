@@ -32,6 +32,7 @@ import { createMonitorController, type MonitorNotice } from "../src/jobs/monitor
 import { JobRegistry, MAX_RUNNING_JOBS, type JobRecord } from "../src/jobs/registry.ts";
 import { jobExitNotice, jobStartText, monitorEventsNotice, monitorStartText, monitorStoppedNotice } from "../src/jobs/notices.ts";
 import { indicatorLine, initialOverlayState, listText, orderedJobs, reduceOverlay, renderJobOverlay, type OverlayAction } from "../src/jobs/view.ts";
+import { compactRenderers } from "../src/tools-view/compact.ts";
 import { jobs as t } from "../src/i18n.ts";
 
 const INDICATOR_KEY = "jobs-indicator";
@@ -121,6 +122,15 @@ export default function (pi: ExtensionAPI) {
 			}
 			return { ...text(`${jobStartText(job)}\n${t.willNotify}`), details: { jobId: job.id, outputPath: job.outputPath } };
 		},
+
+		// Compact one-line rendering (T2/S2), display-only. The job id rides along
+		// as a dim extra: `✓ bash_background npm run dev · job-1`.
+		...compactRenderers("bash_background", {
+			extra: (result) => {
+				const id = (result.details as { jobId?: string } | undefined)?.jobId;
+				return id ? [{ text: id }] : [];
+			},
+		}),
 	});
 
 	pi.registerTool({
@@ -148,6 +158,14 @@ export default function (pi: ExtensionAPI) {
 				return error(caught instanceof Error ? caught.message : String(caught));
 			}
 		},
+
+		// `✓ monitor tail -f app.log · job-2` (display-only, T2/S2).
+		...compactRenderers("monitor", {
+			extra: (result) => {
+				const id = (result.details as { jobId?: string } | undefined)?.jobId;
+				return id ? [{ text: id }] : [];
+			},
+		}),
 	});
 
 	pi.registerTool({
@@ -163,6 +181,14 @@ export default function (pi: ExtensionAPI) {
 				details: { count: jobs.length, running: registry.runningCount() },
 			};
 		},
+
+		// `✓ job_list · 2` (display-only, T2/S2).
+		...compactRenderers("job_list", {
+			extra: (result) => {
+				const count = (result.details as { count?: number } | undefined)?.count;
+				return typeof count === "number" ? [{ text: String(count) }] : [];
+			},
+		}),
 	});
 
 	pi.registerTool({
@@ -184,6 +210,9 @@ export default function (pi: ExtensionAPI) {
 			registry.stop(job.id);
 			return { ...text(t.jobStoppedNotice(job.id, job.label)), details: { jobId: job.id, stopped: true } };
 		},
+
+		// `✓ job_stop job-1` (display-only, T2/S2).
+		...compactRenderers("job_stop"),
 	});
 
 	// --- Views: the indicator above the editor and the /jobs overlay -----------

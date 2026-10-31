@@ -24,6 +24,7 @@ import { cardVisible, renderTodoCard, TODO_HIDE_MS, type CardFg } from "../src/t
 import { TODO_ENTRY_TYPE, replayTodo, todoSnapshot } from "../src/todo/persist.ts";
 import { applyTodo, doneCount, emptyTodo, openCount, type TodoParams, type TodoState } from "../src/todo/store.ts";
 import { getShared, setShared, subscribeShared } from "../src/shared-hub.ts";
+import { compactRenderers } from "../src/tools-view/compact.ts";
 import { todo as t } from "../src/i18n.ts";
 
 const WIDGET_KEY = "todo-card";
@@ -138,6 +139,10 @@ export default function (pi: ExtensionAPI) {
 				details: { total: state.tasks.length, open: openCount(state.tasks), done: doneCount(state.tasks) },
 			};
 		},
+
+		// Compact one-line rendering (T2/S2): `◐ todo add …` → `✓ todo write`, errors
+		// with their first line. Display-only; the execute above is untouched.
+		...compactRenderers("todo"),
 	});
 
 	pi.registerCommand("todo", {
