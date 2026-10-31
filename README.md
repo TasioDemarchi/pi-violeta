@@ -37,6 +37,7 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | `src/frontmatter.ts` | The minimal YAML reader shared by agent and mode definitions |
 | `extensions/violeta-palette.ts`, `src/palette/` | `/palette` command palette |
 | `src/context-warning.ts` | Context color thresholds and `/compact` hint |
+| `agents/`, `modes/` | The shipped roster and philosophies, synced into `~/.violeta/agent/` on every start |
 | `config/models.json` | NaN model catalog |
 | `config/settings.json` | Settings fragment merged on start (declares the Claude bridge package) |
 | `themes/violeta.json` | Palette |
@@ -51,6 +52,10 @@ The engine is neutral, so a philosophy enters in exactly one place, as data: a m
 - **`raw`** is built in and always available: no prompt, no agents, no ceremony. A `raw.md` replaces it. It exists so a missing or broken catalogue still leaves a usable session.
 - The prompt is appended through `systemPromptOptions.appendSystemPrompt`, never by replacing `systemPrompt`: replacing would drop Pi's own tool and environment sections. Appending also keeps the cached prefix stable, so switching costs one cache miss rather than one per turn.
 - A mode file that fails to parse is reported, never swallowed: a session that quietly runs unguided is worse than one that says what broke.
+
+The repo ships three: **`odd`** (the default — proportional work, one feature document, ceilings, blind review), **`scout`** (research and learning, read-only) and **`vault`** (notes and ideas, no code). `agents/` and `modes/` live in git and are synced into `~/.violeta/agent/` on every start, so the philosophy survives a reinstall; files you add there yourself are left alone.
+
+The roster splits by cost: **`architect`** runs on Claude and is called only for decisions that are expensive to get wrong downstream, while **`scout`**, **`builder`**, **`fixer`**, **`verifier`** and the two blind judges run on the flat-rate cluster — the judges on the two uncounted models, so a second opinion is free.
 
 ## Subagents
 
