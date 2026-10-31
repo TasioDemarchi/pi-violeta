@@ -1,8 +1,8 @@
 /**
  * Mode definitions: markdown files with YAML frontmatter in
  * `${PI_CODING_AGENT_DIR}/modes/*.md`. Frontmatter keys: `name`,
- * `description`, `model`, `agents`; the body is the text appended to the main
- * session's system prompt.
+ * `description`, `model`, `thinking`, `agents`; the body is the text appended
+ * to the main session's system prompt.
  *
  * A mode is the only place violeta carries a philosophy, and it carries it as
  * data: a prompt body, the model that should run it, and the set of agents it
@@ -23,6 +23,10 @@ export interface ModeDefinition {
 	description: string;
 	/** Model id (`provider/id`) the main session switches to on entering. */
 	model?: string;
+	/** Reasoning level the main session is pinned to on entering. A mode owns
+	 * this because more reasoning is not uniformly better: some models reach the
+	 * right approach and then reason themselves out of it at maximum effort. */
+	thinking?: string;
 	/** Agent names this mode exposes. Absent means every agent; empty means none. */
 	agents?: string[];
 	/** Appended to the main session's system prompt. Empty for `raw`. */
@@ -34,6 +38,8 @@ export interface ModeError {
 	source: string;
 	message: string;
 }
+
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 /** The always-available escape hatch: no philosophy, no agents, no ceremony. */
 export const RAW_MODE: ModeDefinition = {
@@ -49,6 +55,10 @@ export function parseMode(text: string, source: string): ModeDefinition {
 	const name = typeof data.get("name") === "string" ? (data.get("name") as string).trim() : "";
 	if (!name) throw new Error(`${source}: frontmatter must define a non-empty "name"`);
 	const model = typeof data.get("model") === "string" ? (data.get("model") as string).trim() : undefined;
+	const thinking = typeof data.get("thinking") === "string" ? (data.get("thinking") as string).trim() : undefined;
+	if (thinking && !THINKING_LEVELS.has(thinking)) {
+		throw new Error(`${source}: "thinking" must be one of ${[...THINKING_LEVELS].join(", ")} (got "${thinking}")`);
+	}
 	const rawAgents = data.get("agents");
 	// A declared-but-empty `agents:` means "this mode exposes none", which is a
 	// real choice and must not be confused with "not declared".
@@ -61,6 +71,7 @@ export function parseMode(text: string, source: string): ModeDefinition {
 		name,
 		description: typeof data.get("description") === "string" ? (data.get("description") as string).trim() : "",
 		...(model ? { model } : {}),
+		...(thinking ? { thinking } : {}),
 		...(agents ? { agents } : {}),
 		prompt,
 		source,

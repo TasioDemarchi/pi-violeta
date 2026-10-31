@@ -46,7 +46,8 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 
 The engine is neutral, so a philosophy enters in exactly one place, as data: a markdown file in `~/.violeta/agent/modes/<name>.md`.
 
-- **Define a mode:** frontmatter `name`, `description`, `model` (the model the main session switches to) and `agents` (the roster it exposes); the body is appended to the main session's system prompt.
+- **Define a mode:** frontmatter `name`, `description`, `model` (the model the main session switches to), `thinking` (the reasoning level it pins) and `agents` (the roster it exposes); the body is appended to the main session's system prompt.
+- **Reasoning level:** a mode owns it because more reasoning is not uniformly better — some models reach the right approach and then reason themselves out of it at maximum effort.
 - **`/mode`** with no argument reports the active mode and the catalogue; `/mode <name>` switches, persists the choice in `violeta.json` and shows the mode in the header, so you always know which philosophy is running.
 - **Agents:** an absent `agents` list exposes every agent; a declared empty one exposes none. These are different statements, and the second is how a mode removes the agent layer entirely.
 - **`raw`** is built in and always available: no prompt, no agents, no ceremony. A `raw.md` replaces it. It exists so a missing or broken catalogue still leaves a usable session.
@@ -55,16 +56,18 @@ The engine is neutral, so a philosophy enters in exactly one place, as data: a m
 
 The repo ships three: **`odd`** (the default — proportional work, one feature document, ceilings, blind review), **`scout`** (research and learning, read-only) and **`vault`** (notes and ideas, no code). `agents/` and `modes/` live in git and are synced into `~/.violeta/agent/` on every start, so the philosophy survives a reinstall; files you add there yourself are left alone.
 
-The roster splits by cost: **`architect`** runs on Claude and is called only for decisions that are expensive to get wrong downstream, while everything else runs on the flat-rate cluster. Each NaN model carries its own monthly allowance, so roles are placed to keep the heavy ones off each other's pool — the orchestrator and the writer above all, since those two consume the most.
+**`architect`** is the only agent that costs money; everything else runs on the flat-rate cluster, whose allowances are large enough that a heavy day of iterating spends a few percent of one pool. Roles are therefore assigned by fit, not by pool:
 
-| Role | Model | Pool |
+| Role | Model | Chosen because |
 | :--- | :--- | :--- |
-| Orchestrator (`odd`) | `deepseek-v4-flash` | 3B/mo |
-| `builder` | `glm5.3-flash` | 2B/mo |
-| `scout` | `mimo-v2.6-flash` | 1B/mo |
-| `fixer`, `verifier` | `qwen3.8-flash` | 500M/mo, both rare |
-| `judge-a`, `judge-b` | `qwen3.6`, `gemma4` | uncounted — a second opinion is free |
-| `architect` | `claude-bridge/claude-opus-5` | metered, tightest ceiling |
+| Orchestrator (`odd`) | `deepseek-v4-flash` | the one model with reports praising its natural-language handling, and ~3x the output speed, which matters while talking |
+| `architect` (specs, decomposition) | `claude-bridge/claude-opus-5` | judgment, called once or twice per feature |
+| `planner` (specs already clear) | `deepseek-v4-flash` | structures what was stated; GLM is reported not to reason holistically |
+| `scout` | `deepseek-v4-flash` | general workhorse, 1M context |
+| `builder` | `glm5.3-flash` | reported to execute a detailed plan well |
+| `judge-a` / `judge-b` | `glm5.3-flash` / `deepseek-v4-flash` | two different lineages, so agreement means something |
+| `fixer` | `qwen3.8-flash` | narrow and obedient; GLM is excluded here on purpose, since its reported failure is over-engineering and the fixer's cardinal sin is adding things |
+| `verifier` | `deepseek-v4-flash` | never the model that wrote the change |
 
 `config/models.json` is the catalogue for the **nan_member** plan. `glm5.3` (as opposed to `glm5.3-flash`) belongs to the 200 EUR premium tier and is deliberately absent: a model that is real but out of plan fails at request time rather than at startup, so a test pins its absence.
 

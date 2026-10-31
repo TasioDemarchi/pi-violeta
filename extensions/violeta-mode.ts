@@ -8,8 +8,9 @@
  *
  * - `/mode` with no argument reports the active mode and the catalogue.
  * - `/mode <name>` switches, persists the choice in `violeta.json`, switches
- *   the session model when the mode names one, and publishes the mode on the
- *   shared hub so violeta-ui can show it and violeta-agents can filter by it.
+ *   the session model and reasoning level when the mode names them, and
+ *   publishes the mode on the shared hub so violeta-ui can show it and
+ *   violeta-agents can filter by it.
  *
  * The prompt is appended through `systemPromptOptions.appendSystemPrompt` on
  * `before_agent_start`, never by replacing `systemPrompt`: replacing it would
@@ -57,6 +58,16 @@ export default function (pi: ExtensionAPI) {
 	 * reported and never fatal: a philosophy must still run when its preferred
 	 * model is unavailable, just on whatever is configured. */
 	const applyModel = async (mode: ModeDefinition, ctx: ExtensionContext, announce: boolean): Promise<void> => {
+		// Pinned first and unconditionally: a level left over from another mode is a
+		// silent change in behaviour, and for some models maximum effort is worse,
+		// not better.
+		if (mode.thinking) {
+			try {
+				pi.setThinkingLevel(mode.thinking as Parameters<typeof pi.setThinkingLevel>[0]);
+			} catch {
+				// an unsupported level must never stop the mode from activating
+			}
+		}
 		if (!mode.model) return;
 		const [provider, ...rest] = mode.model.split("/");
 		const id = rest.join("/");

@@ -1,7 +1,7 @@
 ---
 name: verifier
 description: Independent check. Runs each spec's own checks and returns a verdict per S#. Never writes code.
-model: nan/qwen3.8-flash
+model: nan/deepseek-v4-flash
 thinking: medium
 maxTurns: 20
 maxTokens: 2000000

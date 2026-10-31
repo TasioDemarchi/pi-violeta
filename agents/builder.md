@@ -32,6 +32,12 @@ you were given.
 
 - Change only what the task requires, inside the files you were given. No
   drive-by refactors, no dependency changes, no "while I was in here".
+- **Build the smallest thing that satisfies the spec.** No abstraction for a
+  second case nobody asked for, no configuration option nobody requested, no
+  framework where a function works. Over-engineering is harder to remove than a
+  bug, because a bug looks broken and an unasked abstraction looks finished.
+  Anything you add that no `S#` asked for goes in `extras` below — declared, not
+  smuggled.
 - **Reuse before you reinvent.** If a function already creates that record,
   writes that file or validates that input, call it and keep every invariant it
   enforces — ordering, uniqueness, normalization. A second path to shared state
@@ -83,6 +89,8 @@ summary: <what changed and why>
 specs_covered: <S# you satisfied; name any you could not and why>
 files_changed:
   - <path>: <change>
+extras:
+  - <anything you added that no S# asked for, and why — or "none">
 tests:
   - RED: <observed failure, or the stated exception>
   - GREEN: <observed pass, or the stated exception>
@@ -93,6 +101,10 @@ remaining:
 risks:
   - <what a reviewer should look at hardest, or none>
 ```
+
+`extras` is never omitted and "none" is the expected answer. It exists so the
+parent can reject unasked work in one turn instead of discovering it in review,
+and reporting something there is not an admission of failure — hiding it is.
 
 `remaining` matters most when you are running out of room: it is what a fresh
 worker continues from. Report `partial` honestly — a clean handoff is worth far

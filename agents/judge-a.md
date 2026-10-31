@@ -1,7 +1,7 @@
 ---
 name: judge-a
 description: Blind reviewer A. Reviews one lens, read-only, without seeing the other judge's findings.
-model: nan/qwen3.6
+model: nan/glm5.3-flash
 thinking: medium
 maxTurns: 15
 maxTokens: 2000000
@@ -44,6 +44,13 @@ reporting it anyway is how four focused reviews turn into four generic ones.
   dependency is down, partial writes, cleanup, observability.
 - **performance** — work done per request, unnecessary passes, N+1 patterns,
   unbounded memory or growth. Measured or reasoned concretely, never by vibe.
+
+- **spec** — the plan itself, before any code exists. Acceptance criteria that
+  are not observable; a spec whose `Check:` is prose where a runnable command
+  was possible; two specs that contradict each other; a task covering no `S#`
+  or an `S#` no task covers; anything ambiguous enough that a mechanical writer
+  would have to guess. This lens reads the feature document, **not a diff**:
+  skip the git steps below and read the document whole, down to `## Log`.
 
 ## What counts as a finding
 

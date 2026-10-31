@@ -21,7 +21,7 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 	mkdirSync(join(dir, "modes"), { recursive: true });
 	writeFileSync(
 		join(dir, "modes", "odd.md"),
-		"---\nname: odd\ndescription: Organic Driven Development\nmodel: nan/glm5.3\nagents: [scout, builder]\n---\n\nWork proportionally.\n",
+		"---\nname: odd\ndescription: Organic Driven Development\nmodel: nan/glm5.3\nthinking: medium\nagents: [scout, builder]\n---\n\nWork proportionally.\n",
 	);
 	if (options.mode) writeFileSync(join(dir, "violeta.json"), JSON.stringify({ mode: options.mode, sidebar: true }));
 	process.env.PI_CODING_AGENT_DIR = dir;
@@ -32,6 +32,7 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 	const handlers = new Map<string, Handler[]>();
 	const commands = new Map<string, (args: string, ctx: unknown) => unknown>();
 	const setModels: Array<{ provider: string; id: string }> = [];
+	const thinkingLevels: string[] = [];
 	const notices: string[] = [];
 	const sent: Array<{ content: string; options: unknown }> = [];
 	const pi = {
@@ -42,6 +43,7 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 			return true;
 		},
 		sendMessage: (message: { content: string }, options: unknown) => sent.push({ content: message.content, options }),
+		setThinkingLevel: (level: string) => thinkingLevels.push(level),
 	};
 	const ctx = {
 		cwd: process.cwd(),
@@ -61,6 +63,7 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 		ctx,
 		notices,
 		setModels,
+		thinkingLevels,
 		sent,
 		run: (args: string) => commands.get("mode")!(args, ctx),
 		cleanup: () => rmSync(dir, { recursive: true, force: true }),
@@ -214,6 +217,31 @@ test("a persisted mode that no longer exists falls back without crashing", async
 		await h.fire("session_start");
 		// The default is odd and it exists here, so that is what it lands on.
 		assert.equal(getShared().activeMode, "odd");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a mode pins the session's reasoning level on entering", async () => {
+	// More reasoning is not uniformly better: some models reach the right
+	// approach and reason themselves out of it at maximum effort, so the level
+	// is the mode's to own rather than whatever the last session left behind.
+	const h = setup({ mode: "odd" });
+	try {
+		await h.fire("session_start");
+		assert.deepEqual(h.thinkingLevels, ["medium"]);
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a mode with no thinking level leaves the current one alone", async () => {
+	const h = setup({ mode: "odd" });
+	try {
+		await h.fire("session_start");
+		h.thinkingLevels.length = 0;
+		await h.run("raw");
+		assert.deepEqual(h.thinkingLevels, []);
 	} finally {
 		h.cleanup();
 	}
