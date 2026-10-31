@@ -23,6 +23,7 @@ const GLYPHS: Record<TaskStatus, { glyph: string; role: string }> = {
 	completed: { glyph: "✓", role: "success" },
 	failed: { glyph: "✗", role: "error" },
 	aborted: { glyph: "⊘", role: "warning" },
+	budget: { glyph: "◼", role: "warning" },
 };
 
 const STATUS_ROLES: Record<TaskStatus, string> = {
@@ -31,6 +32,7 @@ const STATUS_ROLES: Record<TaskStatus, string> = {
 	completed: "success",
 	failed: "error",
 	aborted: "warning",
+	budget: "warning",
 };
 
 const TOOL_STATUS_ROLES = { running: "warning", done: "success", error: "error" } as const;

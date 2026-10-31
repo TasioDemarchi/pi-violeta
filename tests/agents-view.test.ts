@@ -27,6 +27,7 @@ function task(overrides: Partial<AgentTask>): AgentTask {
 		model: "gpt/x",
 		effort: "low",
 		tokens: 0,
+		turns: 0,
 		cost: 0,
 		startedAt: 0,
 		thread: [],
@@ -205,4 +206,16 @@ test("narrow mode detail view shows the same Title/Result/Thread layout", () => 
 	assert.ok(lines[5]!.includes("── Hilo ──"));
 	assert.ok(lines[6]!.includes("working"));
 	assert.ok(lines[7]!.startsWith(hintLine("narrow", plain)));
+});
+
+test("resultLines shows a budget stop's partial handoff, not an error", () => {
+	// The whole point of the ceiling is that the work so far is readable and
+	// continuable; rendering it down the failure path would hide the handoff.
+	const stopped = task({
+		status: "budget",
+		stoppedBy: "maxTurns",
+		summary: "stopped halfway",
+		result: "summary: stopped halfway\nDid the parser, not the writer.",
+	});
+	assert.deepEqual(resultLines(stopped), ["stopped halfway", "Did the parser, not the writer."]);
 });

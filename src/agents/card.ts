@@ -21,6 +21,9 @@ const GLYPHS: Record<TaskStatus, { glyph: string; role: string }> = {
 	completed: { glyph: "✓", role: "success" },
 	failed: { glyph: "✗", role: "error" },
 	aborted: { glyph: "⊘", role: "warning" },
+	// A ceiling stop is neither success nor failure: it reads as its own thing so
+	// a glance never mistakes a planned stop for a broken run.
+	budget: { glyph: "◼", role: "warning" },
 };
 
 const NAME_MAX = 20;
@@ -151,7 +154,9 @@ function cardLayout(tasks: readonly AgentTask[], inner: number, now: number): Ca
 
 function cardCounts(tasks: readonly AgentTask[]): string {
 	const active = tasks.filter((t) => t.status === "queued" || t.status === "running").length;
-	const done = tasks.filter((t) => t.status === "completed").length;
+	// A ceiling stop finished and produced a handoff, so it counts as done here;
+	// its own glyph in the row is what tells it apart from a clean completion.
+	const done = tasks.filter((t) => t.status === "completed" || t.status === "budget").length;
 	const failed = tasks.filter((t) => t.status === "failed" || t.status === "aborted").length;
 	return t.cardTitle(active, done, failed);
 }

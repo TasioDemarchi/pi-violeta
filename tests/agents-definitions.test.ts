@@ -80,3 +80,28 @@ test("listAgentDefinitions tolerates a missing directory", () => {
 	assert.deepEqual(definitions, []);
 	assert.deepEqual(errors, []);
 });
+
+test("parseDefinition reads the maxTurns and maxTokens ceilings", () => {
+	const def = parseDefinition(VALID.replace("thinking: low", "thinking: low\nmaxTurns: 30\nmaxTokens: 4000000"), "probe.md");
+	assert.equal(def.maxTurns, 30);
+	assert.equal(def.maxTokens, 4_000_000);
+});
+
+test("parseDefinition leaves both ceilings absent when the frontmatter omits them", () => {
+	const def = parseDefinition(VALID, "probe.md");
+	assert.equal(def.maxTurns, undefined);
+	assert.equal(def.maxTokens, undefined);
+	assert.ok(!("maxTurns" in def));
+});
+
+test("parseDefinition rejects a ceiling that is not a positive whole number", () => {
+	// A typo in a ceiling must be reported, never silently treated as no budget:
+	// a budget that quietly disappears is the failure this field exists to stop.
+	for (const bad of ["0", "-5", "abc", "12.5", ""]) {
+		assert.throws(
+			() => parseDefinition(VALID.replace("thinking: low", `thinking: low\nmaxTurns: ${bad}`), "probe.md"),
+			/maxTurns/,
+			`expected "${bad}" to be rejected`,
+		);
+	}
+});

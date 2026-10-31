@@ -17,6 +17,7 @@ function task(id: string, status: AgentTask["status"] = "completed"): AgentTask 
 		model: "nan/deepseek-v4-flash",
 		effort: "low",
 		tokens: 10,
+		turns: 3,
 		cost: 0.01,
 		startedAt: 1000,
 		endedAt: 2000,
@@ -116,6 +117,35 @@ test("saveTaskToHistory applies the cap after writing", () => {
 	try {
 		for (let i = 0; i < 202; i++) saveTaskToHistory(dir, task(`t${String(i).padStart(3, "0")}`));
 		assert.equal(readdirSync(dir).length, 200);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("a budget stop round-trips through history with its ceiling", () => {
+	const dir = scratch();
+	try {
+		const stopped: AgentTask = { ...task("b", "budget"), stoppedBy: "maxTurns", turns: 30 };
+		saveTaskToHistory(dir, stopped);
+		const loaded = loadTaskHistory(dir);
+		assert.equal(loaded.length, 1);
+		assert.equal(loaded[0]!.status, "budget");
+		assert.equal(loaded[0]!.stoppedBy, "maxTurns");
+		assert.equal(loaded[0]!.turns, 30);
+		assert.equal(loaded[0]!.result, "result b");
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("history files written before turns existed load with a zero count", () => {
+	const dir = scratch();
+	try {
+		const legacy = task("old") as unknown as Record<string, unknown>;
+		delete legacy.turns;
+		writeFileSync(join(dir, "old.json"), JSON.stringify(legacy));
+		const loaded = loadTaskHistory(dir);
+		assert.equal(loaded[0]!.turns, 0);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

@@ -100,7 +100,7 @@ const es = {
 	},
 	agents: {
 		/** Display words for task statuses (the values themselves stay identifiers). */
-		statuses: { queued: "en cola", running: "en curso", completed: "completado", failed: "fallido", aborted: "abortado" } as Record<string, string>,
+		statuses: { queued: "en cola", running: "en curso", completed: "completado", failed: "fallido", aborted: "abortado", budget: "detenido en su techo" } as Record<string, string>,
 		/** Display words for thread tool-call states. */
 		toolStatuses: { running: "en curso", done: "listo", error: "error" } as Record<string, string>,
 		queued: "en cola",
@@ -137,9 +137,13 @@ const es = {
 		backgroundStarted: (name: string, id: string) =>
 			`Subagente "${name}" iniciado en segundo plano con id de tarea ${id}. Su resultado se entregará cuando termine; mirá el progreso con subagent_status.`,
 		cancelledByCaller: (name: string, id: string) => `Subagente "${name}" (${id}) fue cancelado porque quien lo llamó abortó.`,
+		/** Heads the partial handoff of a ceiling stop: it says what happened and
+		 * what continues it, because a stop that names no continuation is a dead end. */
+		budgetStopped: (limit: string, turns: number, tokens: number) =>
+			`El subagente se detuvo en su techo de ${limit === "maxTurns" ? "turnos" : "tokens"} (${turns} turnos · ${tokens} tokens). No es un fallo: abajo va su entrega parcial. Para continuar, relanzá un subagente nuevo con lo que falte.`,
 		unknownAgent: (name: string, available: string) => `Agente desconocido "${name}". Disponibles: ${available}. Usá subagent_list_agents primero.`,
 		noneAvailable: "(ninguno)",
-		noDefinitions: "No se encontraron definiciones de subagentes. Creá archivos markdown con frontmatter YAML (name, description, model, thinking, tools) y un cuerpo de system prompt en el directorio de agents.",
+		noDefinitions: "No se encontraron definiciones de subagentes. Creá archivos markdown con frontmatter YAML (name, description, model, thinking, tools, maxTurns, maxTokens) y un cuerpo de system prompt en el directorio de agents.",
 		noTasksYet: "Todavía no hay tareas de subagentes.",
 		unknownTaskId: (id: string) => `Id de tarea desconocido ${id}.`,
 		noResultYet: "— todavía sin resultado.",
@@ -357,7 +361,7 @@ const en: typeof es = {
 		grantsEmpty: "No outside-project grants in this session.",
 	},
 	agents: {
-		statuses: { queued: "queued", running: "running", completed: "completed", failed: "failed", aborted: "aborted" } as Record<string, string>,
+		statuses: { queued: "queued", running: "running", completed: "completed", failed: "failed", aborted: "aborted", budget: "stopped at its ceiling" } as Record<string, string>,
 		toolStatuses: { running: "running", done: "done", error: "error" } as Record<string, string>,
 		queued: "queued",
 		cardTitle: (active: number, done: number, failed: number) => {
@@ -395,9 +399,11 @@ const en: typeof es = {
 		backgroundStarted: (name: string, id: string) =>
 			`Subagent "${name}" started in the background with task id ${id}. Its result will be delivered when it finishes; check progress with subagent_status.`,
 		cancelledByCaller: (name: string, id: string) => `Subagent "${name}" (${id}) was cancelled because the caller aborted.`,
+		budgetStopped: (limit: string, turns: number, tokens: number) =>
+			`The subagent stopped at its ${limit === "maxTurns" ? "turn" : "token"} ceiling (${turns} turns · ${tokens} tokens). This is not a failure: its partial handoff follows. To continue, launch a fresh subagent with what is left.`,
 		unknownAgent: (name: string, available: string) => `Unknown agent "${name}". Available: ${available}. Use subagent_list_agents first.`,
 		noneAvailable: "(none)",
-		noDefinitions: "No subagent definitions found. Create markdown files with YAML frontmatter (name, description, model, thinking, tools) and a system prompt body in the agents directory.",
+		noDefinitions: "No subagent definitions found. Create markdown files with YAML frontmatter (name, description, model, thinking, tools, maxTurns, maxTokens) and a system prompt body in the agents directory.",
 		noTasksYet: "No subagent tasks yet.",
 		unknownTaskId: (id: string) => `Unknown task id ${id}.`,
 		noResultYet: "— no result yet.",

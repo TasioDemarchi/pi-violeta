@@ -69,10 +69,11 @@ export function capTaskHistory(dir: string, cap: number): void {
 	}
 }
 
-/** Old history files predate `title`/`summary`: restore the title from the
- * label (or name) and drop empty summaries so the views always have a title. */
+/** Old history files predate `title`/`summary`/`turns`: restore the title from
+ * the label (or name), default the turn counter so views never read undefined,
+ * and drop empty summaries so the views always have a title. */
 function withTitleFallback(task: AgentTask): AgentTask {
-	const restored: AgentTask = { ...task, title: displayTitle(task) };
+	const restored: AgentTask = { ...task, title: displayTitle(task), turns: typeof task.turns === "number" ? task.turns : 0 };
 	if (typeof restored.summary !== "string" || restored.summary.trim() === "") delete restored.summary;
 	return restored;
 }

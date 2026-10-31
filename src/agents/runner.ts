@@ -10,6 +10,10 @@
  * - A stall watchdog fails a child silent for `stallTimeoutMs` (default 4 min);
  *   an announced tool call in flight raises the budget to `toolStallTimeoutMs`
  *   (default 30 min). These are renewable silence budgets, not total limits.
+ * - `maxTurns`/`maxTokens` ARE total limits: a child that reaches one is torn
+ *   down with status "budget", keeping its last answer as the handoff. A silence
+ *   budget asks "is it alive?"; a ceiling asks "has it had enough?". A talkative
+ *   child renews the first forever and still stops at the second.
  * - Cancel sends SIGTERM, then SIGKILL after a short grace. `killAll()` (used
  *   on session shutdown and process exit) SIGKILLs immediately.
  * - The child's own UI dialog requests are answered with a cancellation so a
@@ -25,7 +29,7 @@ import { join } from "node:path";
 import { createReducer, type Reducer } from "./reduce.ts";
 import { saveTaskToHistory } from "./history.ts";
 import { extractSummary, firstLine, taskTitle } from "./summary.ts";
-import { isFinished, type AgentStore, type AgentTask } from "./store.ts";
+import { isFinished, type AgentStore, type AgentTask, type BudgetLimit } from "./store.ts";
 
 const HISTORY_SUBDIR = "agents-history";
 
@@ -37,6 +41,8 @@ export interface DefinitionSpec {
 	model: string;
 	thinking?: string;
 	tools: string[];
+	maxTurns?: number;
+	maxTokens?: number;
 	prompt: string;
 }
 
@@ -46,6 +52,11 @@ export interface RunnerOptions {
 	/** Working directory for the child. */
 	cwd: string;
 	maxConcurrency?: number;
+	/** Turn ceiling applied to every task, overriding the definition. Exists so a
+	 * ceiling can be retuned from the environment without editing agent files. */
+	maxTurns?: number;
+	/** Token ceiling applied to every task, overriding the definition. */
+	maxTokens?: number;
 	stallTimeoutMs?: number;
 	toolStallTimeoutMs?: number;
 	/** Grace between SIGTERM and SIGKILL on cancel. */
@@ -79,6 +90,9 @@ interface LiveTask {
 	cancelStall: () => void;
 	escalation: (() => void) | undefined;
 	terminal: boolean;
+	/** The ceiling this run has already reached, acted on when it tries to do
+	 * more. Settlement arriving first means the work finished on budget. */
+	overBudget: BudgetLimit | undefined;
 	promptDir: string | undefined;
 	stderrTail: string;
 	responseWaiters: Map<string, (response: { success?: boolean; error?: unknown }) => void>;
@@ -125,7 +139,7 @@ function defaultCliPath(): string {
 }
 
 export class SubagentRunner {
-	readonly options: Required<Omit<RunnerOptions, "agentDir" | "env" | "onSettled" | "spawn">> & Pick<RunnerOptions, "agentDir" | "env" | "onSettled">;
+	readonly options: Required<Omit<RunnerOptions, "agentDir" | "env" | "onSettled" | "spawn" | "maxTurns" | "maxTokens">> & Pick<RunnerOptions, "agentDir" | "env" | "onSettled" | "maxTurns" | "maxTokens">;
 	private readonly store: AgentStore;
 	private readonly active = new Set<string>();
 	private readonly parked: string[] = [];
@@ -141,6 +155,8 @@ export class SubagentRunner {
 		this.options = {
 			cwd: options.cwd,
 			maxConcurrency: options.maxConcurrency && options.maxConcurrency >= 1 ? options.maxConcurrency : DEFAULT_MAX_CONCURRENCY,
+			maxTurns: options.maxTurns,
+			maxTokens: options.maxTokens,
 			stallTimeoutMs: options.stallTimeoutMs ?? DEFAULT_STALL_MS,
 			toolStallTimeoutMs: options.toolStallTimeoutMs ?? DEFAULT_TOOL_STALL_MS,
 			graceMs: options.graceMs ?? DEFAULT_GRACE_MS,
@@ -174,6 +190,7 @@ export class SubagentRunner {
 			model: definition.model,
 			effort: definition.thinking ?? "default",
 			tokens: 0,
+			turns: 0,
 			cost: 0,
 			startedAt: now,
 			thread: [],
@@ -292,6 +309,7 @@ export class SubagentRunner {
 			cancelStall: () => {},
 			escalation: undefined,
 			terminal: false,
+			overBudget: undefined,
 			promptDir,
 			stderrTail: "",
 			responseWaiters: new Map(),
@@ -378,7 +396,38 @@ export class SubagentRunner {
 		if (!task) return;
 		const result = live.reducer.apply(record);
 		if (result.activity) this.armStall(id, live);
-		if (result.settled) this.finish(id, result.aborted ? "aborted" : "completed");
+		if (result.settled) {
+			this.finish(id, result.aborted ? "aborted" : "completed");
+			return;
+		}
+		// A ceiling is acted on when the child tries to do MORE, not the instant it
+		// is touched: a run whose next record is settlement finished its work on
+		// budget and is completed. Cutting at the touch would label finished work as
+		// a partial handoff and send the caller to redo it.
+		if (live.overBudget) {
+			this.stopForBudget(id, live, live.overBudget);
+			return;
+		}
+		live.overBudget = this.exceeded(id, task);
+	}
+
+	/** The ceiling this run has reached, if any. An explicit runner option wins
+	 * over the definition, so ceilings can be retuned without editing files. */
+	private exceeded(id: string, task: AgentTask): BudgetLimit | undefined {
+		const definition = this.definitions.get(id);
+		const maxTurns = this.options.maxTurns ?? definition?.maxTurns;
+		const maxTokens = this.options.maxTokens ?? definition?.maxTokens;
+		if (maxTurns !== undefined && task.turns >= maxTurns) return "maxTurns";
+		if (maxTokens !== undefined && task.tokens >= maxTokens) return "maxTokens";
+		return undefined;
+	}
+
+	/** A ceiling is a planned stop, not a failure: the child's last answer stays
+	 * as the handoff the caller continues from, and teardown matches cancel. */
+	private stopForBudget(id: string, live: LiveTask, limit: BudgetLimit): void {
+		this.finish(id, "budget", { stoppedBy: limit });
+		this.signal(live.child, "SIGTERM");
+		this.escalate(live, () => this.signal(live.child, "SIGKILL"), this.options.graceMs);
 	}
 
 	/** Renewable silence budget: an in-flight tool call gets the tool ceiling. */
@@ -402,12 +451,15 @@ export class SubagentRunner {
 		// The one-line summary: the result handoff's summary (or first line) for
 		// completed tasks, the first line of the error/abort reason otherwise.
 		const reason = patch.error ?? task.error;
-		const summary = status === "completed" ? extractSummary(task.result) : firstLine(reason);
+		// A budget stop keeps its partial answer for the same reason a completed one
+		// does: that text is the handoff. Only failures discard it.
+		const keepsResult = status === "completed" || status === "budget";
+		const summary = keepsResult ? extractSummary(task.result) : firstLine(reason);
 		this.store.update(id, {
 			status,
 			endedAt: this.options.now(),
 			summary: summary ?? undefined,
-			...(status === "completed" ? {} : { result: undefined }),
+			...(keepsResult ? {} : { result: undefined }),
 			...patch,
 		});
 		if (this.options.agentDir) saveTaskToHistory(join(this.options.agentDir, HISTORY_SUBDIR), this.store.get(id)!);

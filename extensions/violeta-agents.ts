@@ -87,6 +87,13 @@ export default function (pi: ExtensionAPI) {
 		);
 	}
 
+	/** A ceiling override from the environment: it wins over every definition, so
+	 * ceilings can be retuned for a whole run without editing agent files. */
+	function positiveEnv(name: string): number | undefined {
+		const value = Number.parseInt(process.env[name] ?? "", 10);
+		return Number.isFinite(value) && value >= 1 ? value : undefined;
+	}
+
 	function getRunner(cwd: string): SubagentRunner {
 		if (runner && runnerCwd === cwd) return runner;
 		runner?.killAll();
@@ -95,6 +102,8 @@ export default function (pi: ExtensionAPI) {
 			agentDir: agentDir(),
 			cwd,
 			maxConcurrency: Number.isFinite(configured) && configured >= 1 ? configured : undefined,
+			maxTurns: positiveEnv("VIOLETA_AGENT_MAX_TURNS"),
+			maxTokens: positiveEnv("VIOLETA_AGENT_MAX_TOKENS"),
 			onSettled: deliverBackgroundResult,
 		});
 		runnerCwd = cwd;
@@ -116,6 +125,8 @@ export default function (pi: ExtensionAPI) {
 			model: task.model,
 			effort: task.effort,
 			tokens: task.tokens,
+			turns: task.turns,
+			...(task.stoppedBy ? { stoppedBy: task.stoppedBy } : {}),
 			cost: task.cost,
 			endedAt: task.endedAt ?? null,
 			summary: task.summary,
@@ -196,9 +207,26 @@ export default function (pi: ExtensionAPI) {
 					isError: true,
 				};
 			}
+			// A ceiling stop is a planned handoff, not an error: the caller gets the
+			// partial answer plus what continues it. Flagging it as an error would
+			// invite the caller to retry the same oversized unit instead of splitting it.
+			if (finished.status === "budget") {
+				const head = t.budgetStopped(finished.stoppedBy ?? "maxTurns", finished.turns, finished.tokens);
+				return {
+					content: [{ type: "text" as const, text: `${head}\n\n${finished.result ?? t.noAnswer}` }],
+					details: {
+						taskId: finished.id,
+						status: finished.status,
+						stoppedBy: finished.stoppedBy,
+						turns: finished.turns,
+						tokens: finished.tokens,
+						cost: finished.cost,
+					},
+				};
+			}
 			return {
 				content: [{ type: "text" as const, text: finished.status === "completed" ? finished.result ?? t.noAnswer : `${taskText(finished)}` }],
-				details: { taskId: finished.id, status: finished.status, tokens: finished.tokens, cost: finished.cost, error: finished.error },
+				details: { taskId: finished.id, status: finished.status, tokens: finished.tokens, turns: finished.turns, cost: finished.cost, error: finished.error },
 				isError: finished.status !== "completed",
 			};
 		},

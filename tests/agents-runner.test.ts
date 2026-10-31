@@ -75,7 +75,7 @@ interface Harness {
 	start(overrides?: { maxConcurrency?: number; task?: string; label?: string; mode?: "task" | "background" }): AgentTask;
 }
 
-function harness(overrides: { maxConcurrency?: number; task?: string; mode?: "task" | "background"; stallTimeoutMs?: number } = {}): Harness {
+function harness(overrides: { maxConcurrency?: number; task?: string; mode?: "task" | "background"; stallTimeoutMs?: number; maxTurns?: number; maxTokens?: number } = {}): Harness {
 	const dir = mkdtempSync(join(tmpdir(), "violeta-runner-"));
 	const store = new AgentStore();
 	const children: FakeChild[] = [];
@@ -92,6 +92,8 @@ function harness(overrides: { maxConcurrency?: number; task?: string; mode?: "ta
 		agentDir: dir,
 		cwd: dir,
 		maxConcurrency: overrides.maxConcurrency ?? 3,
+		maxTurns: overrides.maxTurns,
+		maxTokens: overrides.maxTokens,
 		stallTimeoutMs: overrides.stallTimeoutMs ?? 240_000,
 		spawn,
 		now: () => clock,
@@ -415,6 +417,138 @@ test("killAll force-kills every live child and aborts queued tasks", () => {
 		assert.equal(h.store.get(first.id)?.status, "aborted");
 		assert.equal(h.store.get(second.id)?.status, "aborted");
 		assert.equal(h.runner.activeCount(), 0);
+	} finally {
+		h.cleanup();
+	}
+});
+
+/** One completed assistant message, optionally carrying usage. */
+function assistantTurn(text: string, tokens?: number) {
+	return {
+		type: "message_end",
+		message: {
+			role: "assistant",
+			content: [{ type: "text", text }],
+			...(tokens === undefined ? {} : { usage: { input: tokens, output: 0, cost: { total: 0 } } }),
+		},
+	};
+}
+
+test("turns count completed assistant messages and stay at zero for other records", async () => {
+	const h = harness();
+	try {
+		const task = h.start();
+		h.write(h.children[0]!, { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "thinking out loud" } });
+		h.write(h.children[0]!, { type: "tool_execution_start", toolCallId: "c1", toolName: "read", args: { path: "a.ts" } });
+		assert.equal(h.store.get(task.id)!.turns, 0);
+		h.write(h.children[0]!, assistantTurn("first"));
+		h.write(h.children[0]!, assistantTurn("second"));
+		assert.equal(h.store.get(task.id)!.turns, 2);
+		h.write(h.children[0]!, { type: "agent_settled", aborted: false });
+		await h.runner.waitFor(task.id);
+		assert.equal(h.store.get(task.id)!.turns, 2);
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("reaching maxTurns stops the child with status budget and keeps the partial answer", async () => {
+	const h = harness();
+	try {
+		const task = h.runner.start(definition({ maxTurns: 2 }), { task: "a long unit of work", mode: "task" });
+		h.write(h.children[0]!, assistantTurn("partial progress"));
+		assert.equal(h.store.get(task.id)!.status, "running");
+		h.write(h.children[0]!, assistantTurn("summary: stopped halfway"));
+		// The ceiling is touched, and acted on as soon as the child reaches for more.
+		assert.equal(h.store.get(task.id)!.status, "running");
+		h.write(h.children[0]!, { type: "tool_execution_start", toolCallId: "c9", toolName: "edit", args: { path: "next.ts" } });
+		const finished = await h.runner.waitFor(task.id);
+		assert.equal(finished!.status, "budget");
+		assert.equal(finished!.stoppedBy, "maxTurns");
+		assert.equal(finished!.turns, 2);
+		// The partial answer is the handoff the caller continues from, so unlike a
+		// failure it must survive the stop.
+		assert.equal(finished!.result, "summary: stopped halfway");
+		assert.equal(finished!.summary, "stopped halfway");
+		assert.equal(finished!.error, undefined);
+		assert.ok(h.children[0]!.signals.includes("SIGTERM"));
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("reaching maxTokens stops the child and names that ceiling", async () => {
+	const h = harness();
+	try {
+		const task = h.runner.start(definition({ maxTokens: 100 }), { task: "a token-hungry unit", mode: "task" });
+		h.write(h.children[0]!, assistantTurn("cheap turn", 40));
+		assert.equal(h.store.get(task.id)!.status, "running");
+		h.write(h.children[0]!, assistantTurn("expensive turn", 70));
+		h.write(h.children[0]!, { type: "tool_execution_start", toolCallId: "c9", toolName: "read", args: { path: "next.ts" } });
+		const finished = await h.runner.waitFor(task.id);
+		assert.equal(finished!.status, "budget");
+		assert.equal(finished!.stoppedBy, "maxTokens");
+		assert.equal(finished!.tokens, 110);
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a run that settles on its last allowed turn is completed, not cut short", async () => {
+	// Settlement is read before the ceiling, so an agent that finishes exactly on
+	// budget reports the work it actually finished.
+	const h = harness();
+	try {
+		const task = h.runner.start(definition({ maxTurns: 1 }), { task: "a one-turn unit", mode: "task" });
+		h.write(h.children[0]!, assistantTurn("done in one"));
+		h.write(h.children[0]!, { type: "agent_settled", aborted: false });
+		const finished = await h.runner.waitFor(task.id);
+		assert.equal(finished!.status, "completed");
+		assert.equal(finished!.stoppedBy, undefined);
+		assert.equal(finished!.result, "done in one");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a runner ceiling overrides the definition so budgets can be retuned without editing files", async () => {
+	const h = harness({ maxTurns: 1 });
+	try {
+		const task = h.runner.start(definition({ maxTurns: 50 }), { task: "work", mode: "task" });
+		h.write(h.children[0]!, assistantTurn("one turn is all it gets"));
+		h.write(h.children[0]!, { type: "tool_execution_start", toolCallId: "c9", toolName: "read", args: { path: "next.ts" } });
+		const finished = await h.runner.waitFor(task.id);
+		assert.equal(finished!.status, "budget");
+		assert.equal(finished!.stoppedBy, "maxTurns");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a definition without ceilings never stops on budget", async () => {
+	const h = harness();
+	try {
+		const task = h.start();
+		for (let i = 0; i < 25; i++) h.write(h.children[0]!, assistantTurn(`turn ${i}`, 10_000));
+		assert.equal(h.store.get(task.id)!.status, "running");
+		h.write(h.children[0]!, { type: "agent_settled", aborted: false });
+		const finished = await h.runner.waitFor(task.id);
+		assert.equal(finished!.status, "completed");
+		assert.equal(finished!.turns, 25);
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a budget stop persists to history like any other finished task", async () => {
+	const h = harness();
+	try {
+		const task = h.runner.start(definition({ maxTurns: 1 }), { task: "work", mode: "task" });
+		h.write(h.children[0]!, assistantTurn("partial"));
+		h.write(h.children[0]!, { type: "tool_execution_start", toolCallId: "c9", toolName: "read", args: { path: "next.ts" } });
+		await h.runner.waitFor(task.id);
+		const files = readdirSync(join(h.dir, "agents-history"));
+		assert.equal(files.length, 1);
 	} finally {
 		h.cleanup();
 	}

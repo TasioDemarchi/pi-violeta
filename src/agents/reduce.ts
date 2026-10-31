@@ -109,6 +109,10 @@ export function createReducer(store: AgentStore, task: AgentTask): Reducer {
 			if (record.type === "message_end") {
 				const message = record.message as { role?: unknown; content?: unknown; usage?: UsageShape } | undefined;
 				if (!message || message.role !== "assistant") return result;
+				// One completed assistant message is one turn: the unit a ceiling in
+				// the definition counts, and the unit whose context the next turn
+				// resends in full.
+				task.turns += 1;
 				const usage = message.usage;
 				if (usage) {
 					task.tokens += asNumber(usage.input) + asNumber(usage.output);

@@ -19,6 +19,7 @@ function task(overrides: Partial<AgentTask>): AgentTask {
 		model: "gpt/x",
 		effort: "low",
 		tokens: 0,
+		turns: 0,
 		cost: 0,
 		startedAt: 0,
 		thread: [],
@@ -181,4 +182,21 @@ test("in English the card reads `Agents · N active · M done` with a queued row
 	} finally {
 		setLanguage("es");
 	}
+});
+
+test("a budget stop reads as its own glyph and counts as done, never as failed", () => {
+	// A planned ceiling stop produced a usable handoff, so the header counts it
+	// with the finished work; only the glyph tells it apart from a clean run.
+	setLanguage("es");
+	const now = 100_000;
+	const tasks = [
+		task({ id: "a", status: "completed", endedAt: now - 1_000 }),
+		task({ id: "b", status: "budget", stoppedBy: "maxTurns", endedAt: now - 1_000 }),
+	];
+	const rows = renderAgentsCard(tasks, { width: 80, now }, plain);
+	const header = rows[0]!;
+	assert.match(header, /2 terminados/);
+	assert.doesNotMatch(header, /fallido/);
+	assert.ok(rows.some((row) => row.includes("◼")), `expected the budget glyph in:\n${rows.join("\n")}`);
+	assert.ok(!rows.some((row) => row.includes("✗")));
 });

@@ -7,6 +7,8 @@
  * ========
  * Types:
  * - `TaskStatus` = "queued" | "running" | "completed" | "failed" | "aborted"
+ *   | "budget"
+ * - `BudgetLimit` = "maxTurns" | "maxTokens"
  * - `ThreadKind` = "thinking" | "text" | "tool" | "info"
  * - `ThreadItem` = { kind: ThreadKind, text: string, toolName?: string,
  *   toolStatus?: "running" | "done" | "error" }
@@ -21,7 +23,9 @@
  *     model: string             model id from the definition
  *     effort: string            thinking level from the definition, or "default"
  *     tokens: number            total input + output tokens across the run
+ *     turns: number             assistant messages completed across the run
  *     cost: number              total cost in USD across the run
+ *     stoppedBy?: BudgetLimit   which ceiling ended the run (status "budget")
  *     startedAt: number         epoch ms, set when the task is created (queued)
  *     endedAt?: number          epoch ms, set once the task is finished
  *     result?: string           final assistant text (completed tasks)
@@ -52,7 +56,12 @@
  * listeners stay cheap on long child runs.
  */
 
-export type TaskStatus = "queued" | "running" | "completed" | "failed" | "aborted";
+/** A run stops at a ceiling declared by its definition. This is a planned stop
+ * with a usable partial handoff, never a failure: the engine stays neutral and
+ * only reports which ceiling was reached: the caller decides what to do next. */
+export type BudgetLimit = "maxTurns" | "maxTokens";
+
+export type TaskStatus = "queued" | "running" | "completed" | "failed" | "aborted" | "budget";
 export type ThreadKind = "thinking" | "text" | "tool" | "info";
 export type ThreadToolStatus = "running" | "done" | "error";
 
@@ -72,12 +81,14 @@ export interface AgentTask {
 	model: string;
 	effort: string;
 	tokens: number;
+	turns: number;
 	cost: number;
 	startedAt: number;
 	endedAt?: number;
 	result?: string;
 	error?: string;
 	summary?: string;
+	stoppedBy?: BudgetLimit;
 	thread: ThreadItem[];
 }
 
@@ -87,7 +98,7 @@ export const MAX_ITEM_TEXT = 8000;
 export type TaskListener = (task: AgentTask) => void;
 export type CancelHandler = (id: string) => boolean;
 
-const FINISHED: ReadonlySet<TaskStatus> = new Set(["completed", "failed", "aborted"]);
+const FINISHED: ReadonlySet<TaskStatus> = new Set(["completed", "failed", "aborted", "budget"]);
 
 export function isFinished(status: TaskStatus): boolean {
 	return FINISHED.has(status);

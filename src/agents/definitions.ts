@@ -3,8 +3,10 @@ import { join } from "node:path";
 
 /** Agent definitions: markdown files with YAML frontmatter in
  * `${PI_CODING_AGENT_DIR}/agents/*.md`. Frontmatter keys: name, description,
- * model, thinking, tools; the body is the system prompt. The engine is neutral:
- * it ships no agents and attaches no meaning to any definition. */
+ * model, thinking, tools, maxTurns, maxTokens; the body is the system prompt.
+ * The engine is neutral: it ships no agents and attaches no meaning to any
+ * definition. `maxTurns`/`maxTokens` are plain ceilings the runner enforces;
+ * they carry no workflow, and a definition that omits them has none. */
 
 export interface AgentDefinition {
 	name: string;
@@ -12,6 +14,10 @@ export interface AgentDefinition {
 	model: string;
 	thinking?: string;
 	tools: string[];
+	/** Stop the run after this many assistant turns. Absent means no ceiling. */
+	maxTurns?: number;
+	/** Stop the run after this many input+output tokens. Absent means no ceiling. */
+	maxTokens?: number;
 	prompt: string;
 	source: string;
 }
@@ -22,6 +28,21 @@ export interface DefinitionError {
 }
 
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
+/** A ceiling must be a positive whole number; anything else is a typo worth
+ * reporting rather than a silently ignored budget. */
+function positiveInteger(data: Map<string, string | string[]>, key: string, source: string): number | undefined {
+	const raw = data.get(key);
+	if (raw === undefined) return undefined;
+	if (typeof raw !== "string" || raw.trim() === "") {
+		throw new Error(`${source}: "${key}" must be a positive whole number`);
+	}
+	const value = Number(raw.trim());
+	if (!Number.isInteger(value) || value <= 0) {
+		throw new Error(`${source}: "${key}" must be a positive whole number (got "${raw.trim()}")`);
+	}
+	return value;
+}
 
 function unquote(value: string): string {
 	const trimmed = value.trim();
@@ -87,6 +108,8 @@ export function parseDefinition(text: string, source: string): AgentDefinition {
 	if (thinking && !THINKING_LEVELS.has(thinking)) {
 		throw new Error(`${source}: "thinking" must be one of ${[...THINKING_LEVELS].join(", ")} (got "${thinking}")`);
 	}
+	const maxTurns = positiveInteger(data, "maxTurns", source);
+	const maxTokens = positiveInteger(data, "maxTokens", source);
 	const rawTools = data.get("tools");
 	const tools = Array.isArray(rawTools) ? rawTools.filter((t): t is string => typeof t === "string" && t !== "") : [];
 	const bodyStart = text.indexOf("\n---\n");
@@ -98,6 +121,8 @@ export function parseDefinition(text: string, source: string): AgentDefinition {
 		model,
 		thinking,
 		tools,
+		...(maxTurns === undefined ? {} : { maxTurns }),
+		...(maxTokens === undefined ? {} : { maxTokens }),
 		prompt: body,
 		source,
 	};
