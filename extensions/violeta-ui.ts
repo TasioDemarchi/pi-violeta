@@ -219,6 +219,26 @@ export default function (pi: ExtensionAPI) {
 		return { input, output, cost };
 	}
 
+	// Context warning (S5): one hysteresis warner per session, shared by
+	// the footer and the sidebar renders (exactly one fires per crossing).
+	// VIOLETA_TEST_CTX_PERCENT is a validation-only hook that forces the
+	// percent both surfaces see; unset in every real session, so production
+	// behavior is unchanged.
+	const effectivePercent = (percent: number | null | undefined): number | null | undefined => {
+		const raw = process.env.VIOLETA_TEST_CTX_PERCENT;
+		if (raw === undefined || percent == null) return percent;
+		const forced = Number.parseFloat(raw);
+		return Number.isFinite(forced) ? forced : percent;
+	};
+	const compactWarner = createCompactWarner();
+	const warnCompact = (percent: number | null | undefined): void => {
+		if (!compactWarner.check(percent)) return;
+		const timer = setTimeout(() => {
+			uiCtx?.ui.notify(contextT.compactSuggest, "info");
+		}, 0);
+		timer.unref?.();
+	};
+
 	function collectSidebarData(): SidebarData {
 		const ctx = uiCtx!;
 		const usage = ctx.getContextUsage();
@@ -244,26 +264,6 @@ export default function (pi: ExtensionAPI) {
 		if (ctx.mode !== "tui") return;
 		uiCtx = ctx;
 		ctx.ui.setTitle(`violeta · ${basename(ctx.cwd)}`);
-
-		// Context warning (S5): one hysteresis warner per session, shared by
-		// the footer and the sidebar renders (exactly one fires per crossing).
-		// VIOLETA_TEST_CTX_PERCENT is a validation-only hook that forces the
-		// percent both surfaces see; unset in every real session, so production
-		// behavior is unchanged.
-		const effectivePercent = (percent: number | null | undefined): number | null | undefined => {
-			const raw = process.env.VIOLETA_TEST_CTX_PERCENT;
-			if (raw === undefined || percent == null) return percent;
-			const forced = Number.parseFloat(raw);
-			return Number.isFinite(forced) ? forced : percent;
-		};
-		const compactWarner = createCompactWarner();
-		const warnCompact = (percent: number | null | undefined): void => {
-			if (!compactWarner.check(percent)) return;
-			const timer = setTimeout(() => {
-				uiCtx?.ui.notify(contextT.compactSuggest, "info");
-			}, 0);
-			timer.unref?.();
-		};
 
 		const cfg = configFile();
 		// The persisted language is honored everywhere — including subagent
