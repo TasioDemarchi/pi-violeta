@@ -3,7 +3,7 @@
     "nan": {
       "baseUrl": "https://api.nan.builders/v1",
       "api": "openai-completions",
-      "apiKey": "!jq -r .nan.key $HOME/.gentle-shell/agent/auth.json",
+      "apiKey": "!for f in \"$PI_CODING_AGENT_DIR/auth.json\" \"$HOME/.gentle-shell/agent/auth.json\"; do k=$(jq -r '.nan.key // empty' \"$f\" 2>/dev/null); [ -n \"$k\" ] && { printf %s \"$k\"; break; }; done",
       "models": [
         {
           "id": "deepseek-v4-flash",

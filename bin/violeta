@@ -5,19 +5,26 @@ export PI_CODING_AGENT_DIR="${VIOLETA_HOME:-$HOME/.violeta}/agent"
 export PI_SKIP_VERSION_CHECK=1
 mkdir -p "$PI_CODING_AGENT_DIR"
 
+# Seeded ONLY on first run, never in the merged fragment below: Pi persists the
+# selected model here, so overlaying it on every start would silently undo a
+# /models choice. After this, the model is yours -- /mode and /models own it.
 if [ ! -f "$PI_CODING_AGENT_DIR/settings.json" ]; then
 	cat > "$PI_CODING_AGENT_DIR/settings.json" <<JSON
 {
   "theme": "violeta",
   "quietStartup": true,
+  "defaultProvider": "nan",
+  "defaultModel": "glm5.3",
   "packages": ["$ROOT"]
 }
 JSON
 fi
 
 # Model catalog is repo-owned (config/models.json) and synced on every start.
-# NaN's key is read at request time from gentle-shell's auth.json, never copied.
-[ -f "$HOME/.gentle-shell/agent/auth.json" ] && cp "$ROOT/config/models.json" "$PI_CODING_AGENT_DIR/models.json"
+# The key itself is never copied: models.json resolves it at request time from
+# violeta's own agent dir first, falling back to gentle-shell's, so violeta runs
+# with or without gentle-shell installed.
+cp "$ROOT/config/models.json" "$PI_CODING_AGENT_DIR/models.json"
 
 # Repo-owned settings fragment (config/settings.json) merged into the agent
 # settings on every start, idempotently: object keys are overlaid (jq `*`),
