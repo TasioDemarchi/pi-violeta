@@ -14,7 +14,7 @@
  *
  * The English dictionary reproduces the ORIGINAL English strings that existed
  * before the Spanish change (commit 08910f9); strings added after it (the
- * sidebar TASKS section, the `…` fold ellipsis, the /idioma command texts)
+ * sidebar TASKS section, the `…` fold ellipsis, the /language command texts)
  * are natural English.
  *
  * Deliberately NOT here (they stay English):
@@ -232,8 +232,8 @@ const es = {
 		sidebarDescription: "Muestra u oculta la barra lateral (el pie se oculta mientras está activa)",
 		sidebarUsage: "uso: /sidebar [on|off]",
 		sidebarNeedsFullscreen: "La barra lateral necesita modo fullscreen; se muestra el pie en su lugar.",
-		languageDescription: "Cambia el idioma de la interfaz entre español e inglés (/language también funciona)",
-		languageUsage: "uso: /idioma [es|en]",
+		languageDescription: "Cambia el idioma de la interfaz entre español e inglés",
+		languageUsage: "uso: /language [es|en]",
 		languageSet: "Idioma: Español",
 	},
 	activity: {
@@ -420,8 +420,8 @@ const en: typeof es = {
 		sidebarDescription: "Toggle the right sidebar (the footer hides while it is active)",
 		sidebarUsage: "usage: /sidebar [on|off]",
 		sidebarNeedsFullscreen: "Sidebar needs fullscreen mode; showing the footer instead.",
-		languageDescription: "Switch the interface language between Spanish and English (/idioma also works)",
-		languageUsage: "usage: /idioma [es|en]",
+		languageDescription: "Switch the interface language between Spanish and English",
+		languageUsage: "usage: /language [es|en]",
 		languageSet: "Language: English",
 	},
 	activity: {

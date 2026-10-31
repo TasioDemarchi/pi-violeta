@@ -251,11 +251,11 @@ export default function (pi: ExtensionAPI) {
 		setLanguage(cfg ? readLanguage(cfg) : "es");
 		sidebarEnabled = cfg ? readSidebarEnabled(cfg) : false;
 
-		// /idioma (alias /language): switch es|en, no argument toggles. Children
+		// /language: switch es|en, no argument toggles. Children
 		// have no UI of their own, so they honor the persisted language but do
 		// not register the command.
 		if (process.env.VIOLETA_AGENTS_CHILD !== "1") {
-			const idioma = async (args: string, commandCtx: ExtensionContext) => {
+			const language = async (args: string, commandCtx: ExtensionContext) => {
 				const arg = args.trim().toLowerCase();
 				let next: Language | undefined;
 				if (arg === "") next = getLanguage() === "es" ? "en" : "es";
@@ -272,9 +272,7 @@ export default function (pi: ExtensionAPI) {
 				commandCtx.ui.notify(uiT.languageSet, "info");
 				tuiRef?.requestRender();
 			};
-			// registerCommand has no alias support: register both names.
-			pi.registerCommand("idioma", { description: uiT.languageDescription, handler: idioma });
-			pi.registerCommand("language", { description: uiT.languageDescription, handler: idioma });
+			pi.registerCommand("language", { description: uiT.languageDescription, handler: language });
 		}
 
 		pi.registerCommand("sidebar", {

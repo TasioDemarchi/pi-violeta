@@ -292,7 +292,7 @@ test("the English dictionary reproduces the original English todo, jobs, sidebar
 		assert.equal(activity.phases.running, "running");
 
 		assert.equal(ui.languageSet, "Language: English");
-		assert.equal(ui.languageUsage, "usage: /idioma [es|en]");
+		assert.equal(ui.languageUsage, "usage: /language [es|en]");
 	} finally {
 		setLanguage("es");
 	}
@@ -313,7 +313,7 @@ test("switching back to es restores the Spanish dictionary everywhere", () => {
 		assert.equal(sidebar.usage, "USO");
 		assert.equal(activity.phases.checking, "verificando");
 		assert.equal(ui.languageSet, "Idioma: Español");
-		assert.equal(ui.languageUsage, "uso: /idioma [es|en]");
+		assert.equal(ui.languageUsage, "uso: /language [es|en]");
 	} finally {
 		setLanguage("es");
 	}
