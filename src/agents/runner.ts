@@ -401,7 +401,13 @@ export class SubagentRunner {
 		const result = live.reducer.apply(record);
 		if (result.activity) this.armStall(id, live);
 		if (result.settled) {
-			this.finish(id, result.aborted ? "aborted" : "completed");
+			// Settling is not the same as answering. A child that ends with nothing to
+			// say did not do its job, and reporting that as "completed" invites the
+			// caller to assume success and move on.
+			const answered = typeof task.result === "string" && task.result.trim() !== "";
+			if (result.aborted) this.finish(id, "aborted");
+			else if (answered) this.finish(id, "completed");
+			else this.finish(id, "failed", { error: "settled without an answer" });
 			return;
 		}
 		// A ceiling is acted on when the child tries to do MORE, not the instant it

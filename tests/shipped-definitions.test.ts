@@ -108,16 +108,19 @@ test("no agent is on the metered plan", () => {
 	assert.deepEqual(metered.map((d) => d.name), []);
 });
 
-test("every worker reads only the spec surface, and the record stays thin", () => {
-	// A worker that loads the whole document pays for the record on every turn,
-	// and the reasoning sections are the part that grows.
+test("workers read the whole contract and skip only the history", () => {
+	// The boundary is contract vs record, not specs vs everything else. A shared
+	// decision section that tasks cite by number ("the splice of A3") is
+	// contract: narrowing workers to the specs alone made those citations
+	// unresolvable.
 	for (const name of ["builder", "planner", "verifier"]) {
 		const def = agents().definitions.find((d) => d.name === name)!;
-		assert.match(def.prompt, /skip it|Skip the reasoning|Skip the/i, `${name}: no read narrowing`);
+		assert.match(def.prompt, /down to `## Log`/, `${name}: no contract boundary`);
 	}
 	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
-	assert.match(odd, /any decision that constrains implementation/i);
-	assert.match(odd, /only reader that takes the whole document/i);
+	assert.match(odd, /above `## Log` is the contract/i);
+	assert.match(odd, /cite by number are contract/i);
+	assert.match(odd, /written down and cited/i);
 });
 
 test("the orchestrator and the writer never share a quota pool", () => {

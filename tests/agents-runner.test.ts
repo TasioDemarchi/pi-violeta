@@ -373,9 +373,13 @@ test("tasks beyond max concurrency stay queued and launch when a slot frees", as
 		assert.equal(first.status, "running");
 		assert.equal(second.status, "queued");
 		assert.equal(h.spawned.length, 1);
+		// Both children answer: this test is about the queue, and a silent settle
+		// now means something else.
+		h.write(h.children[0]!, assistantTurn("first done"));
 		h.write(h.children[0]!, { type: "agent_settled", aborted: false });
 		await h.runner.waitFor(first.id);
 		assert.equal(h.spawned.length, 2);
+		h.write(h.children[1]!, assistantTurn("second done"));
 		h.write(h.children[1]!, { type: "agent_settled", aborted: false });
 		await h.runner.waitFor(second.id);
 		assert.equal(h.store.get(second.id)?.status, "completed");
@@ -549,6 +553,48 @@ test("a budget stop persists to history like any other finished task", async () 
 		await h.runner.waitFor(task.id);
 		const files = readdirSync(join(h.dir, "agents-history"));
 		assert.equal(files.length, 1);
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a child that settles without an answer is a failure, not a completion", async () => {
+	// Observed twice in real use: a worker that produced no files, and a child
+	// whose provider cut it off. Both settled, both were recorded as completed,
+	// and both looked like success to the caller.
+	const h = harness();
+	try {
+		const task = h.start();
+		h.write(h.children[0]!, { type: "tool_execution_start", toolCallId: "c1", toolName: "read", args: { path: "a.ts" } });
+		h.write(h.children[0]!, { type: "agent_settled", aborted: false });
+		const finished = await h.runner.waitFor(task.id);
+		assert.equal(finished!.status, "failed");
+		assert.match(finished!.error!, /without an answer/);
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("whitespace is not an answer either", async () => {
+	const h = harness();
+	try {
+		const task = h.start();
+		h.write(h.children[0]!, assistantTurn("   \n  "));
+		h.write(h.children[0]!, { type: "agent_settled", aborted: false });
+		const finished = await h.runner.waitFor(task.id);
+		assert.equal(finished!.status, "failed");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("an aborted run is still aborted, answer or not", async () => {
+	const h = harness();
+	try {
+		const task = h.start();
+		h.write(h.children[0]!, { type: "agent_settled", aborted: true });
+		const finished = await h.runner.waitFor(task.id);
+		assert.equal(finished!.status, "aborted");
 	} finally {
 		h.cleanup();
 	}

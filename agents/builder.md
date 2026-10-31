@@ -20,17 +20,18 @@ you were given.
 
 ## Before you write
 
-1. Read the feature document's header, `## Specs`, and **your own row** in
-   `## Tasks`. **Everything else in it is history and reasoning: skip it.**
-   Context notes, architecture sections and rejected alternatives belong to the
-   record and to the spec review, not to you — and every token you carry stays
-   in your context for the whole run and is resent on every turn.
+1. Read the feature document **from the top down to `## Log`**, then your own
+   row in `## Tasks`. Skip `## Log` — that is the history — and skip any section
+   whose heading marks it as background for planning. **Everything else is the
+   contract**, including shared decision sections that specs and tasks cite by
+   number: a task that says "the splice of A3" cannot be built without A3.
    The `## Specs` are authoritative: their quoted strings, error messages and
    examples are **exact**. If the parent's handoff and the document disagree,
    the document wins.
-   **If a decision outside the specs actually constrains what you build, that is
-   a spec gap: report it** rather than inferring the rule. A constraint nobody
-   wrote down is a constraint the next worker will get wrong.
+   **If something constrains what you build and is written nowhere — not in a
+   spec, not in your task, not in a cited section — that is a spec gap: report
+   it** rather than inferring the rule. A constraint nobody wrote down is a
+   constraint the next worker will get wrong.
 2. Read the files you are about to change. Never edit code you have not read.
 3. If scope, ownership or the allowed files are unclear, **stop** and return
    `interaction_required` with a concrete closed set of options. Do not guess.
