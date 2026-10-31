@@ -19,6 +19,30 @@ fi
 # NaN's key is read at request time from gentle-shell's auth.json, never copied.
 [ -f "$HOME/.gentle-shell/agent/auth.json" ] && cp "$ROOT/config/models.json" "$PI_CODING_AGENT_DIR/models.json"
 
+# Repo-owned settings fragment (config/settings.json) merged into the agent
+# settings on every start, idempotently: object keys are overlaid (jq `*`),
+# but `packages` arrays are UNIONED and deduplicated, so user-added packages
+# and keys in settings.json are never clobbered. The fragment only declares
+# the package; Pi itself installs it into $PI_CODING_AGENT_DIR/npm on start.
+FRAG="$ROOT/config/settings.json"
+SETTINGS="$PI_CODING_AGENT_DIR/settings.json"
+if [ -f "$FRAG" ] && [ -f "$SETTINGS" ] && command -v jq >/dev/null 2>&1; then
+	jq -s '
+		(.[0].packages // []) as $old |
+		(.[1].packages // []) as $new |
+		(.[0] * .[1]) | .packages = (($old + $new) | unique)
+	' "$SETTINGS" "$FRAG" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+fi
+
 NODE="$(command -v node || true)"
 [ -z "$NODE" ] && NODE="$HOME/.gentle-shell/runtime/node-24.21.0/bin/node"
+
+# Pi spawns `npm` (the default of settings `npmCommand`) to install declared
+# packages; make sure it is reachable even when node only came from the
+# gentle-shell runtime dir, which also ships npm.
+if ! command -v npm >/dev/null 2>&1; then
+	NODEBIN="$(dirname "$NODE")"
+	[ -x "$NODEBIN/npm" ] && PATH="$NODEBIN:$PATH" && export PATH
+fi
+
 exec "$NODE" "$ROOT/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js" "$@"
