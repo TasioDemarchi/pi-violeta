@@ -137,3 +137,17 @@ test("no shipped file asks for a model outside this plan's catalogue", () => {
 		assert.ok(nan.has(model.slice(4)), `${model} is not in this plan's catalogue`);
 	}
 });
+
+test("architect is the only agent that can write the plan", () => {
+	// Decomposition is judgment, so it belongs to the metered model, not to the
+	// orchestrator. Every other writer is scoped to implementing a task that
+	// already exists.
+	const found = agents().definitions;
+	const architect = found.find((d) => d.name === "architect")!;
+	assert.ok(architect.tools.includes("write"), "architect must write the feature document itself");
+	assert.ok(!architect.tools.includes("bash"), "architect decides, it does not run things");
+
+	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
+	assert.match(odd, /do not write the specs or the task list yourself/i);
+	assert.match(odd, /verbatim/i);
+});
