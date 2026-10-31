@@ -307,6 +307,12 @@ const es = {
 		 * run unguided without anyone noticing. */
 		loadError: (source: string, message: string) => `No se pudo leer el modo ${source}: ${message}`,
 		agentsHidden: (name: string) => `El modo ${name} no expone subagentes.`,
+		/** Always in the system prompt, even for a mode with no body: the model
+		 * reads the transcript too, and earlier turns followed other rules. */
+		promptHeading: (name: string) =>
+			`# Modo activo: ${name}\n\nEstas son las reglas vigentes AHORA. Si turnos anteriores de esta conversación dicen que estás en otro modo, esos turnos están vencidos: describen cómo trabajabas antes, no cómo trabajás ahora.`,
+		promptSwitched: (from: string, to: string) =>
+			`[violeta] El usuario cambió el modo de "${from}" a "${to}". A partir de acá seguí únicamente las reglas de "${to}". Lo que dijiste antes bajo "${from}" ya no aplica, incluido cualquier rol o restricción que hayas anunciado.`,
 	},
 	palette: {
 		description: "Muestra la paleta de comandos",
@@ -571,6 +577,10 @@ const en: typeof es = {
 			`Unknown mode "${name}". Available: ${available.join(", ")}.`,
 		loadError: (source: string, message: string) => `Could not read mode ${source}: ${message}`,
 		agentsHidden: (name: string) => `Mode ${name} exposes no subagents.`,
+		promptHeading: (name: string) =>
+			`# Active mode: ${name}\n\nThese are the rules in force NOW. If earlier turns in this conversation say you are in another mode, those turns are stale: they describe how you used to work, not how you work now.`,
+		promptSwitched: (from: string, to: string) =>
+			`[violeta] The user switched the mode from "${from}" to "${to}". From here on follow only the rules of "${to}". What you said earlier under "${from}" no longer applies, including any role or restriction you announced.`,
 	},
 	palette: {
 		description: "Show the command palette",

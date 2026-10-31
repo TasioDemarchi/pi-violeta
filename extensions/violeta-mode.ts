@@ -82,10 +82,23 @@ export default function (pi: ExtensionAPI) {
 		await applyModel(active, ctx, false);
 	});
 
+	/** What the active mode contributes to the system prompt.
+	 *
+	 * The heading is always present, even for a mode with no body. Switching a
+	 * mode changes the instructions but not the transcript, and the model reads
+	 * both: without a line naming the mode that is active NOW, it keeps playing
+	 * the role its own earlier messages established. `raw` was the worst case,
+	 * contributing nothing at all to argue with that inertia. */
+	const contribution = (mode: ModeDefinition): string => {
+		const heading = t.promptHeading(mode.name);
+		return mode.prompt ? `${heading}\n\n${mode.prompt}` : heading;
+	};
+
 	pi.on("before_agent_start", (event) => {
-		if (!active.prompt) return;
 		const existing = event.systemPromptOptions.appendSystemPrompt;
-		event.systemPromptOptions.appendSystemPrompt = existing ? `${existing}\n\n${active.prompt}` : active.prompt;
+		event.systemPromptOptions.appendSystemPrompt = existing
+			? `${existing}\n\n${contribution(active)}`
+			: contribution(active);
 	});
 
 	pi.registerCommand("mode", {
@@ -105,12 +118,27 @@ export default function (pi: ExtensionAPI) {
 				ctx.ui.notify(t.unknown(wanted, names), "warning");
 				return;
 			}
+			const previous = active.name;
 			publish(mode);
 			const file = configFile();
 			if (file) writeActiveMode(file, mode.name);
 			ctx.ui.notify(t.switched(mode.name, mode.description), "info");
 			if (mode.agents?.length === 0) ctx.ui.notify(t.agentsHidden(mode.name), "info");
 			await applyModel(mode, ctx, true);
+			// The switch has to land in the conversation, not only in the prompt: the
+			// model reads its own earlier turns, and nothing in them says the rules
+			// changed. `triggerTurn: false` so switching never costs a turn by itself.
+			if (previous !== mode.name) {
+				pi.sendMessage(
+					{
+						customType: "violeta-mode-change",
+						content: t.promptSwitched(previous, mode.name),
+						display: false,
+						details: { from: previous, to: mode.name },
+					},
+					{ triggerTurn: false },
+				);
+			}
 		},
 	});
 }

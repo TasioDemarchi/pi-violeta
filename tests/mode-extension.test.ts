@@ -33,6 +33,7 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 	const commands = new Map<string, (args: string, ctx: unknown) => unknown>();
 	const setModels: Array<{ provider: string; id: string }> = [];
 	const notices: string[] = [];
+	const sent: Array<{ content: string; options: unknown }> = [];
 	const pi = {
 		on: (name: string, fn: Handler) => handlers.set(name, [...(handlers.get(name) ?? []), fn]),
 		registerCommand: (name: string, spec: { handler: (args: string, ctx: unknown) => unknown }) => commands.set(name, spec.handler),
@@ -40,6 +41,7 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 			setModels.push(model);
 			return true;
 		},
+		sendMessage: (message: { content: string }, options: unknown) => sent.push({ content: message.content, options }),
 	};
 	const ctx = {
 		cwd: process.cwd(),
@@ -59,6 +61,7 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 		ctx,
 		notices,
 		setModels,
+		sent,
 		run: (args: string) => commands.get("mode")!(args, ctx),
 		cleanup: () => rmSync(dir, { recursive: true, force: true }),
 	};
@@ -85,7 +88,8 @@ test("before_agent_start appends the mode prompt and never replaces the system p
 		await h.fire("session_start");
 		const event = { systemPrompt: "PI BASE PROMPT", systemPromptOptions: { appendSystemPrompt: "" } };
 		await h.fire("before_agent_start", event);
-		assert.equal(event.systemPromptOptions.appendSystemPrompt, "Work proportionally.");
+		assert.match(event.systemPromptOptions.appendSystemPrompt, /Modo activo: odd/);
+		assert.match(event.systemPromptOptions.appendSystemPrompt, /Work proportionally\./);
 		// Replacing would drop Pi's own tool and environment sections.
 		assert.equal(event.systemPrompt, "PI BASE PROMPT");
 	} finally {
@@ -99,13 +103,16 @@ test("before_agent_start keeps an append already set by someone else", async () 
 		await h.fire("session_start");
 		const event = { systemPrompt: "base", systemPromptOptions: { appendSystemPrompt: "EARLIER" } };
 		await h.fire("before_agent_start", event);
-		assert.equal(event.systemPromptOptions.appendSystemPrompt, "EARLIER\n\nWork proportionally.");
+		assert.match(event.systemPromptOptions.appendSystemPrompt, /^EARLIER\n\n/);
 	} finally {
 		h.cleanup();
 	}
 });
 
-test("raw appends nothing and exposes no agents", async () => {
+test("raw exposes no agents and still names itself in the prompt", async () => {
+	// raw adds no rules, but it must still say which mode is active: a mode that
+	// contributes nothing leaves the model's earlier role unchallenged, which is
+	// exactly how /mode raw kept answering as scout.
 	const h = setup({ mode: "odd" });
 	try {
 		await h.fire("session_start");
@@ -114,8 +121,35 @@ test("raw appends nothing and exposes no agents", async () => {
 		assert.deepEqual(getShared().modeAgents, []);
 		const event = { systemPrompt: "base", systemPromptOptions: { appendSystemPrompt: "" } };
 		await h.fire("before_agent_start", event);
-		assert.equal(event.systemPromptOptions.appendSystemPrompt, "");
+		assert.match(event.systemPromptOptions.appendSystemPrompt, /Modo activo: raw/);
+		assert.doesNotMatch(event.systemPromptOptions.appendSystemPrompt, /Work proportionally/);
 		assert.equal(readActiveMode(join(h.dir, "violeta.json")), "raw");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("switching announces the change in the conversation without costing a turn", async () => {
+	// The prompt swap alone is not enough: the model reads its own earlier turns
+	// and keeps playing the role they established.
+	const h = setup({ mode: "odd" });
+	try {
+		await h.fire("session_start");
+		await h.run("raw");
+		assert.equal(h.sent.length, 1);
+		assert.match(h.sent[0]!.content, /de "odd" a "raw"/);
+		assert.deepEqual(h.sent[0]!.options, { triggerTurn: false });
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("switching to the mode already active announces nothing", async () => {
+	const h = setup({ mode: "odd" });
+	try {
+		await h.fire("session_start");
+		await h.run("odd");
+		assert.deepEqual(h.sent, []);
 	} finally {
 		h.cleanup();
 	}
