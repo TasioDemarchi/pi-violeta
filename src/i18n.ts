@@ -147,6 +147,23 @@ const es = {
 		cancelled: (id: string) => `Tarea ${id} cancelada.`,
 		notCancellable: (id: string) => `La tarea ${id} no se puede cancelar (id desconocido o ya terminada).`,
 	},
+	changes: {
+		/** `N` rows for the group headers of the /changes list (glyph added by the view). */
+		created: (n: number) => `${n} ${n === 1 ? "creado" : "creados"}`,
+		updated: (n: number) => `${n} ${n === 1 ? "modificado" : "modificados"}`,
+		deleted: (n: number) => `${n} ${n === 1 ? "eliminado" : "eliminados"}`,
+		empty: "Sin cambios.",
+		loading: "cargando…",
+		binary: "binario",
+		moreLines: (n: number) => `… ${n} ${n === 1 ? "línea más" : "líneas más"}`,
+		hint: (mode: "split" | "narrow") =>
+			mode === "split"
+				? "j/k archivo  ctrl+j/k desplazar  g/G inicio/fin  o abrir  esc cerrar"
+				: "j/k archivo  enter diff  esc volver  q cerrar",
+		overlayNeedsTui: "La vista de cambios requiere modo interactivo.",
+		description: "Muestra el visor de cambios (archivos y su diff)",
+		shortcut: "Muestra el visor de cambios",
+	},
 	todo: {
 		cardTitle: (open: number, done: number) => {
 			const plural = (n: number, singular: string, pluralForm: string) => `${n} ${n === 1 ? singular : pluralForm}`;
@@ -342,6 +359,22 @@ const en: typeof es = {
 		cancelled: (id: string) => `Cancelled task ${id}.`,
 		notCancellable: (id: string) => `Task ${id} cannot be cancelled (unknown id or already finished).`,
 	},
+	changes: {
+		created: (n: number) => `${n} created`,
+		updated: (n: number) => `${n} updated`,
+		deleted: (n: number) => `${n} deleted`,
+		empty: "No changes.",
+		loading: "loading…",
+		binary: "binary",
+		moreLines: (n: number) => `… ${n} more line${n === 1 ? "" : "s"}`,
+		hint: (mode: "split" | "narrow") =>
+			mode === "split"
+				? "j/k file  ctrl+j/k scroll  g/G top/bottom  o open  esc close"
+				: "j/k file  enter diff  esc back  q close",
+		overlayNeedsTui: "The changes overlay requires interactive mode.",
+		description: "Show the changes viewer (files and their diff)",
+		shortcut: "Show the changes viewer",
+	},
 	todo: {
 		cardTitle: (open: number, done: number) => `Todo · ${open} open · ${done} done`,
 		fold: (n: number) => `… ${n} more`,
@@ -466,6 +499,7 @@ function localized<K extends keyof typeof es>(key: K): (typeof es)[K] {
 export const guardReasons = localized("guardReasons");
 export const guard = localized("guard");
 export const agents = localized("agents");
+export const changes = localized("changes");
 export const todo = localized("todo");
 export const jobs = localized("jobs");
 export const sidebar = localized("sidebar");
