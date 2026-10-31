@@ -340,8 +340,10 @@ export default function (pi: ExtensionAPI) {
 						return buildSidebarLines(data, { width, rows: tui.terminal.rows }, (role, text) =>
 							theme.fg(role as ThemeColor, text),
 						);
-					} catch {
-						return [];
+					} catch (error) {
+						// Never draw an empty panel: show the failure so it can be reported.
+						const message = error instanceof Error ? error.message : String(error);
+						return [truncateToWidth(theme.fg("error", `sidebar: ${message}`), width)];
 					}
 				},
 			};
