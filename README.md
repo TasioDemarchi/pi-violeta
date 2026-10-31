@@ -33,11 +33,24 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | `extensions/violeta-tools.ts`, `src/tools-view/` | Compact one-line tool renderers |
 | `extensions/violeta-notify.ts`, `src/notify/` | `/notify` finish and dialog alerts |
 | `extensions/violeta-models.ts`, `src/models-view/` | `/models` quick selector |
+| `extensions/violeta-mode.ts`, `src/modes/` | `/mode` philosophy switch (prompt, model and agent roster) |
+| `src/frontmatter.ts` | The minimal YAML reader shared by agent and mode definitions |
 | `extensions/violeta-palette.ts`, `src/palette/` | `/palette` command palette |
 | `src/context-warning.ts` | Context color thresholds and `/compact` hint |
 | `config/models.json` | NaN model catalog |
 | `config/settings.json` | Settings fragment merged on start (declares the Claude bridge package) |
 | `themes/violeta.json` | Palette |
+
+## Modes
+
+The engine is neutral, so a philosophy enters in exactly one place, as data: a markdown file in `~/.violeta/agent/modes/<name>.md`.
+
+- **Define a mode:** frontmatter `name`, `description`, `model` (the model the main session switches to) and `agents` (the roster it exposes); the body is appended to the main session's system prompt.
+- **`/mode`** with no argument reports the active mode and the catalogue; `/mode <name>` switches, persists the choice in `violeta.json` and shows the mode in the header, so you always know which philosophy is running.
+- **Agents:** an absent `agents` list exposes every agent; a declared empty one exposes none. These are different statements, and the second is how a mode removes the agent layer entirely.
+- **`raw`** is built in and always available: no prompt, no agents, no ceremony. A `raw.md` replaces it. It exists so a missing or broken catalogue still leaves a usable session.
+- The prompt is appended through `systemPromptOptions.appendSystemPrompt`, never by replacing `systemPrompt`: replacing would drop Pi's own tool and environment sections. Appending also keeps the cached prefix stable, so switching costs one cache miss rather than one per turn.
+- A mode file that fails to parse is reported, never swallowed: a session that quietly runs unguided is worse than one that says what broke.
 
 ## Subagents
 

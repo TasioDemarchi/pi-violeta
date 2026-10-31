@@ -290,6 +290,24 @@ const es = {
 		/** The once-per-crossing-of-80% /compact suggestion. */
 		compactSuggest: "El contexto está al 80 %. Considerá /compact.",
 	},
+	modes: {
+		description: "Cambiar la filosofía activa, o mostrarla sin argumento.",
+		/** `/mode` with no argument: the active mode and the catalogue. */
+		current: (name: string, description: string) =>
+			`Modo activo: ${name}${description ? ` — ${description}` : ""}`,
+		available: (names: readonly string[]) => `Disponibles: ${names.join(", ")}. Usá /mode <nombre> para cambiar.`,
+		switched: (name: string, description: string) =>
+			`Modo ${name}${description ? ` — ${description}` : ""}`,
+		modelSwitched: (model: string) => `Modelo de la sesión: ${model}.`,
+		modelMissing: (model: string) =>
+			`El modo pide el modelo "${model}", que no está disponible. La sesión sigue con el modelo actual.`,
+		unknown: (name: string, available: readonly string[]) =>
+			`Modo desconocido "${name}". Disponibles: ${available.join(", ")}.`,
+		/** A mode file that failed to parse: never silent, or the session would
+		 * run unguided without anyone noticing. */
+		loadError: (source: string, message: string) => `No se pudo leer el modo ${source}: ${message}`,
+		agentsHidden: (name: string) => `El modo ${name} no expone subagentes.`,
+	},
 	palette: {
 		description: "Muestra la paleta de comandos",
 		shortcut: "Muestra la paleta de comandos",
@@ -539,6 +557,21 @@ const en: typeof es = {
 	context: {
 		compactSuggest: "Context is at 80%. Consider /compact.",
 	},
+	modes: {
+		description: "Switch the active philosophy, or show it with no argument.",
+		current: (name: string, description: string) =>
+			`Active mode: ${name}${description ? ` — ${description}` : ""}`,
+		available: (names: readonly string[]) => `Available: ${names.join(", ")}. Use /mode <name> to switch.`,
+		switched: (name: string, description: string) =>
+			`Mode ${name}${description ? ` — ${description}` : ""}`,
+		modelSwitched: (model: string) => `Session model: ${model}.`,
+		modelMissing: (model: string) =>
+			`The mode asks for model "${model}", which is not available. The session keeps its current model.`,
+		unknown: (name: string, available: readonly string[]) =>
+			`Unknown mode "${name}". Available: ${available.join(", ")}.`,
+		loadError: (source: string, message: string) => `Could not read mode ${source}: ${message}`,
+		agentsHidden: (name: string) => `Mode ${name} exposes no subagents.`,
+	},
 	palette: {
 		description: "Show the command palette",
 		shortcut: "Show the command palette",
@@ -601,3 +634,4 @@ export const notify = localized("notify");
 export const models = localized("models");
 export const context = localized("context");
 export const palette = localized("palette");
+export const modes = localized("modes");

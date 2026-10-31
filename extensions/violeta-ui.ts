@@ -318,7 +318,19 @@ export default function (pi: ExtensionAPI) {
 
 		ctx.ui.setHeader((_tui, theme) => ({
 			invalidate() {},
-			render: () => [theme.fg("borderAccent", "▍") + " " + theme.bold(theme.fg("accent", "violeta")) + theme.fg("dim", ` · pi ${VERSION}`)],
+			// The active mode is always on screen: a philosophy you cannot see is one
+			// you cannot trust, and knowing which one is running is the difference
+			// between a surprising answer and an expected one.
+			render: () => {
+				const mode = getShared().activeMode;
+				return [
+					theme.fg("borderAccent", "▍") +
+						" " +
+						theme.bold(theme.fg("accent", "violeta")) +
+						theme.fg("dim", ` · pi ${VERSION}`) +
+						(mode ? theme.fg("accent", ` · ${mode}`) : ""),
+				];
+			},
 		}));
 
 		ctx.ui.setFooter((tui, theme, footerData) => {

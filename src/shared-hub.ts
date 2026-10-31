@@ -6,8 +6,8 @@
  * shared between them. The hub therefore lives on `globalThis` under
  * `Symbol.for("violeta.shared")`, which every module instance resolves to the
  * same object. It carries only what the two extensions need to agree on: the
- * current todo list, its /todo visibility flag, and whether the sidebar is
- * active. Pure get/set/subscribe; subscribers never throw.
+ * current todo list, its /todo visibility flag, whether the sidebar is active,
+ * and the active mode. Pure get/set/subscribe; subscribers never throw.
  */
 
 import type { TodoState } from "./todo/store.ts";
@@ -22,6 +22,12 @@ export interface VioletaSharedState {
 	/** A confirmation dialog is waiting for the user, published by violeta-guard
 	 * while a destructive-command or outside-project dialog is open (T3/S3). */
 	notifyNeedsAnswer?: boolean;
+	/** The active mode's name, published by violeta-mode. violeta-ui shows it and
+	 * violeta-agents filters its definitions by `modeAgents`. */
+	activeMode?: string;
+	/** Agent names the active mode exposes. `undefined` means every agent; an
+	 * empty array means none, which is how `raw` removes the agent layer. */
+	modeAgents?: string[];
 }
 
 export type SharedListener = (state: VioletaSharedState) => void;

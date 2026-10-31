@@ -27,6 +27,7 @@ import { SubagentRunner } from "../src/agents/runner.ts";
 import { displayTitle } from "../src/agents/summary.ts";
 import { isFinished, getAgentStore, type AgentTask } from "../src/agents/store.ts";
 import { compactRenderers } from "../src/tools-view/compact.ts";
+import { getShared } from "../src/shared-hub.ts";
 import { agents as t } from "../src/i18n.ts";
 import {
 	initialOverlayState,
@@ -67,9 +68,16 @@ export default function (pi: ExtensionAPI) {
 		return dir && dir.trim() !== "" ? dir : undefined;
 	};
 
+	/** Definitions the active mode exposes. The engine stays neutral: it does not
+	 * know what a mode means, only that one may narrow the roster. A mode that
+	 * declares no list exposes everything, which is also the state before any mode
+	 * has been published. */
 	function listDefinitions(): { definitions: AgentDefinition[]; errors: Array<{ source: string; message: string }> } {
 		const dir = agentDir();
-		return dir ? listAgentDefinitions(join(dir, AGENTS_DIR)) : { definitions: [], errors: [] };
+		const loaded = dir ? listAgentDefinitions(join(dir, AGENTS_DIR)) : { definitions: [], errors: [] };
+		const allowed = getShared().modeAgents;
+		if (allowed === undefined) return loaded;
+		return { definitions: loaded.definitions.filter((def) => allowed.includes(def.name)), errors: loaded.errors };
 	}
 
 	function deliverBackgroundResult(task: AgentTask, mode: "task" | "background"): void {
