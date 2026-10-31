@@ -49,6 +49,8 @@ export interface DefinitionSpec {
 export interface RunnerOptions {
 	/** Agent dir; when set, finished tasks persist under `<agentDir>/agents-history/`. */
 	agentDir?: string;
+	/** Session that owns the tasks this runner starts (history is scoped by it). */
+	sessionId?: string;
 	/** Working directory for the child. */
 	cwd: string;
 	maxConcurrency?: number;
@@ -139,7 +141,7 @@ function defaultCliPath(): string {
 }
 
 export class SubagentRunner {
-	readonly options: Required<Omit<RunnerOptions, "agentDir" | "env" | "onSettled" | "spawn" | "maxTurns" | "maxTokens">> & Pick<RunnerOptions, "agentDir" | "env" | "onSettled" | "maxTurns" | "maxTokens">;
+	readonly options: Required<Omit<RunnerOptions, "agentDir" | "env" | "onSettled" | "spawn" | "maxTurns" | "maxTokens" | "sessionId">> & Pick<RunnerOptions, "agentDir" | "env" | "onSettled" | "maxTurns" | "maxTokens" | "sessionId">;
 	private readonly store: AgentStore;
 	private readonly active = new Set<string>();
 	private readonly parked: string[] = [];
@@ -168,6 +170,7 @@ export class SubagentRunner {
 				return () => clearTimeout(timer);
 			}),
 			agentDir: options.agentDir,
+			sessionId: options.sessionId,
 			env: options.env,
 			onSettled: options.onSettled,
 		};
@@ -186,6 +189,7 @@ export class SubagentRunner {
 			// Tolerant even though subagent_run now requires the label: a blank or
 			// missing label falls back to the task's first sentence.
 			title: taskTitle(params.label, params.task),
+			sessionId: this.options.sessionId,
 			status: "queued",
 			model: definition.model,
 			effort: definition.thinking ?? "default",

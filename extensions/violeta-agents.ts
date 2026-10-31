@@ -23,6 +23,7 @@ import { Type } from "typebox";
 import { FINISHED_TTL_MS, renderAgentsCard, type CardFg } from "../src/agents/card.ts";
 import { listAgentDefinitions, type AgentDefinition } from "../src/agents/definitions.ts";
 import { loadTaskHistory } from "../src/agents/history.ts";
+import { sessionTasks } from "../src/agents/session-filter.ts";
 import { SubagentRunner } from "../src/agents/runner.ts";
 import { displayTitle } from "../src/agents/summary.ts";
 import { isFinished, getAgentStore, type AgentTask } from "../src/agents/store.ts";
@@ -60,6 +61,9 @@ export default function (pi: ExtensionAPI) {
 	const store = getAgentStore();
 	let runner: SubagentRunner | undefined;
 	let runnerCwd: string | undefined;
+	let runnerSessionId: string | undefined;
+	/** Current Pi session id; the agents view and the history are scoped by it. */
+	let sessionId: string | undefined;
 	let historyLoaded = false;
 	let exitHooked = false;
 
@@ -103,11 +107,12 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function getRunner(cwd: string): SubagentRunner {
-		if (runner && runnerCwd === cwd) return runner;
+		if (runner && runnerCwd === cwd && runnerSessionId === sessionId) return runner;
 		runner?.killAll();
 		const configured = Number.parseInt(process.env.VIOLETA_AGENTS_MAX_CONCURRENCY ?? "", 10);
 		runner = new SubagentRunner(store, {
 			agentDir: agentDir(),
+			sessionId,
 			cwd,
 			maxConcurrency: Number.isFinite(configured) && configured >= 1 ? configured : undefined,
 			maxTurns: positiveEnv("VIOLETA_AGENT_MAX_TURNS"),
@@ -115,6 +120,7 @@ export default function (pi: ExtensionAPI) {
 			onSettled: deliverBackgroundResult,
 		});
 		runnerCwd = cwd;
+		runnerSessionId = sessionId;
 		if (!exitHooked) {
 			exitHooked = true;
 			// Children are detached, so a plain exit handler must kill the tree.
@@ -271,7 +277,7 @@ export default function (pi: ExtensionAPI) {
 				const text = task ? JSON.stringify(summarize(task), null, 2) : t.unknownTaskId(params.id);
 				return { content: [{ type: "text" as const, text }], details: { found: !!task }, isError: !task };
 			}
-			const tasks = store.list();
+			const tasks = sessionTasks(store.list(), sessionId);
 			const text = tasks.length > 0 ? tasks.map(taskText).join("\n") : t.noTasksYet;
 			return { content: [{ type: "text" as const, text }], details: { count: tasks.length, active: store.activeCount() } };
 		},
@@ -392,7 +398,7 @@ export default function (pi: ExtensionAPI) {
 			render(width: number): string[] {
 				try {
 					const lines = renderAgentsCard(
-						store.list(),
+						sessionTasks(store.list(), sessionId),
 						{ width, rows: tuiRef?.terminal?.rows, now: Date.now() },
 						cardFg(theme),
 					);
@@ -406,7 +412,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function agentsOverlayComponent(tui: TUI, theme: Theme, done: () => void): Component {
-		const ids = (): string[] => overlayTasks(store.list()).map((task) => task.id);
+		const ids = (): string[] => overlayTasks(sessionTasks(store.list(), sessionId)).map((task) => task.id);
 		let state = initialOverlayState(ids());
 		const unsubscribe = store.subscribe(() => tui.requestRender());
 		const timer = setInterval(() => tui.requestRender(), 1000);
@@ -429,7 +435,7 @@ export default function (pi: ExtensionAPI) {
 					if (state.selectedId && !live.includes(state.selectedId)) {
 						state = { ...state, selectedId: live[0] };
 					}
-					return renderOverlay(store.list(), state, overlayLayout(width, tui.terminal.rows), Date.now(), fg);
+					return renderOverlay(sessionTasks(store.list(), sessionId), state, overlayLayout(width, tui.terminal.rows), Date.now(), fg);
 				} catch {
 					return [];
 				}
@@ -498,11 +504,19 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (event, ctx) => {
-		// Finished tasks reload into the store so the views can show history.
+		// Everything the agents view shows belongs to this session only, so the
+		// history load is scoped by the session id (another session's finished
+		// tasks stay out of the way).
+		const current = ctx.sessionManager?.sessionId;
+		if (current && current !== sessionId) {
+			sessionId = current;
+			runnerSessionId = undefined;
+			historyLoaded = false;
+		}
 		const dir = agentDir();
 		if (dir && !historyLoaded) {
 			historyLoaded = true;
-			store.history(loadTaskHistory(join(dir, HISTORY_DIR)));
+			store.history(loadTaskHistory(join(dir, HISTORY_DIR), sessionId));
 		}
 		// The card lives above the editor, TUI mode only.
 		if (ctx.mode !== "tui" || !ctx.hasUI) return;

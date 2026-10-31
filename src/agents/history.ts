@@ -78,8 +78,10 @@ function withTitleFallback(task: AgentTask): AgentTask {
 	return restored;
 }
 
-/** Load every valid persisted task, oldest first. Corrupt files are skipped. */
-export function loadTaskHistory(dir: string): AgentTask[] {
+/** Load every valid persisted task, oldest first. Corrupt files are skipped.
+ * With `sessionId`, only that session's tasks load (legacy entries without one
+ * belong to no session and stay out of a scoped view). */
+export function loadTaskHistory(dir: string, sessionId?: string): AgentTask[] {
 	let files: string[];
 	try {
 		files = readdirSync(dir).filter((f) => f.endsWith(".json"));
@@ -90,7 +92,9 @@ export function loadTaskHistory(dir: string): AgentTask[] {
 	for (const file of files) {
 		try {
 			const parsed: unknown = JSON.parse(readFileSync(join(dir, file), "utf8"));
-			if (validTask(parsed)) tasks.push(withTitleFallback(parsed));
+			if (!validTask(parsed)) continue;
+			if (sessionId && parsed.sessionId !== sessionId) continue;
+			tasks.push(withTitleFallback(parsed));
 		} catch {
 			// corrupt file: skip it, keep the rest
 		}

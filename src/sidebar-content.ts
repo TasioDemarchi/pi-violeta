@@ -71,9 +71,8 @@ export function buildSidebarLines(
 		if (!created.length && !updated.length && !deleted.length) {
 			push(fg("dim", t.clean));
 		} else {
-			if (created.length) push(fg("success", t.created(created.length)));
-			if (updated.length) push(fg("warning", t.updated(updated.length)));
-			if (deleted.length) push(fg("error", t.deleted(deleted.length)));
+			// The names and their colors already say which group each file is
+			// in; a count line per group only repeats it.
 			const max = Math.max(1, opts.maxFiles ?? SIDEBAR_MAX_FILES);
 			const files: Array<[marker: "+" | "~" | "−", name: string]> = [
 				...created.map((f) => ["+", f] as const),

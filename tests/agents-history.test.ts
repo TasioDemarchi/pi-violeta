@@ -6,9 +6,10 @@ import { join } from "node:path";
 import { capTaskHistory, loadTaskHistory, saveTaskToHistory } from "../src/agents/history.ts";
 import type { AgentTask } from "../src/agents/store.ts";
 
-function task(id: string, status: AgentTask["status"] = "completed"): AgentTask {
+function task(id: string, status: AgentTask["status"] = "completed", sessionId?: string): AgentTask {
 	return {
 		id,
+		...(sessionId ? { sessionId } : {}),
 		name: "probe",
 		label: `label ${id}`,
 		title: `title ${id}`,
@@ -146,6 +147,23 @@ test("history files written before turns existed load with a zero count", () => 
 		writeFileSync(join(dir, "old.json"), JSON.stringify(legacy));
 		const loaded = loadTaskHistory(dir);
 		assert.equal(loaded[0]!.turns, 0);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("history scoped to a session returns only that session's tasks", () => {
+	const dir = scratch();
+	try {
+		saveTaskToHistory(dir, task("a", "completed", "sess-1"));
+		saveTaskToHistory(dir, task("b", "completed", "sess-2"));
+		saveTaskToHistory(dir, task("c", "completed", "sess-1"));
+		saveTaskToHistory(dir, task("old")); // legacy entry, no session id
+		assert.deepEqual(loadTaskHistory(dir, "sess-1").map((t) => t.id).sort(), ["a", "c"]);
+		assert.deepEqual(loadTaskHistory(dir, "sess-2").map((t) => t.id), ["b"]);
+		assert.deepEqual(loadTaskHistory(dir, "sess-3"), []);
+		// Without a scope every task loads (the historical behavior).
+		assert.deepEqual(loadTaskHistory(dir).map((t) => t.id).sort(), ["a", "b", "c", "old"]);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

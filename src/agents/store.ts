@@ -77,6 +77,8 @@ export interface AgentTask {
 	name: string;
 	label: string;
 	title: string;
+	/** Session that launched it; history is filtered by it. */
+	sessionId?: string;
 	status: TaskStatus;
 	model: string;
 	effort: string;

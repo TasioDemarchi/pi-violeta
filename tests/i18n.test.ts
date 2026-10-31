@@ -74,12 +74,6 @@ test("jobs monitor notices pluralize lines", () => {
 
 test("sidebar markers keep their glyphs and pluralize", () => {
 	setLanguage("es");
-	assert.equal(sidebar.created(1), "+1 creado");
-	assert.equal(sidebar.created(2), "+2 creados");
-	assert.equal(sidebar.updated(1), "~1 modificado");
-	assert.equal(sidebar.updated(5), "~5 modificados");
-	assert.equal(sidebar.deleted(1), "−1 eliminado");
-	assert.equal(sidebar.deleted(4), "−4 eliminados");
 	assert.equal(sidebar.tasks, "TAREAS");
 	assert.equal(sidebar.ellipsis, "…");
 });
@@ -307,10 +301,6 @@ test("the English dictionary reproduces the original English todo, jobs, sidebar
 		assert.equal(sidebar.noRepo, "no repo");
 		assert.equal(sidebar.clean, "clean");
 		assert.equal(sidebar.noModel, "no model");
-		assert.equal(sidebar.created(1), "+1 created");
-		assert.equal(sidebar.created(2), "+2 created");
-		assert.equal(sidebar.updated(2), "~2 updated");
-		assert.equal(sidebar.deleted(4), "−4 deleted");
 		assert.equal(sidebar.ellipsis, "…");
 
 		assert.equal(activity.phases.thinking, "thinking");

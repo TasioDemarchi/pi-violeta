@@ -32,7 +32,7 @@ function todoState(...titles: string[]): TodoState {
 test("renders every section with counts, file names, model and usage", () => {
 	const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
 	assert.deepEqual(
-		lines.slice(0, 19),
+		lines.slice(0, 16),
 		[
 			row("PROYECTO"),
 			row("violeta"),
@@ -40,10 +40,7 @@ test("renders every section with counts, file names, model and usage", () => {
 			row("main"),
 			row(""),
 			row("CAMBIOS"),
-			row("+1 creado"),
-			row("~2 modificados"),
-			row("−1 eliminado"),
-			row("+ new.txt"),
+						row("+ new.txt"),
 			row("~ src/a.ts"),
 			row("~ b.ts"),
 			row("− old.ts"),
@@ -55,8 +52,8 @@ test("renders every section with counts, file names, model and usage", () => {
 			row("USO"),
 		],
 	);
-	assert.equal(lines[19], row("↑1.5k ↓2.4M"));
-	assert.equal(lines[20], row("$0.05"));
+	assert.equal(lines[16], row("↑1.5k ↓2.4M"));
+	assert.equal(lines[17], row("$0.05"));
 });
 
 test("pads output to the terminal height so the divider spans full height", () => {
@@ -82,7 +79,7 @@ test("caps the file rows at 8: 7 names plus a dim … row when there are more", 
 	assert.ok(lines.includes(row("…")), "the 8th row must be the dim ellipsis");
 	assert.ok(!lines.includes(row("+7 más")), "the old +N más row must be gone");
 	// The counters line still shows the true totals.
-	assert.ok(lines.includes(row("+15 creados")));
+	assert.ok(!lines.some((l) => l.includes("15 creados")), "no per-group count line");
 });
 
 test("exactly 8 files shows all 8 names with no ellipsis row", () => {
@@ -100,7 +97,7 @@ test("exactly 8 files shows all 8 names with no ellipsis row", () => {
 
 test("renders the TAREAS section between CAMBIOS and MODELO with one row per task", () => {
 	const lines = buildSidebarLines({ ...fullData, todos: todoState("alpha", "beta"), now: NOW }, { width: W, rows: 40 }, plain);
-	const cambios = lines.findIndex((l) => l.includes("+1 creado"));
+	const cambios = lines.findIndex((l) => l.includes("CAMBIOS"));
 	const tareas = lines.findIndex((l) => l.includes("TAREAS"));
 	const modelo = lines.findIndex((l) => l.includes("MODELO"));
 	assert.ok(cambios >= 0 && tareas > cambios && tareas < modelo, `TAREAS at ${tareas} between ${cambios} and ${modelo}`);
@@ -156,7 +153,7 @@ test("a clean tree shows limpio and no file lines", () => {
 		plain,
 	);
 	assert.ok(lines.includes(row("limpio")));
-	assert.ok(!lines.some((l) => l.includes("creado ")));
+	assert.ok(!lines.some((l) => l.includes(" creado") || l.includes(" creados")));
 });
 
 test("no repository shows the sin-repo hint and no branch line", () => {
@@ -194,9 +191,9 @@ test("sections are labeled with the accent role and statuses with their palette 
 		return `<${role}>${text}`;
 	});
 	assert.ok(lines[0].startsWith("<borderAccent>│ <accent>PROYECTO"));
-	assert.ok(lines.some((l) => l.includes("<success>+1 creado")));
-	assert.ok(lines.some((l) => l.includes("<warning>~2 modificados")));
-	assert.ok(lines.some((l) => l.includes("<error>−1 eliminado")));
+	assert.ok(lines.some((l) => l.includes("<success>+ new.txt")));
+	assert.ok(lines.some((l) => l.includes("<warning>~ src/a.ts")));
+	assert.ok(lines.some((l) => l.includes("<error>− old.ts")));
 	assert.ok(seen.includes("text") && seen.includes("muted") && seen.includes("dim"));
 });
 
@@ -245,12 +242,12 @@ test("unknown usage keeps the muted ctx line", () => {
 
 // --- English mode (S3): the original English sidebar, rendered live ------------
 
-test("in English the sidebar shows PROJECT/CHANGES/MODEL/USAGE and `+1 created`", () => {
+test("in English the sidebar shows PROJECT/CHANGES/MODEL/USAGE without count lines", () => {
 	try {
 		setLanguage("en");
 		const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
 		assert.deepEqual(
-			lines.slice(0, 19),
+			lines.slice(0, 16),
 			[
 				row("PROJECT"),
 				row("violeta"),
@@ -258,9 +255,6 @@ test("in English the sidebar shows PROJECT/CHANGES/MODEL/USAGE and `+1 created`"
 				row("main"),
 				row(""),
 				row("CHANGES"),
-				row("+1 created"),
-				row("~2 updated"),
-				row("−1 deleted"),
 				row("+ new.txt"),
 				row("~ src/a.ts"),
 				row("~ b.ts"),

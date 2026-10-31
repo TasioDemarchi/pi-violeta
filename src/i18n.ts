@@ -243,9 +243,6 @@ const es = {
 		noRepo: "sin repo",
 		clean: "limpio",
 		noModel: "sin modelo",
-		created: (n: number) => `+${n} ${n === 1 ? "creado" : "creados"}`,
-		updated: (n: number) => `~${n} ${n === 1 ? "modificado" : "modificados"}`,
-		deleted: (n: number) => `−${n} ${n === 1 ? "eliminado" : "eliminados"}`,
 		/** The 8th CAMBIOS row when more files exist than fit. */
 		ellipsis: "…",
 	},
@@ -520,9 +517,6 @@ const en: typeof es = {
 		noRepo: "no repo",
 		clean: "clean",
 		noModel: "no model",
-		created: (n: number) => `+${n} created`,
-		updated: (n: number) => `~${n} updated`,
-		deleted: (n: number) => `−${n} deleted`,
 		ellipsis: "…",
 	},
 	ui: {
