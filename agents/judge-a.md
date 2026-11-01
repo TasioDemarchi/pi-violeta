@@ -104,3 +104,8 @@ notes:
 ```
 
 Return `verdict: clean` with an empty `findings` list when you found nothing.
+
+You have a turn ceiling and are cut off mid-sentence when you reach it, so emit
+each finding as you confirm it rather than composing the whole report at the
+end. A review that is cut after three reported findings is useful; one cut
+before its first is not.

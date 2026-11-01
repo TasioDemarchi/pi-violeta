@@ -248,3 +248,31 @@ test("a missing RED is rejected where it is worth paying for", () => {
 	assert.match(odd, /touches a hot path/);
 	assert.match(odd, /no\s+`status:` line/);
 });
+
+test("every agent that can be stopped knows it and reports as it goes", () => {
+	// A fixer was cut at its ceiling mid-sentence, announcing its next file. The
+	// partial handoff was one transition line: useless to whoever continued.
+	// The last thing an agent says is the whole handoff, so it must always be
+	// progress rather than intent.
+	for (const def of agents().definitions) {
+		assert.match(
+			def.prompt,
+			/ceiling|ran out of room|stopped at/i,
+			`${def.name}: does not know it can be stopped`,
+		);
+	}
+	const fixer = agents().definitions.find((d) => d.name === "fixer")!;
+	assert.match(fixer.prompt, /last thing you said is the entire handoff/i);
+	assert.match(fixer.prompt, /Never announce\s+what you are about to do next/i);
+});
+
+test("the fixer stays inside the findings instead of re-reviewing", () => {
+	// It read twelve files for findings that named four, spending most of its
+	// turns on orientation the judge had already paid for.
+	const fixer = agents().definitions.find((d) => d.name === "fixer")!;
+	assert.match(fixer.prompt, /Open \*\*only\*\* the files the findings name/);
+	assert.match(fixer.prompt, /the finding is underspecified/i);
+
+	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
+	assert.match(odd, /one run per file or small group/i);
+});

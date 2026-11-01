@@ -233,7 +233,10 @@ concatenation, deserialization, reflection.
 
 Blind means neither sees the other's findings.
 
-- Both flagged it → confirmed. `fixer` applies **only** confirmed findings.
+- Both flagged it → confirmed. `fixer` applies **only** confirmed findings, and
+  gets **one run per file or small group** — never the whole finding list at
+  once. A fixer handed findings across four files spends its turns orienting
+  and is cut before it reports.
 - One flagged it → record in the document, investigate, do not auto-fix.
 - They contradict → **ask the user**.
 
