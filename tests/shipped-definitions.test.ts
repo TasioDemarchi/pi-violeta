@@ -225,3 +225,26 @@ test("every mode answers in Spanish and offers a glossary", () => {
 		assert.match(mode.prompt, /Términos/, `${mode.name}: no glossary example`);
 	}
 });
+
+test("the builder is told tests come first, and batching never eats the RED", () => {
+	// The prompt used to tell the builder that turns are what it is spending,
+	// twenty lines before telling it to spend four on RED -> GREEN. It followed
+	// the cheaper rule, which it read first.
+	const builder = agents().definitions.find((d) => d.name === "builder")!;
+	const tests = builder.prompt.indexOf("## Tests come first");
+	const writing = builder.prompt.indexOf("## While you write");
+	assert.ok(tests > 0 && writing > tests, "the test rules must come before the efficiency rules");
+	assert.match(builder.prompt, /RED → GREEN sequence is exempt/);
+	// "It does not exist yet" is not evidence that a test can catch anything.
+	assert.match(builder.prompt, /is not a RED/);
+	assert.match(builder.prompt, /stub that returns the\s+wrong answer/);
+});
+
+test("a missing RED is rejected where it is worth paying for", () => {
+	// A rule nothing enforces is a suggestion; rejecting everywhere costs a full
+	// worker run per task, so the gate is scoped to hot paths.
+	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
+	assert.match(odd, /`tests: RED` is not `n\/a`/);
+	assert.match(odd, /touches a hot path/);
+	assert.match(odd, /no\s+`status:` line/);
+});

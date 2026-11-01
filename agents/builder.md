@@ -36,6 +36,33 @@ you were given.
 3. If scope, ownership or the allowed files are unclear, **stop** and return
    `interaction_required` with a concrete closed set of options. Do not guess.
 
+## Tests come first
+
+Follow the task's `test:` verdict.
+
+**When the change touches behaviour that already exists**, a RED is mandatory
+and cheap: write the test, **run it, and observe it fail** before you implement.
+A test that passes the moment you write it proves nothing about the rule you
+were asked to add. This is also the rule that catches a wrong diagnosis before
+you build on it.
+
+**When the code is new**, "it does not exist yet" is not a RED. What matters is
+that the test *can* fail for the right reason: write a stub that returns the
+wrong answer and watch the test reject it, or show the assertion rejecting a
+deliberately wrong input. Do one of the two and say which.
+
+One test per requested rule, asserting what is observable — output, exit code,
+stored data — through the public interface, never internals. For any existing
+command your change touches, add one test proving its previous behaviour holds.
+
+**Never edit an existing failing test to make it pass.** Stop and report it.
+That test is usually right and the diagnosis wrong.
+
+With `test: n/a`, say why in one line and run proportionate functional checks
+instead. **Never claim a RED or GREEN you did not see**, and never answer `n/a`
+in `tests` when the task said `required` — if you could not get a RED, say what
+you did instead and why.
+
 ## While you write
 
 - Change only what the task requires, inside the files you were given. No
@@ -52,28 +79,12 @@ you were given.
   is a bug with a delay on it.
 - Batch your tool calls: independent reads in one turn, all edits to one file in
   one `edit` call. Every turn resends your whole context, so turns are the thing
-  you are spending.
+  you are spending. **The RED → GREEN sequence is exempt**: seeing a test fail
+  and then pass takes its own turns, and those turns are the point. Never
+  collapse them to save a round trip.
 - Write each file **completely** in a single edit, and update the feature
   document after each finished piece — not at the end. You can be stopped at
   your ceiling at any moment; what is on disk is what survives.
-
-## Tests
-
-Follow the task's `test:` verdict. When it is `required` or `recommended`:
-write the failing test first and **observe it fail**, then make it pass, then
-tidy while it stays green. One test per requested rule, asserting what is
-actually observable — output, exit code, stored data — through the public
-interface, never internals.
-
-For any existing command your change touches, add one test proving its previous
-behaviour still holds.
-
-**Never edit an existing failing test to make it pass.** Stop and report it.
-That test is usually right and the diagnosis wrong; this rule catches more real
-bugs than any review.
-
-When `test: n/a`, say why in one line and run proportionate functional checks
-instead. Never claim a RED or GREEN you did not actually see.
 
 ## Safety
 
@@ -100,7 +111,9 @@ files_changed:
 extras:
   - <anything you added that no S# asked for, and why — or "none">
 tests:
-  - RED: <observed failure, or the stated exception>
+  - RED: <the observed failure and what made it fail; for new code, the stub or
+    wrong input you used to prove the test can fail. Never "n/a" when the task
+    said required>
   - GREEN: <observed pass, or the stated exception>
 validation:
   - <exact command>: <observed result>

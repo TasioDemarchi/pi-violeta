@@ -182,6 +182,13 @@ Before acting on a handoff, check mechanically:
 - `git status --short` shows the files the worker claims it changed.
 - A `path:line` the `scout` cites exists.
 - A surprising `validation` result: re-run that one command yourself.
+- The handoff follows the agent's return contract: a worker whose answer has no
+  `status:` line did not finish its job, whatever the engine recorded.
+- **`tests: RED` is not `n/a` when the task said `test: required` and the task
+  touches a hot path.** Send it back once, naming the rule whose RED is
+  missing. Elsewhere, record the exception in `## Log` and continue: a rejected
+  handoff costs a whole worker run, and that is worth paying on a hot path and
+  not on a pure new module.
 
 A handoff whose claims do not hold is not a completed task. Say what did not
 match and do not advance the document.
