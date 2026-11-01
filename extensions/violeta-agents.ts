@@ -27,6 +27,7 @@ import { sessionTasks } from "../src/agents/session-filter.ts";
 import { SubagentRunner } from "../src/agents/runner.ts";
 import { displayTitle } from "../src/agents/summary.ts";
 import { isFinished, getAgentStore, type AgentTask } from "../src/agents/store.ts";
+import { DispatchBreaker, breakerConfigFromEnv } from "../src/agents/breaker.ts";
 import { compactRenderers } from "../src/tools-view/compact.ts";
 import { getShared } from "../src/shared-hub.ts";
 import { agents as t } from "../src/i18n.ts";
@@ -59,6 +60,7 @@ export default function (pi: ExtensionAPI) {
 	if (process.env.VIOLETA_AGENTS_CHILD === "1") return;
 
 	const store = getAgentStore();
+	const breaker = new DispatchBreaker(breakerConfigFromEnv());
 	let runner: SubagentRunner | undefined;
 	let runnerCwd: string | undefined;
 	let runnerSessionId: string | undefined;
@@ -127,6 +129,14 @@ export default function (pi: ExtensionAPI) {
 			process.on("exit", () => runner?.killAll());
 		}
 		return runner;
+	}
+
+	/** The breaker's current window as text, in the active language. */
+	function describeWindow(): string {
+		const w = breaker.summary((id) => store.get(id));
+		const by = Object.entries(w.counts).map(([status, n]) => `${n} ${t.statuses[status] ?? status}`).join(", ");
+		const rows = w.recent.map((r) => t.breakerRow(r.agent, r.label, t.statuses[r.status] ?? r.status, r.turns)).join("\n");
+		return t.breakerSummary(w.dispatches, w.minutes, w.tokens, by, rows);
 	}
 
 	function summarize(task: AgentTask): Record<string, unknown> {
@@ -198,12 +208,35 @@ export default function (pi: ExtensionAPI) {
 					isError: true,
 				};
 			}
+			// The breaker runs before anything starts, so a refusal costs nothing and
+			// leaves nothing half-done: it sits between tasks, never inside one.
+			const decision = breaker.beforeDispatch(params.agent, params.label);
+			if (decision.kind === "report") {
+				if (ctx.hasUI) ctx.ui.notify(t.breakerReport(describeWindow()), "info");
+			} else if (decision.kind === "confirm") {
+				const summary = describeWindow();
+				const question =
+					decision.reason === "loop"
+						? t.breakerConfirmLoop(decision.agent, decision.label, decision.count, summary)
+						: t.breakerConfirmCeiling(decision.dispatches, decision.minutes, summary);
+				// With nobody to ask (no UI) the safe answer is no.
+				const allowed = ctx.hasUI && !getShared().unattended ? await ctx.ui.confirm(t.breakerTitle, question) : false;
+				if (!allowed) {
+					return {
+						content: [{ type: "text" as const, text: t.breakerDeclined }],
+						details: { error: "breaker", reason: decision.reason },
+						isError: true,
+					};
+				}
+				breaker.approve();
+			}
 			const started = getRunner(ctx.cwd).start(definition, {
 				task: params.task,
 				label: params.label,
 				context: params.context,
 				mode: params.mode ?? "task",
 			});
+			breaker.record({ id: started.id, agent: params.agent, label: params.label });
 			if ((params.mode ?? "task") === "background") {
 				return {
 					content: [{ type: "text" as const, text: t.backgroundStarted(params.agent, started.id) }],
@@ -501,6 +534,13 @@ export default function (pi: ExtensionAPI) {
 	pi.registerShortcut("alt+s", {
 		description: t.shortcutStop,
 		handler: async (ctx) => stopAllActive(ctx),
+	});
+
+	// A prompt typed by the user starts a new window. Runs started by a custom
+	// message (a background result being delivered) do not: that is the system
+	// talking, not the user.
+	pi.on("before_agent_start", (event) => {
+		if (event.messageType === "user") breaker.userTurn();
 	});
 
 	pi.on("session_start", async (event, ctx) => {

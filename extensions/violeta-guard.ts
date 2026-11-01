@@ -15,6 +15,13 @@
  * root (ctx.cwd) and the violeta agent dir (PI_CODING_AGENT_DIR) are always
  * allowed. `/grants` lists current grants; `/grants revoke` clears them.
  *
+ * Unattended mode (`/unattended on`, or VIOLETA_UNATTENDED=1 at launch): nothing
+ * is ever asked. Destructive commands are refused with a message telling the
+ * model to skip them and continue; outside the project only the read tools
+ * (`read/grep/find/ls`) pass, always; writes, edits and shell commands that
+ * touch outside paths are refused. Catastrophic targets stay hard-denied. It is
+ * never persisted: a forgotten setting must not outlive its session.
+ *
  * ASSUMPTION (reported): "repos externos" means any directory outside the
  * project root; violeta has no foreign-repo subagent launch to grant for.
  */
@@ -25,11 +32,13 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { SHELL_COMMAND_TOOLS, guardDecision } from "../src/guard/command-guard.ts";
 import { OutsideGrants } from "../src/guard/grants.ts";
 import { allowedLocation, bashPathTargets, resolvePath, targetDir, grantScope, toolCallPaths } from "../src/guard/paths.ts";
-import { setShared } from "../src/shared-hub.ts";
+import { getShared, setShared } from "../src/shared-hub.ts";
 import { guard as t } from "../src/i18n.ts";
 
 // Shell tools (bash, bash_background, monitor) get the destructive-command
 // check and the outside-project path grant; the file tools only the grant.
+// Outside the project these may read in unattended mode; nothing else may.
+const READ_TOOLS = new Set(["read", "grep", "find", "ls"]);
 const GRANTABLE_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls", ...SHELL_COMMAND_TOOLS]);
 
 export default function (pi: ExtensionAPI) {
@@ -43,7 +52,8 @@ export default function (pi: ExtensionAPI) {
 		return dir && dir.trim() !== "" ? dir : undefined;
 	};
 	const home = (): string => process.env.HOME && process.env.HOME.trim() !== "" ? process.env.HOME : homedir();
-	const canAsk = (): boolean => process.env.VIOLETA_AGENTS_CHILD !== "1";
+	const unattended = (): boolean => getShared().unattended === true;
+	const canAsk = (): boolean => process.env.VIOLETA_AGENTS_CHILD !== "1" && !unattended();
 
 	/** Ask once per target directory per session; without a UI it blocks. */
 	async function authorizeOutside(ctx: ExtensionContext, resolved: string): Promise<{ block?: boolean; reason?: string }> {
@@ -80,11 +90,15 @@ export default function (pi: ExtensionAPI) {
 		return {};
 	}
 
-	async function authorizePaths(ctx: ExtensionContext, paths: string[]): Promise<{ block?: boolean; reason?: string }> {
+	async function authorizePaths(ctx: ExtensionContext, paths: string[], toolName: string): Promise<{ block?: boolean; reason?: string }> {
 		const dir = agentDir();
 		for (const path of paths) {
 			const resolved = resolvePath(path, ctx.cwd, home());
 			if (allowedLocation(resolved, ctx.cwd, dir)) continue;
+			if (unattended()) {
+				if (READ_TOOLS.has(toolName)) continue;
+				return { block: true, reason: t.unattendedOutsideWrite(resolved, ctx.cwd) };
+			}
 			const denied = await authorizeOutside(ctx, resolved);
 			if (denied.block) return denied;
 		}
@@ -102,7 +116,7 @@ export default function (pi: ExtensionAPI) {
 				return { block: true, reason: decision.reason };
 			}
 			if (decision.action === "block") {
-				return { block: true, reason: t.blocked(decision.reasons) };
+				return { block: true, reason: unattended() ? t.unattendedBlocked(decision.reasons) : t.blocked(decision.reasons) };
 			}
 			if (decision.action === "confirm") {
 				// select instead of confirm so the OPTIONS are Spanish; only "Sí" approves.
@@ -119,13 +133,32 @@ export default function (pi: ExtensionAPI) {
 					return { block: true, reason: t.declined(command) };
 				}
 			}
-			const denied = await authorizePaths(ctx, bashPathTargets(command, ctx.cwd, home()));
+			const denied = await authorizePaths(ctx, bashPathTargets(command, ctx.cwd, home()), event.toolName);
 			if (denied.block) return denied;
 			return;
 		}
 
-		const denied = await authorizePaths(ctx, toolCallPaths(event.toolName, event.input as Record<string, unknown>));
+		const denied = await authorizePaths(ctx, toolCallPaths(event.toolName, event.input as Record<string, unknown>), event.toolName);
 		if (denied.block) return denied;
+	});
+
+	// Off unless asked for, and re-read from the environment on every start.
+	pi.on("session_start", async () => {
+		setShared({ unattended: process.env.VIOLETA_UNATTENDED === "1" });
+	});
+
+	pi.registerCommand("unattended", {
+		description: t.unattendedDescription,
+		handler: async (args: string, ctx: ExtensionContext) => {
+			const arg = args.trim().toLowerCase();
+			if (arg && arg !== "on" && arg !== "off") {
+				ctx.ui.notify(t.unattendedUsage, "warning");
+				return;
+			}
+			const next = arg === "on" ? true : arg === "off" ? false : !unattended();
+			setShared({ unattended: next });
+			ctx.ui.notify(next ? t.unattendedOn : t.unattendedOff, next ? "warning" : "info");
+		},
 	});
 
 	pi.registerCommand("grants", {

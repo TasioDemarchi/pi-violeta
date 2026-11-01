@@ -29,6 +29,7 @@ function setup(sidebar: boolean) {
 		getThinkingLevel: () => "medium",
 	};
 
+	let headerFactory: ((tui: unknown, theme: unknown) => { render(w: number): string[] }) | undefined;
 	let footerFactory: ((tui: unknown, theme: unknown, data: unknown) => { render(w: number): string[] }) | undefined;
 	const ctx = {
 		cwd: process.cwd(),
@@ -38,7 +39,9 @@ function setup(sidebar: boolean) {
 		getContextUsage: () => ({ percent: 42, tokens: 4200, contextWindow: 10000 }),
 		ui: {
 			setTitle: () => {},
-			setHeader: () => {},
+			setHeader: (factory: typeof headerFactory) => {
+				headerFactory = factory;
+			},
 			setWidget: () => {},
 			setWorkingVisible: () => {},
 			notify: () => {},
@@ -63,7 +66,7 @@ function setup(sidebar: boolean) {
 	const footerData = { onBranchChange: () => () => {}, getGitBranch: () => "main" };
 
 	(extension as unknown as (pi: unknown) => void)(pi);
-	return { handlers, ctx, tui, theme, footerData, root, getFooter: () => footerFactory };
+	return { handlers, ctx, tui, theme, footerData, root, getFooter: () => footerFactory, getHeader: () => headerFactory };
 }
 
 async function start(env: ReturnType<typeof setup>) {
@@ -105,3 +108,80 @@ test("with the sidebar off, the footer shows project, model and ctx", async () =
 		setLanguage("es");
 	}
 });
+
+type Node = { type: string; entries: Array<{ component: { render(w: number): string[]; [k: symbol]: unknown } }> };
+
+test("in fullscreen the header is pinned above the transcript and not drawn twice", async () => {
+	const env = setup(false);
+	const footer = await start(env);
+	try {
+		const header = env.getHeader()!(env.tui, env.theme);
+		const node = (env.root[NODE] as () => Node)();
+		assert.equal(node.type, "vstack", "header over the original layout");
+		assert.match(node.entries[0]!.component.render(80).join("\n"), /violeta/);
+		assert.deepEqual(header.render(80), [], "Pi's scrolling header container stays empty");
+		const body = node.entries[1]!.component[NODE] as () => { type: string };
+		assert.equal(body().type, "leaf", "the original layout is untouched underneath");
+	} finally {
+		(footer as unknown as { dispose?(): void }).dispose?.();
+	}
+});
+
+test("with the sidebar on, the header sits above the main column and the sidebar keeps full height", async () => {
+	const env = setup(true);
+	const footer = await start(env);
+	try {
+		env.getHeader()!(env.tui, env.theme);
+		const node = (env.root[NODE] as () => Node)();
+		assert.equal(node.type, "hstack");
+		const column = node.entries[0]!.component[NODE] as () => Node;
+		assert.match(column().entries[0]!.component.render(80).join("\n"), /violeta/);
+	} finally {
+		(footer as unknown as { dispose?(): void }).dispose?.();
+	}
+});
+
+test("outside fullscreen the header stays where Pi draws it", async () => {
+	const env = setup(false);
+	(env.tui as { mode: string }).mode = "regular";
+	const footer = await start(env);
+	try {
+		const header = env.getHeader()!(env.tui, env.theme);
+		assert.match(header.render(80).join("\n"), /violeta/);
+		assert.equal((env.root[NODE] as () => { type: string })().type, "leaf");
+	} finally {
+		(footer as unknown as { dispose?(): void }).dispose?.();
+	}
+});
+
+// The fake root above cannot catch layout arithmetic mistakes (a missing `gap`
+// once collapsed the whole transcript and editor). This lays the wrapped root out
+// with Pi's real layout engine and real stacks.
+for (const sidebar of [false, true]) {
+	test(`real layout engine: header on top, transcript and editor still get their rows (sidebar ${sidebar ? "on" : "off"})`, async () => {
+		const tuiDir = join(import.meta.dirname, "..", "node_modules", "@earendil-works", "pi-tui", "dist");
+		const { renderLayoutFrame } = await import(join(tuiDir, "layout.js"));
+		const { VStack } = await import(join(tuiDir, "components", "v-stack.js"));
+		const { ScrollView } = await import(join(tuiDir, "components", "scroll-view.js"));
+		const text = (lines: string[]) => ({ render: () => lines, invalidate() {} });
+		const transcript = new ScrollView(text(Array.from({ length: 50 }, (_, i) => `chat ${i}`)), { follow: "end", primary: true });
+		const dock = new VStack([{ component: text(["EDITOR"]), shrink: 1, minSize: 1 }]);
+		const real = new VStack([
+			{ component: transcript, basis: 0, grow: 1, shrink: 1, minSize: 1 },
+			{ component: dock, basis: "auto", grow: 0, shrink: 1, minSize: 1 },
+		]);
+		const env = setup(sidebar);
+		(env.tui as { layoutRoot: unknown }).layoutRoot = real;
+		const footer = await start(env);
+		try {
+			env.getHeader()!(env.tui, env.theme);
+			const frame = renderLayoutFrame(real, 140, 20, () => {});
+			const screen = (frame.lines as string[]).map((line) => line.replace(/\x1b\[[0-9;]*m|\x1b\][^\x07]*\x07/g, ""));
+			assert.match(screen[0]!, /violeta/, "header on the first row");
+			assert.match(screen.slice(1, 19).join("\n"), /chat 49/, "the transcript shows its latest line");
+			assert.match(screen.join("\n"), /EDITOR/, "the editor is on screen");
+		} finally {
+			(footer as unknown as { dispose?(): void }).dispose?.();
+		}
+	});
+}

@@ -33,6 +33,8 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | `extensions/violeta-tools.ts`, `src/tools-view/` | Compact one-line tool renderers |
 | `extensions/violeta-notify.ts`, `src/notify/` | `/notify` finish and dialog alerts |
 | `extensions/violeta-models.ts`, `src/models-view/` | `/models` quick selector |
+| `src/agents/breaker.ts` | Dispatch breaker: reports and asks between subagent dispatches (tested) |
+| `extensions/violeta-contract.ts`, `src/contract/` | `contract_check`: zero-token lint of a Jarvis contract (tested) |
 | `extensions/violeta-mode.ts`, `src/modes/` | `/mode` philosophy switch (prompt, model and agent roster) |
 | `src/frontmatter.ts` | The minimal YAML reader shared by agent and mode definitions |
 | `extensions/violeta-palette.ts`, `src/palette/` | `/palette` command palette |
@@ -48,13 +50,13 @@ The engine is neutral, so a philosophy enters in exactly one place, as data: a m
 
 - **Define a mode:** frontmatter `name`, `description`, `model` (the model the main session switches to), `thinking` (the reasoning level it pins) and `agents` (the roster it exposes); the body is appended to the main session's system prompt.
 - **Reasoning level:** a mode owns it because more reasoning is not uniformly better — some models reach the right approach and then reason themselves out of it at maximum effort.
-- **`/mode`** with no argument reports the active mode and the catalogue; `/mode <name>` switches, persists the choice in `violeta.json` and shows the mode in the header, so you always know which philosophy is running.
+- **`/mode`** with no argument reports the active mode and the catalogue; `/mode <name>` switches, persists the choice in `violeta.json` and shows the mode in the header, so you always know which philosophy is running. In fullscreen the header is pinned above the conversation and never scrolls away (outside fullscreen the terminal owns the scrollback and it cannot be pinned).
 - **Agents:** an absent `agents` list exposes every agent; a declared empty one exposes none. These are different statements, and the second is how a mode removes the agent layer entirely.
 - **`raw`** is built in and always available: no prompt, no agents, no ceremony. A `raw.md` replaces it. It exists so a missing or broken catalogue still leaves a usable session.
 - The prompt is appended through `systemPromptOptions.appendSystemPrompt`, never by replacing `systemPrompt`: replacing would drop Pi's own tool and environment sections. Appending also keeps the cached prefix stable, so switching costs one cache miss rather than one per turn.
 - A mode file that fails to parse is reported, never swallowed: a session that quietly runs unguided is worse than one that says what broke.
 
-The repo ships three: **`odd`** (the default — proportional work, one feature document, ceilings, blind review), **`scout`** (research and learning, read-only) and **`vault`** (notes and ideas, no code). `agents/` and `modes/` live in git and are synced into `~/.violeta/agent/` on every start, so the philosophy survives a reinstall; files you add there yourself are left alone.
+The repo ships four: **`odd`** (the default — proportional work, one feature document, ceilings, blind review), **`jarvis`** (contract first, two approvals, see below), **`scout`** (research and learning, read-only) and **`vault`** (notes and ideas, no code). `agents/` and `modes/` live in git and are synced into `~/.violeta/agent/` on every start, so the philosophy survives a reinstall; files you add there yourself are left alone.
 
 **No agent costs money** — Claude is reached only by raising the session model with `/models`. Everything runs on the flat-rate cluster, whose allowances are large enough that a heavy day of iterating spends a few percent of one pool. Roles are therefore assigned by fit, not by pool:
 
@@ -64,12 +66,46 @@ The repo ships three: **`odd`** (the default — proportional work, one feature 
 | `architect` (specs, decomposition) | `deepseek-v4-flash` | judgment-heavy but unmetered; Claude is reached only by raising the session model |
 | `planner` (specs already clear) | `deepseek-v4-flash` | structures what was stated; GLM is reported not to reason holistically |
 | `scout` | `deepseek-v4-flash` | general workhorse, 1M context |
-| `builder` | `glm5.3-flash` | reported to execute a detailed plan well |
+| `builder` | `deepseek-v4-flash` | best of four in a replay of three real tasks (see Bake-off): fastest, fewest tokens, no false "completed" |
 | `judge-a` / `judge-b` | `glm5.3-flash` / `deepseek-v4-flash` | two different lineages, so agreement means something |
 | `fixer` | `qwen3.8-flash` | narrow and obedient; GLM is excluded here on purpose, since its reported failure is over-engineering and the fixer's cardinal sin is adding things |
 | `verifier` | `deepseek-v4-flash` | never the model that wrote the change |
 
 `config/models.json` is the catalogue for the **nan_member** plan. `glm5.3` (as opposed to `glm5.3-flash`) belongs to the 200 EUR premium tier and is deliberately absent: a model that is real but out of plan fails at request time rather than at startup, so a test pins its absence.
+
+## Jarvis
+
+`/mode jarvis` is the philosophy for work where the user decides and the agents execute. It is deliberately short (about 100 lines against ODD's 310) because everything that must always hold is code, not prose.
+
+- **Flow:** understand (at most five questions, each with a recommended answer) -> one-page contract (`odd/tasks/<name>.md`) -> `contract_check` -> `critico` once -> **approval 1** -> `builder` per task, each `Check` re-run by the orchestrator -> `judge` only on `riesgo: sí` tasks -> **approval 2** (the user reads the result; commit is theirs).
+- **Roster:** `scout` (optional), `critico` (reads only the contract, at most seven closed questions, never rewrites), `builder`, `judge` (one independent reviewer; findings go to the user, who chooses what to fix) and `probador` (runs a copy of the finished program from the outside and tries to break it; only when the work runs something and a task is `riesgo: sí`; if it is cut at its ceiling, its progress file `.odd/scratch/probe/informe.md` is the report).
+- **Contract:** `No-objetivos`, `Specs` (each with `Accept` and `Check`), `Tasks` (each with `specs`, `test`, `riesgo`), `Decisiones`, `Log` (`L1` is the user's request, verbatim). An external system implies an `S0`/`T0` spike unless the contract says `Externo: no`.
+- **`contract_check`** runs before any model reads the contract: missing sections, a spec without a runnable `Check`, a task citing no spec, an uncovered spec, a missing `L1`, a missing spike.
+
+## Dispatch breaker
+
+Every subagent goes through `subagent_run`, so the harness can count. Two separate behaviours, both measured from the user's last message:
+
+- **Report (never stops anything):** after 4 dispatches or 15 minutes, the harness shows a status line itself. The model is not asked to cooperate.
+- **Confirm (the only stop):** a dialog **between** tasks, never inside one, when the same agent and task is launched for the 3rd time, or after 12 dispatches or 60 minutes. Nothing in flight is killed, so no file is left half-written. Without a UI the answer is no.
+
+Tune with `VIOLETA_BREAKER_REPORT_EVERY`, `_REPORT_MINUTES`, `_HARD_DISPATCHES`, `_HARD_MINUTES`, `_LOOP_REPEAT`. The numbers come from the replay of one real project and are to be retuned with measurements. A prompt typed by the user restarts the window; a background result being delivered does not.
+
+## Bake-off (builder choice)
+
+Replay of three real tasks from the Android project (T2 `record.ts`, T5 `runner.ts`, T6 the pure classifier) plus a spec-review task with three injected defects that the existing tests do not catch. Same `builder.md`, same runner, isolated copies. Turns / tokens / wall time per run:
+
+| Model | T2 | T6 | T5 | Defects found (of 3, three runs) |
+| :--- | :--- | :--- | :--- | :--- |
+| `deepseek-v4-flash` | 16 / 68k / 250s, 18 / 98k / 576s | 17 / 83k / 186s, 18 / 99k / 247s | 14 / 80k / 193s, 25 / 92k / 257s | 2, 2, 2 |
+| `qwen3.8-flash` | 23 / 86k / 443s | 19 / 86k / 470s | 19 / 92k / 512s | 1, 2, 2 |
+| `glm5.3-flash` | 23 / 47k / 621s | 21 / 406k / 841s | 10 / 97k / 388s | 2, 2 |
+| `mimo-v2.6-flash` | failed, then "completed" with no files | 12 / 113k / 977s | not run | not run |
+
+- **Every run that finished passed its own tests.** The tests the model writes are a weak signal; the original tests could not be used as a hidden check because the contract does not pin export names (an import error, not a reasoning error). Lesson for contracts: when one task depends on another's API, the `Check` names the exports.
+- **DeepSeek was the fastest and consistent**; Qwen 3.8 completed everything but wrote 1.3 to 1.7x more code. No model found the subtlest defect (a strict `>` versus `>=` boundary).
+- **MiMo with reasoning `medium`** spends turns of about six minutes and about 18k tokens thinking; NaN closes reasoning-only streams after 420 s, which produces `settled without an answer`. With reasoning `off` it is fast but ran out of its 30-turn ceiling. It is not in the Jarvis roster.
+- Small sample (one project, 2 to 3 runs per cell). Retune with real use.
 
 ## Subagents
 
@@ -77,6 +113,7 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 
 - **Define an agent:** a markdown file in `~/.violeta/agent/agents/<name>.md` (frontmatter: `name`, `description`, `model`, `thinking`, `tools`, `maxTurns`, `maxTokens`; the body is the prompt).
 - **Settling is not answering:** a child that ends with no text is recorded as `failed`, not `completed` — observed twice in real use (a worker that produced no files, and a child its provider cut off), both of which looked like success to the caller.
+- **Wrap-up notice:** when a run reaches 75% of its turn or token ceiling (ceilings of 10 turns or more), the runner sends it one `steer` message asking for its complete final report now. Measured need: a tester used 70 turns probing and its only handoff was its first sentence.
 - **Ceilings:** `maxTurns` and `maxTokens` are total limits, unlike the stall watchdog's renewable silence budgets — a talkative child renews the watchdog forever and still stops at its ceiling. Reaching one tears the child down with status `budget` (glyph `◼`, counted as finished, never as failed) and **keeps its last answer as the handoff**, because a context that keeps growing costs more per turn and is read worse at the far end; a fresh child continues from that handoff. The ceiling is acted on when the child reaches for more work, so a run that settles on its last allowed turn is `completed`. A definition without them has no ceiling. `VIOLETA_AGENT_MAX_TURNS` and `VIOLETA_AGENT_MAX_TOKENS` override every definition, to retune budgets without editing files.
 - **Tools for the model:** `subagent_list_agents`, `subagent_run` (`task` waits, `background` returns an id and delivers the result later), `subagent_status`, `subagent_result`, `subagent_cancel`. Each task is a `pi --mode rpc` child; at most 3 run at once (`VIOLETA_AGENTS_MAX_CONCURRENCY`), the rest are `queued`. Children cannot spawn children.
 - **Titles:** `label` is required in `subagent_run` (what the agent does, 3 to 6 words, phrased as an action), so you can tell tasks apart without reading their context. If it is missing, the first sentence of the task is used.
@@ -90,6 +127,7 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 
 - **Destructive commands** (recursive/forced removal, `find -delete`, `shred`, `dd` to devices, `mkfs`, recursive `chmod`/`chown`, force push including `+refspec`, hard reset, `clean -f`, whole-tree checkout/restore, `branch -D`, `stash drop|clear`, SQL `DROP`/`TRUNCATE`/`DELETE` without `WHERE`) ask for confirmation showing the exact command. Targets like `/`, `~`, `$HOME` and their globs are denied outright. Quoted text, heredoc data and look-alikes are not flagged. It recognises common forms; it is not a sandbox.
 - **Outside the project:** a path outside the working directory asks once per directory per session. **Temp paths collapse to the temp root**, so a `mktemp -d` directory does not ask again every run. Grants live in memory only. `/grants` lists them, `/grants revoke` clears them. The violeta agent dir is always allowed.
+- **Unattended mode** (`/unattended on|off`, or launch with `VIOLETA_UNATTENDED=1`) is for leaving a run going while you are away: **nothing is ever asked**. Destructive commands are refused with a message telling the model to skip them and carry on (catastrophic targets stay hard-denied). Outside the project, `read`, `grep`, `find` and `ls` pass without a prompt; `write`, `edit` and any shell command touching an outside path are refused (use the read tools to look outside). The dispatch breaker also refuses instead of asking, so a runaway stops by itself. The header shows `· sin supervisión` while it is on. It is never saved: every new session starts attended. It applies to the main session; subagents keep their own stricter rules. Approvals that Jarvis asks in the conversation (contract, final result) are still waiting for you.
 - **Subagent children** have no UI, so anything that would ask is blocked instead.
 
 ## Todo list

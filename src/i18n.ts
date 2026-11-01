@@ -97,6 +97,15 @@ const es = {
 		grantsList: (dirs: readonly string[]) =>
 			`Permisos fuera del proyecto en esta sesión:\n${dirs.map((dir) => `- ${dir}`).join("\n")}\n\n/grants revoke los borra.`,
 		grantsEmpty: "No hay permisos fuera del proyecto en esta sesión.",
+		unattendedDescription: "Modo sin supervisión: rechaza lo destructivo sin preguntar y permite leer fuera del proyecto (/unattended on|off)",
+		unattendedUsage: "uso: /unattended [on|off]",
+		unattendedOn:
+			"Modo sin supervisión ACTIVADO: lo destructivo se rechaza sin preguntar, leer fuera del proyecto se aprueba siempre, escribir fuera del proyecto se rechaza.",
+		unattendedOff: "Modo sin supervisión desactivado: vuelvo a preguntar.",
+		unattendedBlocked: (reasons: readonly string[]) =>
+			`Rechazado (modo sin supervisión): ${reasons.join("; ")}. No se ejecutó. Omití este paso, usá una alternativa más segura y seguí con el resto del trabajo.`,
+		unattendedOutsideWrite: (dir: string, cwd: string) =>
+			`Rechazado (modo sin supervisión): fuera del proyecto (${dir}) solo se puede leer, y para eso usá read, grep, find o ls. Para escribir o ejecutar quedate dentro de ${cwd}; seguí con el resto del trabajo.`,
 	},
 	agents: {
 		/** Display words for task statuses (the values themselves stay identifiers). */
@@ -143,6 +152,16 @@ const es = {
 			`El subagente se detuvo en su techo de ${limit === "maxTurns" ? "turnos" : "tokens"} (${turns} turnos · ${tokens} tokens). No es un fallo: abajo va su entrega parcial. Para continuar, relanzá un subagente nuevo con lo que falte.`,
 		unknownAgent: (name: string, available: string) => `Agente desconocido "${name}". Disponibles: ${available}. Usá subagent_list_agents primero.`,
 		noneAvailable: "(ninguno)",
+		breakerSummary: (dispatches: number, minutes: number, tokens: number, by: string, rows: string) =>
+			`${dispatches} subagentes en ${minutes} min · ${tokens} tokens · ${by || "-"}${rows ? `\n${rows}` : ""}`,
+		breakerRow: (agent: string, label: string, status: string, turns: number) => `  ${agent} «${label}» · ${status} · ${turns} t`,
+		breakerReport: (summary: string) => `▸ Sin que hables desde hace un rato, sigo trabajando: ${summary}`,
+		breakerTitle: "¿Seguir lanzando subagentes?",
+		breakerConfirmLoop: (agent: string, label: string, count: number, summary: string) =>
+			`Es la vez ${count} que se lanza «${agent}» con «${label}». Puede ser un ciclo.\n\n${summary}\n\n¿Seguir?`,
+		breakerConfirmCeiling: (dispatches: number, minutes: number, summary: string) =>
+			`Van ${dispatches} subagentes y ${minutes} min sin que hables.\n\n${summary}\n\n¿Seguir?`,
+		breakerDeclined: "El usuario no autorizó lanzar más subagentes. No lances otro: contale qué está hecho, qué falta y esperá su respuesta.",
 		noDefinitions: "No se encontraron definiciones de subagentes. Creá archivos markdown con frontmatter YAML (name, description, model, thinking, tools, maxTurns, maxTokens) y un cuerpo de system prompt en el directorio de agents.",
 		noTasksYet: "Todavía no hay tareas de subagentes.",
 		unknownTaskId: (id: string) => `Id de tarea desconocido ${id}.`,
@@ -251,6 +270,7 @@ const es = {
 		ellipsis: "…",
 	},
 	ui: {
+		unattendedLabel: "sin supervisión",
 		sidebarDescription: "Muestra u oculta la barra lateral (el pie se oculta mientras está activa)",
 		sidebarUsage: "uso: /sidebar [on|off]",
 		sidebarNeedsFullscreen: "La barra lateral necesita modo fullscreen; se muestra el pie en su lugar.",
@@ -384,6 +404,15 @@ const en: typeof es = {
 		grantsList: (dirs: readonly string[]) =>
 			`Outside-project grants for this session:\n${dirs.map((dir) => `- ${dir}`).join("\n")}\n\n/grants revoke clears them.`,
 		grantsEmpty: "No outside-project grants in this session.",
+		unattendedDescription: "Unattended mode: refuse destructive commands without asking and allow reads outside the project (/unattended on|off)",
+		unattendedUsage: "usage: /unattended [on|off]",
+		unattendedOn:
+			"Unattended mode ON: destructive commands are refused without asking, reading outside the project is always approved, writing outside the project is refused.",
+		unattendedOff: "Unattended mode off: I ask again.",
+		unattendedBlocked: (reasons: readonly string[]) =>
+			`Refused (unattended mode): ${reasons.join("; ")}. It did not run. Skip this step, use a safer alternative and carry on with the rest of the work.`,
+		unattendedOutsideWrite: (dir: string, cwd: string) =>
+			`Refused (unattended mode): outside the project (${dir}) you can only read, using read, grep, find or ls. To write or execute stay inside ${cwd}; carry on with the rest of the work.`,
 	},
 	agents: {
 		statuses: { queued: "queued", running: "running", completed: "completed", failed: "failed", aborted: "aborted", budget: "stopped at its ceiling" } as Record<string, string>,
@@ -428,6 +457,16 @@ const en: typeof es = {
 			`The subagent stopped at its ${limit === "maxTurns" ? "turn" : "token"} ceiling (${turns} turns · ${tokens} tokens). This is not a failure: its partial handoff follows. To continue, launch a fresh subagent with what is left.`,
 		unknownAgent: (name: string, available: string) => `Unknown agent "${name}". Available: ${available}. Use subagent_list_agents first.`,
 		noneAvailable: "(none)",
+		breakerSummary: (dispatches: number, minutes: number, tokens: number, by: string, rows: string) =>
+			`${dispatches} subagents in ${minutes} min · ${tokens} tokens · ${by || "-"}${rows ? `\n${rows}` : ""}`,
+		breakerRow: (agent: string, label: string, status: string, turns: number) => `  ${agent} «${label}» · ${status} · ${turns} t`,
+		breakerReport: (summary: string) => `▸ You have not spoken for a while; still working: ${summary}`,
+		breakerTitle: "Keep launching subagents?",
+		breakerConfirmLoop: (agent: string, label: string, count: number, summary: string) =>
+			`"${agent}" is about to run with "${label}" for the ${count}th time. This may be a loop.\n\n${summary}\n\nContinue?`,
+		breakerConfirmCeiling: (dispatches: number, minutes: number, summary: string) =>
+			`${dispatches} subagents and ${minutes} min without you speaking.\n\n${summary}\n\nContinue?`,
+		breakerDeclined: "The user did not authorize launching more subagents. Do not launch another: tell them what is done, what is left, and wait for their reply.",
 		noDefinitions: "No subagent definitions found. Create markdown files with YAML frontmatter (name, description, model, thinking, tools, maxTurns, maxTokens) and a system prompt body in the agents directory.",
 		noTasksYet: "No subagent tasks yet.",
 		unknownTaskId: (id: string) => `Unknown task id ${id}.`,
@@ -528,6 +567,7 @@ const en: typeof es = {
 		ellipsis: "…",
 	},
 	ui: {
+		unattendedLabel: "unattended",
 		sidebarDescription: "Toggle the right sidebar (the footer hides while it is active)",
 		sidebarUsage: "usage: /sidebar [on|off]",
 		sidebarNeedsFullscreen: "Sidebar needs fullscreen mode; showing the footer instead.",

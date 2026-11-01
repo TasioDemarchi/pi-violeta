@@ -22,6 +22,9 @@ export interface VioletaSharedState {
 	/** A confirmation dialog is waiting for the user, published by violeta-guard
 	 * while a destructive-command or outside-project dialog is open (T3/S3). */
 	notifyNeedsAnswer?: boolean;
+	/** Unattended mode: the guard refuses instead of asking, so a run never waits
+	 * for an answer nobody is there to give. Published by violeta-guard. */
+	unattended?: boolean;
 	/** The active mode's name, published by violeta-mode. violeta-ui shows it and
 	 * violeta-agents filters its definitions by `modeAgents`. */
 	activeMode?: string;

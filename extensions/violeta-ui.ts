@@ -35,6 +35,10 @@ export default function (pi: ExtensionAPI) {
 	let branchOf: (() => string | undefined) | undefined;
 	let tuiRef: TUI | undefined;
 	let sidebarComponent: Component | undefined;
+	/** Header lines, drawn by the pinned layout in fullscreen and by Pi's own
+	 * (scrolling) header container everywhere else. */
+	let headerLines: (() => string[]) | undefined;
+	let layoutPinned = false;
 	let sidebarEnabled = false;
 	/** Last sidebar-active value published to the shared hub. */
 	let sharedActive: boolean | undefined;
@@ -137,14 +141,24 @@ export default function (pi: ExtensionAPI) {
 		return sidebarEnabled && !!tui && tui.mode === "fullscreen" && tui.terminal.columns >= SIDEBAR_MIN_COLS;
 	}
 
-	function applySidebar(active: boolean) {
+	// Fullscreen only: Pi draws the header inside the scrolling transcript, so it
+	// leaves the screen with the conversation. We wrap the layout root so the
+	// header sits above everything and never scrolls; with the sidebar on, the
+	// sidebar still gets the full height beside it. Outside fullscreen the header
+	// lives in the terminal's own scrollback and cannot be pinned.
+	const pinnedHeader: Component = {
+		render: () => headerLines?.() ?? [],
+		invalidate() {},
+	};
+
+	function removeLayout() {
+		for (const cleanup of sidebarCleanups.splice(0).reverse()) cleanup();
+		layoutPinned = false;
+	}
+
+	function installLayout() {
 		const tui = tuiRef as SidebarTui | undefined;
-		if (!tui) return;
-		if (!active) {
-			for (const cleanup of sidebarCleanups.splice(0).reverse()) cleanup();
-			return;
-		}
-		if (sidebarCleanups.length || !sidebarComponent) return;
+		if (!tui || sidebarCleanups.length) return;
 		const wrappedRoots = new WeakSet<object>();
 		try {
 			const attach = () => {
@@ -154,23 +168,41 @@ export default function (pi: ExtensionAPI) {
 					wrappedRoots.add(root);
 					const original = root[NODE]!;
 					const descriptor = Object.getOwnPropertyDescriptor(root, NODE);
-					const left: Component & { [NODE]: () => LayoutNode } = {
+					const body: Component & { [NODE]: () => LayoutNode } = {
 						render: () => [],
 						invalidate() {},
 						[NODE]: () => original.call(root),
 					};
-					const replacement = () => ({
-						type: "hstack",
-						gap: SIDEBAR_GAP,
-						align: "stretch" as const,
-						entries: [
-							{ component: left, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-							{ component: sidebarComponent!, basis: SIDEBAR_WIDTH, grow: 0, shrink: 0, minSize: SIDEBAR_WIDTH },
-						],
-					});
-					const wrapped = (): LayoutNode =>
-						tui.terminal.columns >= SIDEBAR_MIN_COLS ? replacement() : original.call(root);
+					const column: Component & { [NODE]: () => LayoutNode } = {
+						render: () => [],
+						invalidate() {},
+						[NODE]: () => ({
+							type: "vstack",
+							// The engine does arithmetic with `gap`: leaving it out turns every
+							// size into NaN and the transcript and editor collapse to nothing.
+							gap: 0,
+							align: "stretch" as const,
+							entries: [
+								{ component: pinnedHeader, basis: "auto", grow: 0, shrink: 0, minSize: 1 },
+								{ component: body, basis: 0, grow: 1, shrink: 1, minSize: 1 },
+							],
+						}),
+					};
+					const wrapped = (): LayoutNode => {
+						if (tui.mode !== "fullscreen") return original.call(root);
+						if (!sidebarActive(tui) || !sidebarComponent) return column[NODE]();
+						return {
+							type: "hstack",
+							gap: SIDEBAR_GAP,
+							align: "stretch" as const,
+							entries: [
+								{ component: column, basis: 0, grow: 1, shrink: 1, minSize: 1 },
+								{ component: sidebarComponent, basis: SIDEBAR_WIDTH, grow: 0, shrink: 0, minSize: SIDEBAR_WIDTH },
+							],
+						};
+					};
 					root[NODE] = wrapped;
+					layoutPinned = true;
 					tui.requestRender();
 					sidebarCleanups.push(() => {
 						if (root[NODE] !== wrapped) return;
@@ -178,7 +210,7 @@ export default function (pi: ExtensionAPI) {
 						else Reflect.deleteProperty(root, NODE);
 					});
 				} catch {
-					/* never crash: fall back to the footer */
+					/* never crash: the header just scrolls as Pi draws it */
 				}
 			};
 			attach();
@@ -188,7 +220,7 @@ export default function (pi: ExtensionAPI) {
 			sidebarCleanups.push(() => clearInterval(timer));
 			tui.requestRender();
 		} catch {
-			/* fall back to the footer */
+			/* fall back to the scrolling header and the footer */
 		}
 	}
 
@@ -311,27 +343,33 @@ export default function (pi: ExtensionAPI) {
 				if (sidebarEnabled && tuiRef && tuiRef.mode !== "fullscreen") {
 					ctx.ui.notify(uiT.sidebarNeedsFullscreen, "warning");
 				}
-				applySidebar(sidebarEnabled);
 				tuiRef?.requestRender();
 			},
 		});
 
-		ctx.ui.setHeader((_tui, theme) => ({
-			invalidate() {},
+		ctx.ui.setHeader((_tui, theme) => {
 			// The active mode is always on screen: a philosophy you cannot see is one
 			// you cannot trust, and knowing which one is running is the difference
 			// between a surprising answer and an expected one.
-			render: () => {
+			const lines = (): string[] => {
 				const mode = getShared().activeMode;
 				return [
 					theme.fg("borderAccent", "▍") +
 						" " +
 						theme.bold(theme.fg("accent", "violeta")) +
 						theme.fg("dim", ` · pi ${VERSION}`) +
-						(mode ? theme.fg("accent", ` · ${mode}`) : ""),
+						(mode ? theme.fg("accent", ` · ${mode}`) : "") +
+						(getShared().unattended ? theme.fg("warning", ` · ${uiT.unattendedLabel}`) : ""),
 				];
-			},
-		}));
+			};
+			headerLines = lines;
+			return {
+				invalidate() {},
+				// Pinned: the layout draws it above the transcript; drawing it here too
+				// would show it twice.
+				render: () => (layoutPinned && tuiRef?.mode === "fullscreen" ? [] : lines()),
+			};
+		});
 
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			requestRender = () => tui.requestRender();
@@ -360,13 +398,13 @@ export default function (pi: ExtensionAPI) {
 					}
 				},
 			};
-			if (sidebarEnabled) applySidebar(true);
+			installLayout();
 
 			return {
 				dispose() {
 					unsub();
 					requestRender = undefined;
-					applySidebar(false);
+					removeLayout();
 					if (sharedActive !== false) {
 						sharedActive = false;
 						setShared({ sidebarActive: false });

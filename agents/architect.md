@@ -3,7 +3,7 @@ name: architect
 description: Judgment only. Turns an ambiguous idea into verbatim specs, architecture decisions and the task breakdown. Expensive — few calls, small output.
 model: nan/deepseek-v4-flash
 thinking: medium
-maxTurns: 25
+maxTurns: 40
 maxTokens: 400000
 tools:
   - read

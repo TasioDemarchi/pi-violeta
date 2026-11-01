@@ -56,7 +56,7 @@ test("read-only agents carry no writing tools", () => {
 	// scout, the judges and the verifier are read-only by contract. A stray
 	// `edit` in the frontmatter would quietly grant what the prompt forbids,
 	// and the prompt is not what the engine enforces.
-	const readOnly = new Set(["scout", "judge-a", "judge-b", "verifier"]);
+	const readOnly = new Set(["scout", "judge-a", "judge-b", "verifier", "judge", "critico"]);
 	for (const def of agents().definitions) {
 		if (!readOnly.has(def.name)) continue;
 		for (const forbidden of ["edit", "write"]) {
@@ -89,7 +89,10 @@ test("every shipped mode parses and exposes only agents that exist", () => {
 test("odd is the default mode and it exposes the whole roster", () => {
 	const odd = modes().modes.find((m) => m.name === "odd");
 	assert.ok(odd, "odd mode must ship, it is the default in src/modes/state.ts");
+	// `critico` and `judge` belong to the jarvis roster; odd keeps its own two judges.
+	const jarvisOnly = new Set(["critico", "judge", "probador"]);
 	for (const agent of agents().definitions) {
+		if (jarvisOnly.has(agent.name)) continue;
 		assert.ok(modeExposes(odd, agent.name), `odd does not expose ${agent.name}`);
 	}
 });
@@ -123,14 +126,15 @@ test("workers read the whole contract and skip only the history", () => {
 	assert.match(odd, /written down and cited/i);
 });
 
-test("the orchestrator and the writer never share a quota pool", () => {
-	// The two heaviest consumers in the harness are the main session and the
-	// implementation writer. Each NaN model has its own monthly allowance, so
-	// putting both on one model makes the first of them to run starve the other.
-	const odd = modes().modes.find((m) => m.name === "odd")!;
-	const builder = agents().definitions.find((d) => d.name === "builder")!;
-	assert.ok(odd.model, "the odd mode must pin the orchestrator's model");
-	assert.notEqual(odd.model, builder.model);
+test("every orchestrating mode pins its model, even when it shares a pool with the builder", () => {
+	// Sharing a NaN quota pool between the main session and the writer is allowed:
+	// with two usable models it is simply the cost of having few. It used to be
+	// forbidden; the Android bake-off made deepseek-v4-flash the best writer, and
+	// its pool (3B/month) is far above the measured use (~130M in a heavy month).
+	for (const name of ["odd", "jarvis"]) {
+		const mode = modes().modes.find((m) => m.name === name)!;
+		assert.ok(mode.model, `the ${name} mode must pin the orchestrator's model`);
+	}
 });
 
 test("no shipped file asks for a model outside this plan's catalogue", () => {
@@ -312,4 +316,88 @@ test("odd separates banned machinery talk from owed progress reporting", () => {
 	assert.match(odd, /Por qué:/);
 	// Checkpoint duty scales with how little the user is approving.
 	assert.match(odd, /the more you owe them checkpoints/i);
+});
+
+test("jarvis exposes exactly its five agents and every one of them exists", () => {
+	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
+	assert.ok(jarvis, "the jarvis mode ships");
+	assert.deepEqual([...jarvis.agents!].sort(), ["builder", "critico", "judge", "probador", "scout"]);
+	const names = new Set(agents().definitions.map((d) => d.name));
+	for (const name of jarvis.agents!) assert.ok(names.has(name), `jarvis lists "${name}" but no such agent ships`);
+});
+
+test("jarvis keeps its two approvals, one critic round and the lint gate", () => {
+	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
+	assert.match(jarvis.prompt, /Approval 1/);
+	assert.match(jarvis.prompt, /Approval 2/);
+	assert.match(jarvis.prompt, /contract_check/);
+	assert.match(jarvis.prompt, /No second critic round/);
+	assert.match(jarvis.prompt, /Nothing is\s+built until the user says\s+yes/);
+	assert.ok(jarvis.prompt.split("\n").length <= 160, "the whole philosophy stays about half of ODD's 310 lines");
+});
+
+test("the critic only reads the contract, and its model is not the orchestrator's", () => {
+	const critico = agents().definitions.find((d) => d.name === "critico")!;
+	assert.deepEqual(critico.tools, ["read"]);
+	assert.ok(critico.maxTurns! <= 10, "one pass, not a conversation");
+	assert.match(critico.prompt, /At most \*\*seven\*\* questions/);
+	assert.match(critico.prompt, /Never rewrite the contract/);
+	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
+	assert.notEqual(critico.model, jarvis.model, "a critic on the same model shares the author's blind spots");
+});
+
+test("the jarvis judge is a different model than the builder that wrote the code", () => {
+	const byName = (n: string) => agents().definitions.find((d) => d.name === n)!;
+	assert.notEqual(byName("judge").model, byName("builder").model);
+});
+
+test("jarvis speaks to a non-technical user: plain decisions, costs shown, nothing decided in silence", () => {
+	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
+	assert.match(jarvis.prompt, /has little technical background/);
+	// A technical fork is escalated only in the A/B shape that shows benefit and cost.
+	assert.match(jarvis.prompt, /Beneficio:.*Costo:/);
+	assert.match(jarvis.prompt, /Recomiendo/);
+	assert.match(jarvis.prompt, /never hide a cost|hide a cost/i);
+	// What Jarvis decides alone is recorded with its reason.
+	assert.match(jarvis.prompt, /record each one under `## Decisiones`/);
+	// Approval 1 is a plain summary, not the contract file; judge findings arrive translated.
+	assert.match(jarvis.prompt, /Do not ask the user to read the contract file/);
+	assert.match(jarvis.prompt, /qué decidí yo por vos/);
+	assert.match(jarvis.prompt, /Its findings go to the user,\s+translated/);
+});
+
+test("jarvis tells the user how to open it and what to try, never adds unrequested features, and leaves a clean folder", () => {
+	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
+	// Approval 1 lists what the user can try, with an error case when it takes data.
+	assert.match(jarvis.prompt, /cómo lo\s+vas a abrir y qué pruebas podés hacer vos/);
+	assert.match(jarvis.prompt, /at least one error case/);
+	// A feature nobody asked for is offered, not slipped into the contract.
+	assert.match(jarvis.prompt, /Never add a feature the user did not ask for/);
+	assert.match(jarvis.prompt, /only with their yes/);
+	// A runnable project ends with a README in plain Spanish; scratch never reaches the user's folder.
+	assert.match(jarvis.prompt, /last task\*\* of anything the user will run is a `README\.md`/);
+	assert.match(jarvis.prompt, /add\s+`\.odd\/scratch\/` to `\.gitignore`/);
+	assert.match(jarvis.prompt, /remove the `\.odd\/scratch\/` folder/);
+});
+
+test("jarvis runs the black-box tester only for runnable work with risk, and recovers its report on a budget stop", () => {
+	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
+	assert.match(jarvis.prompt, /what you built \*\*runs\*\*/);
+	assert.match(jarvis.prompt, /some task is `riesgo: sí`, dispatch `probador` once/);
+	assert.match(jarvis.prompt, /status `budget`, read `\.odd\/scratch\/probe\/informe\.md`/);
+	const probador = agents().definitions.find((d) => d.name === "probador")!;
+	assert.match(probador.prompt, /never redirect to `\/dev\/null`/);
+	assert.match(probador.prompt, /Never `pkill` by name/);
+	assert.match(probador.prompt, /informe\.md/);
+});
+
+test("jarvis keeps for itself the tasks the subagents' sandbox cannot run", () => {
+	// Measured on the Android project: subagents have no adb, gradle or SDK, so a
+	// builder sent to compile or install fails. The orchestrator does those.
+	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
+	assert.match(jarvis.prompt, /what subagents cannot reach/);
+	assert.match(jarvis.prompt, /`adb`, `gradle`/);
+	assert.match(jarvis.prompt, /`quién: Jarvis`/);
+	assert.match(jarvis.prompt, /its\s+`Check` is yours/);
+	assert.match(jarvis.prompt, /marked `quién: Jarvis` you run yourself/);
 });

@@ -599,3 +599,65 @@ test("an aborted run is still aborted, answer or not", async () => {
 		h.cleanup();
 	}
 });
+
+// A run that never stops working on its own is cut at its ceiling, and what it
+// said last is the handoff. The runner therefore asks for the report early.
+const steersOf = (h: Harness) => h.lines(h.children[0]!).map((l) => JSON.parse(l) as { type: string; message?: string }).filter((r) => r.type === "steer");
+
+test("a run at 75% of its turn ceiling is told, once, to send its final report", async () => {
+	const h = harness();
+	try {
+		const task = h.runner.start(definition({ maxTurns: 20 }), { task: "a long probe", mode: "task" });
+		for (let i = 1; i <= 14; i++) h.write(h.children[0]!, assistantTurn(`step ${i}`));
+		assert.deepEqual(steersOf(h), [], "14 of 20 turns is still below 75%");
+		h.write(h.children[0]!, assistantTurn("step 15"));
+		const sent = steersOf(h);
+		assert.equal(sent.length, 1);
+		assert.match(sent[0]!.message!, /Budget notice: 5 turns left of 20/);
+		assert.match(sent[0]!.message!, /complete final report/);
+		for (let i = 16; i <= 18; i++) h.write(h.children[0]!, assistantTurn(`step ${i}`));
+		assert.deepEqual(steersOf(h), [], "the notice is sent once");
+		assert.equal(h.store.get(task.id)!.status, "running", "a notice is not a stop");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a small ceiling gets no notice: it ends on its own and the notice would cost a turn", async () => {
+	const h = harness();
+	try {
+		h.runner.start(definition({ maxTurns: 8 }), { task: "a short unit", mode: "task" });
+		for (let i = 1; i <= 7; i++) h.write(h.children[0]!, assistantTurn(`step ${i}`));
+		assert.deepEqual(steersOf(h), []);
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("the notice also fires at 75% of the token ceiling", async () => {
+	const h = harness();
+	try {
+		h.runner.start(definition({ maxTokens: 1000 }), { task: "a token-hungry probe", mode: "task" });
+		h.write(h.children[0]!, assistantTurn("light", 700));
+		assert.deepEqual(steersOf(h), []);
+		h.write(h.children[0]!, assistantTurn("heavy", 100));
+		const sent = steersOf(h);
+		assert.equal(sent.length, 1);
+		assert.match(sent[0]!.message!, /of the token budget left/);
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a run that settles before the threshold is never told anything", async () => {
+	const h = harness();
+	try {
+		const task = h.runner.start(definition({ maxTurns: 20 }), { task: "a unit that finishes", mode: "task" });
+		for (let i = 1; i <= 5; i++) h.write(h.children[0]!, assistantTurn(`step ${i}`));
+		h.write(h.children[0]!, { type: "agent_settled", aborted: false });
+		await h.runner.waitFor(task.id);
+		assert.deepEqual(steersOf(h), []);
+	} finally {
+		h.cleanup();
+	}
+});

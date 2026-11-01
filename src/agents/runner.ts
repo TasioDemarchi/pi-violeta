@@ -9,7 +9,11 @@
  * - Completion is the child's `agent_settled` event (never `agent_end`).
  * - A stall watchdog fails a child silent for `stallTimeoutMs` (default 4 min);
  *   an announced tool call in flight raises the budget to `toolStallTimeoutMs`
- *   (default 30 min). These are renewable silence budgets, not total limits.
+ *   (default 10 min). These are renewable silence budgets, not total limits.
+ * - A wrap-up notice (a `steer` message) is sent once, when a run reaches 75% of
+ *   its turn or token ceiling, so the report is written BEFORE the cut. Some
+ *   models never stop working on their own and the handoff is only the last
+ *   thing said; a run cut with no report wastes everything it did.
  * - `maxTurns`/`maxTokens` ARE total limits: a child that reaches one is torn
  *   down with status "budget", keeping its last answer as the handoff. A silence
  *   budget asks "is it alive?"; a ceiling asks "has it had enough?". A talkative
@@ -95,14 +99,20 @@ interface LiveTask {
 	/** The ceiling this run has already reached, acted on when it tries to do
 	 * more. Settlement arriving first means the work finished on budget. */
 	overBudget: BudgetLimit | undefined;
+	/** The wrap-up notice goes out at most once per run. */
+	wrapUpSent: boolean;
 	promptDir: string | undefined;
 	stderrTail: string;
 	responseWaiters: Map<string, (response: { success?: boolean; error?: unknown }) => void>;
 }
 
 const DEFAULT_MAX_CONCURRENCY = 3;
+/** Share of a ceiling after which the run is told to write its report. */
+export const WRAP_UP_RATIO = 0.75;
+/** A ceiling this small ends on its own; a notice would only cost a turn. */
+const WRAP_UP_MIN_TURNS = 10;
 const DEFAULT_STALL_MS = 4 * 60_000;
-const DEFAULT_TOOL_STALL_MS = 30 * 60_000;
+const DEFAULT_TOOL_STALL_MS = 10 * 60_000;
 const DEFAULT_GRACE_MS = 1_000;
 const STDERR_TAIL_MAX = 500;
 const RESPONSE_TIMEOUT_MS = 30_000;
@@ -314,6 +324,7 @@ export class SubagentRunner {
 			escalation: undefined,
 			terminal: false,
 			overBudget: undefined,
+			wrapUpSent: false,
 			promptDir,
 			stderrTail: "",
 			responseWaiters: new Map(),
@@ -419,6 +430,26 @@ export class SubagentRunner {
 			return;
 		}
 		live.overBudget = this.exceeded(id, task);
+		if (!live.overBudget) this.maybeWrapUp(id, live, task);
+	}
+
+	/** Tell a run that is 75% through its budget to stop starting work and send
+	 * its final report now. Delivered as a `steer` message, which Pi queues for
+	 * before the next model call. Sent once, and never to a run that has settled. */
+	private maybeWrapUp(id: string, live: LiveTask, task: AgentTask): void {
+		if (live.wrapUpSent) return;
+		const definition = this.definitions.get(id);
+		const maxTurns = this.options.maxTurns ?? definition?.maxTurns;
+		const maxTokens = this.options.maxTokens ?? definition?.maxTokens;
+		const byTurns = maxTurns !== undefined && maxTurns >= WRAP_UP_MIN_TURNS && task.turns >= Math.ceil(maxTurns * WRAP_UP_RATIO);
+		const byTokens = maxTokens !== undefined && task.tokens >= maxTokens * WRAP_UP_RATIO;
+		if (!byTurns && !byTokens) return;
+		live.wrapUpSent = true;
+		const left = byTurns ? `${maxTurns! - task.turns} turns left of ${maxTurns}` : `${Math.round(100 - (task.tokens / maxTokens!) * 100)}% of the token budget left`;
+		this.write(live, {
+			type: "steer",
+			message: `Budget notice: ${left}. Stop starting new work now. In this next message send your complete final report in the format you were given. Put what you did not finish under the field meant for it (remaining / not_checked). After the ceiling you are cut off mid-sentence and everything you did is lost if it is not in a report.`,
+		});
 	}
 
 	/** The ceiling this run has reached, if any. An explicit runner option wins
