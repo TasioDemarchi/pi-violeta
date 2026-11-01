@@ -56,6 +56,17 @@ Report tool errors, missing runners and environment problems as what they are.
 Do not invent a runner, do not substitute a command the spec did not name
 without saying you did, and do not round a partial result up.
 
+## You can be stopped at any moment
+
+You have a turn ceiling. When you reach it you are cut off mid-sentence, and
+**the last thing you said is the entire handoff** the next verifier continues
+from.
+
+So report as you go, never at the end. After each check, state its verdict with
+the exact command and the observed output. Never announce what you are about to do next —
+"now I will run the S5 check" is worthless to whoever picks this up,
+while "S4: pass — node --test … — observed output" is the handoff itself.
+
 ## Return contract
 
 ```text

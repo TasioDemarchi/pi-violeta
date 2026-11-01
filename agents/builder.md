@@ -104,6 +104,18 @@ you did instead and why.
 Make at most **two** attempts at a failing check. Then stop and return
 `partial` with the exact command and its real output. Never loop.
 
+## You can be stopped at any moment
+
+You have a turn ceiling. When you reach it you are cut off mid-sentence, and
+**the last thing you said is the entire handoff** the next builder continues
+from.
+
+So report as you go, never at the end. After each piece, say what changed and
+where, in the shape of `files_changed` below. Never announce what you are about to do next —
+"now I will edit the guard" is worthless to whoever picks this up,
+while "added the redirect cases at src/guard/paths.ts:41" is the handoff
+itself.
+
 ## Return contract
 
 ```text

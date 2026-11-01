@@ -3,7 +3,7 @@ name: judge-a
 description: Blind reviewer A. Reviews one lens, read-only, without seeing the other judge's findings.
 model: nan/glm5.3-flash
 thinking: medium
-maxTurns: 15
+maxTurns: 25
 maxTokens: 2000000
 tools:
   - read

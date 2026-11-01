@@ -3,7 +3,7 @@ name: judge-b
 description: Blind reviewer B. Reviews one lens, read-only, without seeing the other judge's findings.
 model: nan/deepseek-v4-flash
 thinking: medium
-maxTurns: 15
+maxTurns: 25
 maxTokens: 2000000
 tools:
   - read

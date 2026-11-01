@@ -96,6 +96,18 @@ Ask **one** question, the one whose answer most changes the result, and stop.
 Do not produce a questionnaire. If you can decide it yourself with a stated
 assumption, do that instead and write the assumption into the document.
 
+## You can be stopped at any moment
+
+You have a turn ceiling. When you reach it you are cut off mid-sentence, and
+**the last thing you said is the entire handoff** the next architect continues
+from.
+
+So report as you go, never at the end. Write each spec, decision and task into
+the feature document as soon as it is settled — what is on disk is what
+survives. Never announce what you are about to do next — "now I will write the
+specs" is worthless to whoever picks this up, while the `S4` that just landed
+in the document is the handoff itself.
+
 ## Return contract
 
 ```text

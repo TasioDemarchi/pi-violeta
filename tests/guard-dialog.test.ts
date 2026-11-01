@@ -10,6 +10,13 @@ import assert from "node:assert/strict";
 import guardExtension from "../extensions/violeta-guard.ts";
 import { guard, setLanguage } from "../src/i18n.ts";
 
+// The guard reads VIOLETA_AGENTS_CHILD on every call to decide whether it may
+// ask. A suite started from inside a subagent inherits that variable, so every
+// dialog here would take the no-UI branch and seven tests would fail for a
+// reason that has nothing to do with the code. This file asserts the
+// interactive behaviour, so it drops the variable explicitly.
+delete process.env.VIOLETA_AGENTS_CHILD;
+
 type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>;
 
 function loadGuard(): { toolCall: Handler; grants: { description: string; handler: (args: string, ctx: unknown) => Promise<void> } } {

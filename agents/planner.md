@@ -78,6 +78,18 @@ List the gaps concretely, as questions with the context needed to answer them.
 That list is what the expensive model starts from, so a good escalation is
 cheaper than a bad guess.
 
+## You can be stopped at any moment
+
+You have a turn ceiling. When you reach it you are cut off mid-sentence, and
+**the last thing you said is the entire handoff** the next planner continues
+from.
+
+So report as you go, never at the end. Write each spec and each task into the
+document as soon as it is settled. Never announce what you are about to do next
+— "now I will break down the tasks" is worthless to whoever picks this up,
+while the `T2` that just landed with its `S#` and test verdict is the handoff
+itself.
+
 ## Return contract
 
 ```text

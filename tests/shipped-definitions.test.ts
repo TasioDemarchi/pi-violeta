@@ -260,6 +260,20 @@ test("every agent that can be stopped knows it and reports as it goes", () => {
 			/ceiling|ran out of room|stopped at/i,
 			`${def.name}: does not know it can be stopped`,
 		);
+		// The handoff rule ships in two wordings: the fixer's ("the last thing
+		// you said is the entire handoff") and the judges' ("emit each finding
+		// as you confirm it"). Every definition must carry one of them, plus
+		// the never-announce-next-steps half.
+		assert.match(
+			def.prompt,
+			/last thing you said is the entire handoff|emit\s+each finding as you confirm it/i,
+			`${def.name}: does not state that the last thing it says is the entire handoff`,
+		);
+		assert.match(
+			def.prompt,
+			/Never announce\s+what you are about to do next|emit\s+each finding as you confirm it/i,
+			`${def.name}: does not say to report as it goes, never announcing next steps`,
+		);
 	}
 	const fixer = agents().definitions.find((d) => d.name === "fixer")!;
 	assert.match(fixer.prompt, /last thing you said is the entire handoff/i);
