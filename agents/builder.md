@@ -94,8 +94,12 @@ you did instead and why.
 - Never run destructive commands: no `rm`, no `git reset`, `clean`, `checkout`,
   `restore`, `rebase`, no destructive migrations.
 - Never `git add`, `commit`, `push`, publish or release. Delivery is the user's.
-- Run only the exact test or build commands the parent authorized. Keep any
-  scratch files outside the repository.
+- Run only the exact test or build commands the parent authorized.
+- **Scratch goes in `.odd/scratch/` inside the project**, never `/tmp` or
+  `$HOME`. A subagent has no UI, so the guard *blocks* an outside path instead
+  of asking: a command that writes to `/tmp` does not fail cleanly, it stops
+  the whole task. Create the directory if it is missing and name it in `risks`
+  so it can be cleaned up.
 
 Make at most **two** attempts at a failing check. Then stop and return
 `partial` with the exact command and its real output. Never loop.

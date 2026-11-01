@@ -90,11 +90,14 @@ test("the outside-project dialog is Spanish, asked once per directory, and appro
 		assert.equal(selects.length, 1);
 		assert.equal(selects[0]!.options.join("|"), "Sí|No");
 		assert.ok(selects[0]!.prompt.includes("Acceso fuera del proyecto"), selects[0]!.prompt);
-		assert.ok(selects[0]!.prompt.includes(OUTSIDE_DIR), selects[0]!.prompt);
+		// Temp paths collapse to the temp root so `mktemp -d` stops asking again
+		// every run, so the dialog names the root rather than the leaf.
+		assert.ok(selects[0]!.prompt.includes("/tmp"), selects[0]!.prompt);
 		assert.ok(selects[0]!.prompt.includes("El permiso dura solo esta sesión."), selects[0]!.prompt);
 		const result = await toolCall({ toolName: "read", input: { path } }, ctx);
 		assert.ok(result?.block);
-		assert.equal(result?.reason, guard.outsideDeclined(OUTSIDE_DIR, "/repo"));
+		// The refusal names the scope that was refused: the collapsed temp root.
+		assert.equal(result?.reason, guard.outsideDeclined("/tmp", "/repo"));
 	}
 	{
 		const { ctx, selects } = makeCtx("Sí");
@@ -245,11 +248,11 @@ test("in English mode the outside-project dialog is English and approves only wi
 			assert.equal(selects[0]!.options.join("|"), "Yes|No");
 			assert.ok(selects[0]!.prompt.includes("Outside-project access"), selects[0]!.prompt);
 			assert.ok(selects[0]!.prompt.includes("Allow access outside the project"), selects[0]!.prompt);
-			assert.ok(selects[0]!.prompt.includes(OUTSIDE_DIR_EN), selects[0]!.prompt);
+			assert.ok(selects[0]!.prompt.includes("/tmp"), selects[0]!.prompt);
 			assert.ok(selects[0]!.prompt.includes("The grant lasts only for this session."), selects[0]!.prompt);
 			const declined = await toolCall({ toolName: "read", input: { path } }, ctx);
 			assert.ok(declined?.block);
-			assert.equal(declined?.reason, guard.outsideDeclined(OUTSIDE_DIR_EN, "/repo"));
+			assert.equal(declined?.reason, guard.outsideDeclined("/tmp", "/repo"));
 		}
 		{
 			const { ctx, selects } = makeCtx("Yes");

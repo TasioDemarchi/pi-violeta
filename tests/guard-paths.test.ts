@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allowedLocation, bashPathTargets, isInside, resolvePath, toolCallPaths } from "../src/guard/paths.ts";
+import { allowedLocation, bashPathTargets, grantScope, isInside, resolvePath, toolCallPaths } from "../src/guard/paths.ts";
 
 const CWD = "/repo";
 const HOME = "/home/tester";
@@ -93,4 +93,17 @@ test("toolCallPaths leaves tools without an explicit path alone (they default to
 	assert.deepEqual(toolCallPaths("ls", {}), []);
 	assert.deepEqual(toolCallPaths("read", {}), []);
 	assert.deepEqual(toolCallPaths("totally_custom", { anything: "/tmp/y" }), []);
+});
+
+test("grantScope collapses a temp directory to the temp root", () => {
+	// mktemp -d returns a new name every run, so a grant on it asks again every
+	// run. The root is scratch by definition, so one grant covers all of them.
+	const root = "/tmp";
+	assert.equal(grantScope("/tmp/violeta-agent-abc123", root), "/tmp");
+	assert.equal(grantScope("/tmp/violeta-agent-abc123/sub", root), "/tmp");
+	assert.equal(grantScope("/tmp", root), "/tmp");
+	// Containment uses the guard's own boundary: /tmpfoo is not inside /tmp.
+	assert.equal(grantScope("/tmpfoo/x", root), "/tmpfoo/x");
+	// Anything else keeps its own directory.
+	assert.equal(grantScope("/home/tasio/other", root), "/home/tasio/other");
 });

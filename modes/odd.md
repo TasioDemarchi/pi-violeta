@@ -215,6 +215,12 @@ When they apply: one failing test per requested rule, observed failing **before*
 implementing, then made to pass. For every existing command the change touches,
 one test proving its previous behaviour holds.
 
+The differential check runs against a copy of the base commit in a scratch
+directory, so use `git -C <repo>` and `.odd/scratch/<name>` — **never `cd /tmp`
+or `mktemp -d`**. A path outside the project needs a grant a subagent cannot
+ask for, and `cd` into this project's own scratch dir keeps the check runnable
+where it is needed.
+
 **Never edit a failing existing test to make it pass.** Stop and report: the
 test is usually right and the diagnosis wrong.
 

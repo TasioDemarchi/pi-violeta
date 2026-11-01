@@ -276,3 +276,14 @@ test("the fixer stays inside the findings instead of re-reviewing", () => {
 	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
 	assert.match(odd, /one run per file or small group/i);
 });
+
+test("no shipped prompt sends an agent to a path outside the project", () => {
+	// A subagent has no UI, so the guard blocks an outside path instead of
+	// asking: pointing one at /tmp does not fail cleanly, it stops the task.
+	const builder = agents().definitions.find((d) => d.name === "builder")!;
+	assert.match(builder.prompt, /`\.odd\/scratch\/` inside the project/);
+	assert.doesNotMatch(builder.prompt, /scratch files outside the repository/);
+
+	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
+	assert.match(odd, /never `cd \/tmp`/);
+});

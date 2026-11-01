@@ -89,7 +89,7 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 `extensions/violeta-guard.ts` checks every `bash`, `bash_background` and `monitor` call, and every file tool.
 
 - **Destructive commands** (recursive/forced removal, `find -delete`, `shred`, `dd` to devices, `mkfs`, recursive `chmod`/`chown`, force push including `+refspec`, hard reset, `clean -f`, whole-tree checkout/restore, `branch -D`, `stash drop|clear`, SQL `DROP`/`TRUNCATE`/`DELETE` without `WHERE`) ask for confirmation showing the exact command. Targets like `/`, `~`, `$HOME` and their globs are denied outright. Quoted text, heredoc data and look-alikes are not flagged. It recognises common forms; it is not a sandbox.
-- **Outside the project:** a path outside the working directory asks once per directory per session. Grants live in memory only. `/grants` lists them, `/grants revoke` clears them. The violeta agent dir is always allowed.
+- **Outside the project:** a path outside the working directory asks once per directory per session. **Temp paths collapse to the temp root**, so a `mktemp -d` directory does not ask again every run. Grants live in memory only. `/grants` lists them, `/grants revoke` clears them. The violeta agent dir is always allowed.
 - **Subagent children** have no UI, so anything that would ask is blocked instead.
 
 ## Todo list

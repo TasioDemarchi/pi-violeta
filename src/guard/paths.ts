@@ -98,3 +98,21 @@ export function targetDir(resolved: string, exists: (path: string) => boolean): 
 	if (exists(resolved)) return resolved;
 	return dirname(resolved);
 }
+
+/**
+ * The directory a grant should cover for `resolved`.
+ *
+ * A grant on a freshly created temp directory is worth almost nothing: `mktemp
+ * -d` returns a different name each time, so every run asks again and the user
+ * approves `/tmp/abc123`, `/tmp/def456`, and so on forever. Anything inside the
+ * system temp root is covered by one grant on that root instead — it is scratch
+ * space by definition, so widening the scope there costs no safety.
+ *
+ * `isInside` does the containment test so the boundary is the same one the rest
+ * of the guard uses: `/tmpfoo` is not inside `/tmp`.
+ */
+export function grantScope(resolved: string, tempRoot: string): string {
+	const normalized = normalize(tempRoot);
+	if (isInside(resolved, normalized)) return normalized;
+	return resolved;
+}

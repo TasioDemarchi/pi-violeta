@@ -20,11 +20,11 @@
  */
 
 import { existsSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { SHELL_COMMAND_TOOLS, guardDecision } from "../src/guard/command-guard.ts";
 import { OutsideGrants } from "../src/guard/grants.ts";
-import { allowedLocation, bashPathTargets, resolvePath, targetDir, toolCallPaths } from "../src/guard/paths.ts";
+import { allowedLocation, bashPathTargets, resolvePath, targetDir, grantScope, toolCallPaths } from "../src/guard/paths.ts";
 import { setShared } from "../src/shared-hub.ts";
 import { guard as t } from "../src/i18n.ts";
 
@@ -47,13 +47,15 @@ export default function (pi: ExtensionAPI) {
 
 	/** Ask once per target directory per session; without a UI it blocks. */
 	async function authorizeOutside(ctx: ExtensionContext, resolved: string): Promise<{ block?: boolean; reason?: string }> {
-		const dir = targetDir(resolved, (path) => {
+		// Temp paths collapse to the temp root: `mktemp -d` names a different
+		// directory every run, so granting each one asks again forever.
+		const dir = grantScope(targetDir(resolved, (path) => {
 			try {
 				return statSync(path).isDirectory();
 			} catch {
 				return existsSync(path);
 			}
-		});
+		}), tmpdir());
 		if (grants.has(dir)) return {};
 		if (!ctx.hasUI || !canAsk()) {
 			return {
