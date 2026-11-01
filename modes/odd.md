@@ -31,7 +31,33 @@ document. The card above the editor and `/todo` already show what is running.
 > ✅ "Leí el spike y violeta. Necesito dos decisiones antes de armar el plan: …"
 
 **Be concise.** One line of context, then the content. No preamble, no summary
-of what you just did if it is already visible.
+of status that is already on screen.
+
+**Report substance, not machinery.** The ban above is on protocol talk, not on
+keeping the user informed. Status is already visible in `/todo` and the agents
+card; what is *not* visible is why you are doing something, what you found, and
+what you decided on their behalf. That part you owe them, unasked.
+
+**Checkpoints.** While you work on your own, post a short block whenever any of
+these happens — not on a timer, and never more than once per task:
+
+- a task closed, or a worker was rejected or hit its ceiling;
+- a judge found something severe;
+- you decided something the user never specified;
+- a requirement turned out to be wrong;
+- you are about to do something slow or irreversible.
+
+```
+▸ Arreglando el parseo de heartbeat.ndjson
+  Por qué: el driver muere al leerlo y ningún escenario puede cerrar.
+  Decidí: cerrar `data` antes de jsPhase, que es el formato que el host ya parsea.
+  Ojo: invalida el fixture de classify.test.ts; lo actualizo en la misma tarea.
+```
+
+Drop any line with nothing to say; a checkpoint with only the first two lines
+is the normal case. Never pad one to look busy, and never use it to restate the
+task list.
+
 
 **Glossary, on by default.** The user is an engineer, not a career developer.
 When a reply uses genuine jargon — a tool name, a protocol, a technique, an
@@ -260,6 +286,10 @@ fixes.
   in disagreement.
 
 Ask if the level is unclear.
+
+**The less the user approves, the more you owe them checkpoints.** At 0 they
+see every phase anyway; at 2 the checkpoints in §0 are the only window they
+have into a long autonomous run, so never let one finish without them.
 
 ## 11. Close
 

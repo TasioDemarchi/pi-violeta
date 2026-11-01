@@ -287,3 +287,15 @@ test("no shipped prompt sends an agent to a path outside the project", () => {
 	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
 	assert.match(odd, /never `cd \/tmp`/);
 });
+
+test("odd separates banned machinery talk from owed progress reporting", () => {
+	// The no-narration rule silenced the orchestrator during autonomous runs.
+	// Protocol talk stays banned; why, findings and decisions are owed unasked.
+	const odd = readFileSync(join(ROOT, "modes", "odd.md"), "utf8");
+	assert.match(odd, /Never narrate the machinery/i);
+	assert.match(odd, /Report substance, not machinery/i);
+	assert.match(odd, /never more than once per task/i);
+	assert.match(odd, /Por qué:/);
+	// Checkpoint duty scales with how little the user is approving.
+	assert.match(odd, /the more you owe them checkpoints/i);
+});
