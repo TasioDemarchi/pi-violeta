@@ -2,11 +2,26 @@
 
 A minimal, information-first Pi harness. Runs as its own command with its own agent directory (`~/.violeta/agent`), so it never touches gentle-shell.
 
+## Install on a fresh machine
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/TasioDemarchi/pi-violeta/main/install.sh | bash
+```
+
+It checks the dependencies (`git`, Node 22+, `npm`, and `jq` — which is not optional, the model catalog resolves the API key with it), clones to `~/violeta`, installs, links `~/.local/bin/violeta`, stores the NaN key in `~/.violeta/agent/auth.json` (imported from gentle-shell when it is there, asked for otherwise) and finishes by running the whole test suite, so a green install is a verified one.
+
+`VIOLETA_DIR`, `NAN_KEY` and `VIOLETA_SKIP_TESTS=1` change where it goes, skip the prompt and skip the tests.
+
 ## Run
 
 ```sh
 violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 ```
+
+## Before you change anything
+
+- **[`CONTINUAR.md`](CONTINUAR.md)** — the handoff: real state, what is half-built, the traps that already cost hours, the decisions not to re-litigate, the measured model data, and the prompt to paste into a new session.
+- **[`AGENTS.md`](AGENTS.md)** — how to work in this repo: the one architectural rule, the commands, the conventions.
 
 ## What you see
 
@@ -129,6 +144,19 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 - **Outside the project:** a path outside the working directory asks once per directory per session. **Temp paths collapse to the temp root**, so a `mktemp -d` directory does not ask again every run. Grants live in memory only. `/grants` lists them, `/grants revoke` clears them. The violeta agent dir is always allowed.
 - **Unattended mode** (`/unattended on|off`, or launch with `VIOLETA_UNATTENDED=1`) is for leaving a run going while you are away: **nothing is ever asked**. Destructive commands are refused with a message telling the model to skip them and carry on (catastrophic targets stay hard-denied). Outside the project, `read`, `grep`, `find` and `ls` pass without a prompt; `write`, `edit` and any shell command touching an outside path are refused (use the read tools to look outside). The dispatch breaker also refuses instead of asking, so a runaway stops by itself. The header shows `· sin supervisión` while it is on. It is never saved: every new session starts attended. It applies to the main session; subagents keep their own stricter rules. Approvals that Jarvis asks in the conversation (contract, final result) are still waiting for you.
 - **Subagent children** have no UI, so anything that would ask is blocked instead.
+
+
+## Voice (opt-in)
+
+`/voice on|off` (no argument toggles; saved in `violeta.json`, **off by default**). While it is off nothing changes: no prompt addition, no network call, no process. While it is on:
+
+- **`/voice completo` (default): the whole reply is read.** Code does the cleaning, so it does not depend on the model obeying a format: code blocks and tables become a short notice ("Hay código en pantalla", "Hay una tabla en pantalla"), markup, emoji and arrows disappear (an arrow becomes a pause), each list item becomes its own sentence, and the plain-Spanish glossary is read. The system prompt only asks Jarvis to write so it also works heard (say what the thing is before how it works, explain terms, ask first if the question is too open). Capped at 12,000 characters (about twelve minutes), cut at a sentence end.
+- **`/voice resumen`: a separate spoken script.** The prompt asks for a closing `Voz:` section written for the ear (the answer itself, self-contained, taught in order with an everyday example); only that is read. It depends on the model following the format, which a flash model does unevenly.
+- **How it plays.** The text is split by paragraph, each one synthesized with NaN's `kokoro` (three at a time) and joined with a 0.7 s pause. Playback goes in groups of about 1,200 characters: the first group starts as soon as it is ready while the next ones are still being made. A new prompt or `/voice off` stops the audio and stops requesting more.
+- **Pace.** `/voice speed <0.5-1.3>` (default 0.85; 1 is the model's pace, lower is slower) is saved in `violeta.json`; `VIOLETA_VOICE_SPEED` overrides it.
+- **`/dictar` listens.** It records from the microphone while a dialog is open, you choose *Terminar*, the audio goes to NaN's `whisper` (Spanish), and the text lands **in the editor** for you to read and send. Nothing is sent to the agent by itself, so a misheard word is never executed.
+
+Players and recorders are programs already on the machine (`pw-play` or `aplay`; `pw-record` or `arecord`). Any failure is one notification per session and never touches the conversation. Subagents never use voice. Settings by environment: `VIOLETA_VOICE_NAME` (default `ef_dora`), `VIOLETA_VOICE_TTS_MODEL`, `VIOLETA_VOICE_STT_MODEL`, `VIOLETA_VOICE_BASE_URL`. Each spoken script and each dictation uses NaN quota for those two models.
 
 ## Todo list
 

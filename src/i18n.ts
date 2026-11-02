@@ -287,6 +287,31 @@ const es = {
 			running: "ejecutando",
 		} as Record<string, string>,
 	},
+	voice: {
+		description: "Activa o desactiva la voz: Jarvis te explica en voz alta, en modo didáctico (/voice on|off, completo|resumen, speed 0.85)",
+		usage: "uso: /voice [on|off], /voice completo|resumen o /voice speed <velocidad>",
+		modeFull: "Voz en modo completo: se lee toda la respuesta (sin el código ni las tablas, que quedan en pantalla).",
+		modeSummary: "Voz en modo resumen: se lee solo un guion corto que escribe Jarvis.",
+		speedUsage: (min: number, max: number) => `uso: /voice speed <número entre ${min} y ${max}> (1 es normal, menos es más lento)`,
+		speedSet: (speed: number) => `Velocidad de la voz: ${speed}. Se aplica desde la próxima respuesta.`,
+		enabled: "Voz activada: Jarvis te leerá la respuesta completa en voz alta. Podés dictar con /dictar y cambiar el ritmo con /voice speed.",
+		disabled: "Voz desactivada.",
+		dictateDescription: "Dictá con el micrófono: el texto queda en el editor para que lo revises",
+		dictateNeedsVoice: "Primero activá la voz con /voice on.",
+		recordingTitle: "🎙 Grabando… hablá ahora",
+		finish: "Terminar",
+		cancel: "Cancelar",
+		dictateCancelled: "Dictado cancelado.",
+		nothingHeard: "No se entendió nada. Probá de nuevo, más cerca del micrófono.",
+		dictated: "Dictado listo: revisalo y apretá Enter para enviarlo.",
+		noKey: "La voz necesita la clave de NaN (auth.json) y no la encontré.",
+		noPlayer: "No encontré con qué reproducir audio (pw-play o aplay).",
+		noRecorder: "No encontré con qué grabar audio (pw-record o arecord).",
+		playerFailed: (message: string) => `No pude reproducir el audio: ${message}`,
+		recorderFailed: (message: string) => `No pude grabar: ${message}`,
+		speakFailed: (message: string) => `La voz falló (el resto sigue funcionando): ${message}`,
+		dictateFailed: (message: string) => `El dictado falló: ${message}`,
+	},
 	notify: {
 		description: "Avisa al terminar una tira larga o cuando un diálogo espera tu respuesta",
 		usage: "uso: /notify [on|off]",
@@ -584,6 +609,31 @@ const en: typeof es = {
 			running: "running",
 		} as Record<string, string>,
 	},
+	voice: {
+		description: "Turn voice on or off: Jarvis teaches aloud (/voice on|off, completo|resumen, speed 0.85)",
+		usage: "usage: /voice [on|off], /voice completo|resumen or /voice speed <rate>",
+		modeFull: "Voice in full mode: the whole reply is read (code and tables stay on screen).",
+		modeSummary: "Voice in summary mode: only a short script written by Jarvis is read.",
+		speedUsage: (min: number, max: number) => `usage: /voice speed <number between ${min} and ${max}> (1 is normal, lower is slower)`,
+		speedSet: (speed: number) => `Voice speed: ${speed}. It applies from the next reply.`,
+		enabled: "Voice on: Jarvis will read the whole reply aloud. Dictate with /dictar and change the pace with /voice speed.",
+		disabled: "Voice off.",
+		dictateDescription: "Dictate with the microphone: the text lands in the editor for you to review",
+		dictateNeedsVoice: "Turn voice on first with /voice on.",
+		recordingTitle: "🎙 Recording… speak now",
+		finish: "Finish",
+		cancel: "Cancel",
+		dictateCancelled: "Dictation cancelled.",
+		nothingHeard: "Nothing was understood. Try again, closer to the microphone.",
+		dictated: "Dictation ready: review it and press Enter to send.",
+		noKey: "Voice needs the NaN key (auth.json) and I could not find it.",
+		noPlayer: "No audio player found (pw-play or aplay).",
+		noRecorder: "No audio recorder found (pw-record or arecord).",
+		playerFailed: (message: string) => `Could not play the audio: ${message}`,
+		recorderFailed: (message: string) => `Could not record: ${message}`,
+		speakFailed: (message: string) => `Voice failed (everything else keeps working): ${message}`,
+		dictateFailed: (message: string) => `Dictation failed: ${message}`,
+	},
 	notify: {
 		description: "Notify when a long run finishes or a dialog waits for your answer",
 		usage: "usage: /notify [on|off]",
@@ -681,6 +731,7 @@ export const todo = localized("todo");
 export const jobs = localized("jobs");
 export const sidebar = localized("sidebar");
 export const ui = localized("ui");
+export const voice = localized("voice");
 export const activity = localized("activity");
 export const notify = localized("notify");
 export const models = localized("models");
