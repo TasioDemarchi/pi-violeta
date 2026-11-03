@@ -340,7 +340,8 @@ const es = {
 			"\n\nElegí la más interesante para alguien que programa y le gustan la inteligencia artificial, el hardware gamer y los videojuegos. " +
 			"Preferí una novedad concreta (un lanzamiento, un producto, un resultado, algo que pasó) antes que un curso, un evento, un aniversario o una nota de color. " +
 			'Resumila en una frase corta que empiece con "Hoy", para alguien que no sigue el tema. ' +
-			"Usá solo lo que dicen los titulares, sin nombrar diarios. Respondé solo la frase.",
+			"Usá solo lo que dicen los titulares, sin nombrar diarios. " +
+			"Respondé con el número de la noticia que elegiste, un punto, y la frase. Nada más.",
 		// It is asked for a joke only when there is no real news, so the one thing
 		// it must never do is sound like a fact.
 		jokePrompt: (today: string) =>
@@ -702,7 +703,8 @@ const en: typeof es = {
 			"\n\nPick the most interesting one for someone who programs and likes artificial intelligence, gaming hardware and video games. " +
 			"Prefer a concrete development (a launch, a product, a result, something that happened) over a course, an event, an anniversary or a colour piece. " +
 			'Sum it up in one short sentence starting with "Today", for someone who does not follow the topic. ' +
-			"Use only what the headlines say, and name no outlet. Answer with the sentence only.",
+			"Use only what the headlines say, and name no outlet. " +
+			"Answer with the number of the story you picked, a full stop, and the sentence. Nothing else.",
 		jokePrompt: (today: string) =>
 			`Today is ${today} and there is no fresh news at all for the morning brief.\n\n` +
 			"Write one short, funny line about the day, in the dry tone of a butler. " +

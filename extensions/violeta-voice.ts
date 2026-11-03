@@ -25,7 +25,8 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { blocksText } from "../src/btw/request.ts";
 import { goodmorning as gm, voice as t } from "../src/i18n.ts";
-import { morningBrief } from "../src/goodmorning/brief.ts";
+import { morningBrief, parseChoice } from "../src/goodmorning/brief.ts";
+import { readSaidStories, rememberSaidStory } from "../src/goodmorning/said.ts";
 import { pickPlayer, pickRecorder, run, type Running } from "../src/voice/devices.ts";
 import { MAX_SPEED, MIN_SPEED, clampSpeed, joinAsWav, readApiKey, synthesize, transcribe, voiceConfigFromEnv, type VoiceConfig } from "../src/voice/nan.ts";
 import { LISTEN_PROMPT, VOICE_PROMPT, extractFull, extractSpoken } from "../src/voice/spoken.ts";
@@ -127,16 +128,25 @@ export default function (pi: ExtensionAPI) {
 		}
 		ctx.ui.notify(gm.working, "info");
 		const now = new Date();
+		const path = configFile();
 		try {
 			const brief = await morningBrief({
 				name: process.env.VIOLETA_OWNER_NAME || "Tachi",
 				now,
+				// What was already told is not offered again: the feed barely moves in
+				// an hour and the model is deterministic, so without this a second
+				// session repeats the first one word for word.
+				alreadySaid: path ? readSaidStories(path) : [],
 				// Every fresh story goes in and the model picks: the feeds narrow the
 				// subject, they do not tell a development from a local course.
-				summarize: (stories) => oneLineFromModel(ctx, gm.newsPrompt(stories)),
+				summarize: async (stories) => {
+					const answer = await oneLineFromModel(ctx, gm.newsPrompt(stories));
+					return answer === undefined ? undefined : parseChoice(answer, stories.length);
+				},
 				joke: () =>
 					oneLineFromModel(ctx, gm.jokePrompt(now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }))),
 			});
+			if (path && brief.saidTitle) rememberSaidStory(path, brief.saidTitle);
 			ctx.ui.notify(brief.text, "info");
 			// One paragraph per sentence, so speak() synthesizes each on its own and
 			// the silence between them is measured. Not awaited, like every other

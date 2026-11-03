@@ -2,8 +2,12 @@
 // a real headline and the joke. Every test here fixes the clock and fakes the
 // network, so none of them depends on the weather or on what happened today.
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { morningBrief, gatherFacts } from "../src/goodmorning/brief.ts";
+import { gatherFacts, morningBrief, parseChoice } from "../src/goodmorning/brief.ts";
+import { SAID_LIMIT, readSaidStories, rememberSaidStory } from "../src/goodmorning/said.ts";
 import { buildBrief, forTheEar, greetingFor, numberInWords, partOfDay, timeInWords } from "../src/goodmorning/greeting.ts";
 import {
 	decodeEntities,
@@ -19,6 +23,8 @@ import {
 } from "../src/goodmorning/sources.ts";
 
 const at = (hour: number, minute = 0) => new Date(2026, 10, 3, hour, minute);
+
+type BriefSummarize = NonNullable<Parameters<typeof morningBrief>[0]["summarize"]>;
 
 // --- The sentence ----------------------------------------------------------
 
@@ -300,7 +306,7 @@ test("every fresh story is offered for the choice, summarized, and the joke is n
 		doFetch: net.doFetch,
 		summarize: async (stories) => {
 			given = stories.map((story) => story.title);
-			return "Hoy el país amaneció sin novedades";
+			return { line: "Hoy el país amaneció sin novedades", index: 1 };
 		},
 		joke: async () => {
 			asked++;
@@ -354,7 +360,7 @@ test("an empty summary is treated as no summary", async () => {
 		name: "Tasio",
 		now: new Date("2026-11-03T12:00:00Z"),
 		doFetch: net.doFetch,
-		summarize: async () => "   ",
+		summarize: async () => ({ line: "   " }),
 	});
 	assert.match(line, /Hoy, Lo más nuevo\./);
 });
@@ -390,4 +396,85 @@ test("with the network down the brief is still a greeting, the time and the ques
 	const net = fakeFetch([["ifconfig.co", dead()], ["ipwho.is", dead()], ["news.google.com", dead()]]);
 	const { text: line } = await morningBrief({ name: "Tasio", now: at(7, 0), doFetch: net.doFetch });
 	assert.equal(line, "Buenos días Tasio. Son las siete en punto de la mañana. ¿En qué trabajaremos hoy?");
+});
+
+// --- Not telling the same story twice --------------------------------------
+
+test("the answer's number says which story was told, and anything else is still a sentence", () => {
+	// The model is asked for "3. Hoy ...": the number is what makes the story
+	// nameable, and therefore rememberable.
+	assert.deepEqual(parseChoice("3. Hoy pasó algo", 8), { line: "Hoy pasó algo", index: 3 });
+	assert.deepEqual(parseChoice("3) Hoy pasó algo", 8), { line: "Hoy pasó algo", index: 3 });
+	// No number: the sentence is used, it just cannot be remembered.
+	assert.deepEqual(parseChoice("Hoy pasó algo", 8), { line: "Hoy pasó algo" });
+	// Out of range is no number at all rather than a wrong story.
+	assert.deepEqual(parseChoice("99. Hoy pasó algo", 8), { line: "Hoy pasó algo" });
+	assert.deepEqual(parseChoice("   ", 8), undefined);
+});
+
+test("a story already told is not offered again, and the drop happens before the cap", async () => {
+	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
+	const facts = await gatherFacts(new Date("2026-11-03T12:00:00Z"), net.doFetch, ["Lo más nuevo"]);
+	assert.deepEqual(
+		facts.stories.map((story) => story.title),
+		["Con & entidad y CDATA", "Sin fuente en el titulo"],
+		"the told one is gone and the rest moved up",
+	);
+	// Dropping after the cap would let heard stories crowd out what is new.
+	const two = await gatherFacts(new Date("2026-11-03T12:00:00Z"), net.doFetch, ["Lo más nuevo", "Con & entidad y CDATA"]);
+	assert.deepEqual(two.stories.map((story) => story.title), ["Sin fuente en el titulo"]);
+});
+
+test("the brief reports which story it told, so the caller can remember it", async () => {
+	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
+	const run = (summarize?: BriefSummarize) =>
+		morningBrief({ name: "T", now: new Date("2026-11-03T12:00:00Z"), doFetch: net.doFetch, summarize });
+	assert.equal((await run(async () => ({ line: "Hoy algo", index: 2 }))).saidTitle, "Con & entidad y CDATA");
+	// A sentence with no number cannot be attributed, so nothing is remembered.
+	assert.equal((await run(async () => ({ line: "Hoy algo" }))).saidTitle, undefined);
+	// With no model at all the fallback headline is what was said, and it is
+	// exactly what must not come up again.
+	assert.equal((await run(undefined)).saidTitle, "Lo más nuevo");
+});
+
+test("when everything fresh has already been told, the day's line is the joke", async () => {
+	// The honest answer to "nothing new since you last looked".
+	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
+	let asked = 0;
+	const brief = await morningBrief({
+		name: "T",
+		now: new Date("2026-11-03T12:00:00Z"),
+		doFetch: net.doFetch,
+		alreadySaid: ["Lo más nuevo", "Con & entidad y CDATA", "Sin fuente en el titulo"],
+		summarize: async () => ({ line: "no debería llamarse", index: 1 }),
+		joke: async () => {
+			asked++;
+			return "Hoy no pasó nada digno de mención";
+		},
+	});
+	assert.match(brief.text, /Hoy no pasó nada digno de mención\./);
+	assert.equal(asked, 1);
+	assert.equal(brief.saidTitle, undefined, "a joke is not a story to remember");
+});
+
+test("the told list keeps the newest first, bounded, without touching the rest of the file", () => {
+	const file = join(mkdtempSync(join(tmpdir(), "violeta-said-")), "violeta.json");
+	assert.deepEqual(readSaidStories(file), [], "a missing file means nothing has been said");
+	rememberSaidStory(file, "uno");
+	rememberSaidStory(file, "dos");
+	assert.deepEqual(readSaidStories(file), ["dos", "uno"]);
+	// Telling the same story again moves it to the front instead of duplicating.
+	rememberSaidStory(file, "uno");
+	assert.deepEqual(readSaidStories(file), ["uno", "dos"]);
+	for (let i = 0; i < SAID_LIMIT + 5; i++) rememberSaidStory(file, `relleno ${i}`);
+	assert.equal(readSaidStories(file).length, SAID_LIMIT, "the list stays bounded");
+});
+
+test("remembering a story keeps the preferences that share the file", () => {
+	const file = join(mkdtempSync(join(tmpdir(), "violeta-said-")), "violeta.json");
+	writeFileSync(file, JSON.stringify({ voice: true, voiceSpeed: 1.1, mode: "jarvis" }));
+	rememberSaidStory(file, "una noticia");
+	const config = JSON.parse(readFileSync(file, "utf8"));
+	assert.deepEqual([config.voice, config.voiceSpeed, config.mode], [true, 1.1, "jarvis"]);
+	assert.deepEqual(config.briefSaid, ["una noticia"]);
 });
