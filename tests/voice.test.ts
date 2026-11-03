@@ -140,15 +140,29 @@ function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
 	} as never);
 	const notes: string[] = [];
 	const branch = [{ id: "m1", type: "message", message: { role: "assistant", content: [{ type: "text", text: "Hecho.\n\nVoz: Terminé, probalo." }] } }];
+	// The brief asks the session's model for a joke, but only when the feed has
+	// nothing fresh, so the fake records every prompt it is given.
+	const completions: string[] = [];
+	let answer: unknown = { content: "Hoy es martes, y el martes no se discute" };
 	const ctx = {
 		mode: "tui",
 		ui: { notify: (text: string) => notes.push(text), setEditorText: () => {}, select: async () => "Cancelar" },
 		sessionManager: { getBranch: () => branch },
+		model: { provider: "nan", id: "test-model" },
+		modelRegistry: {
+			complete: async (_model: unknown, request: { messages: Array<{ content: string }> }) => {
+				completions.push(request.messages[0]!.content);
+				return answer;
+			},
+		},
 	};
 	const fire = async (name: string, event: unknown = {}) => {
 		for (const fn of handlers.get(name) ?? []) await fn(event, ctx);
 	};
-	return { fire, commands, notes, ctx, marker, agentDir };
+	const setAnswer = (value: unknown) => {
+		answer = value;
+	};
+	return { fire, commands, notes, ctx, marker, agentDir, completions, setAnswer };
 }
 
 test("voice off: the prompt is untouched, nothing is fetched, nothing is played", async () => {
@@ -401,6 +415,94 @@ test("a long reply is played in groups: the first one starts before the rest is 
 		assert.ok(existsSync(env.marker), "the first group played");
 		assert.ok(Date.now() - t0 < 380, `it did not wait for the slow groups (${Date.now() - t0} ms)`);
 		assert.equal(started.length, 3, "everything was requested");
+	} finally {
+		globalThis.fetch = realFetch;
+	}
+});
+
+// --- /goodmorn: the morning brief ------------------------------------------
+
+/** A network where the brief's three data services and the voice itself all
+ * answer, routed by url, so one fake covers the whole command. */
+function briefNetwork(feed: string, spoken: string[]) {
+	return (async (url: string, init: RequestInit) => {
+		const target = String(url);
+		if (target.includes("/audio/speech")) {
+			spoken.push(JSON.parse(String(init.body)).input);
+			return new Response(Buffer.alloc(200, 1));
+		}
+		if (target.includes("ifconfig.co")) return new Response(JSON.stringify({ city: "Del Viso", latitude: -34.45, longitude: -58.79 }));
+		if (target.includes("open-meteo")) return new Response(JSON.stringify({ current: { temperature_2m: 18.9, weather_code: 80 } }));
+		if (target.includes("news.google.com")) return new Response(feed);
+		throw new Error(`unexpected url ${target}`);
+	}) as unknown as typeof fetch;
+}
+
+const feedWith = (title: string, when: Date) =>
+	`<rss><channel><item><title>${title}</title><pubDate>${when.toUTCString()}</pubDate></item></channel></rss>`;
+
+test("/goodmorn turns the voice on by itself, reports the real headline and never pays for a joke", async () => {
+	// It is a spoken command: asking the user to turn the voice on first would
+	// make it useless as a morning command.
+	const env = setup(false);
+	const realFetch = globalThis.fetch;
+	const spoken: string[] = [];
+	globalThis.fetch = briefNetwork(feedWith("El dólar cerró estable - Clarín", new Date()), spoken);
+	try {
+		await env.fire("session_start");
+		await env.commands.get("goodmorn")!.handler("", env.ctx);
+		assert.equal(readVoiceEnabled(join(env.agentDir, "violeta.json")), true, "and it remembers it");
+		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+		assert.ok(existsSync(env.marker), "the player ran");
+		const line = spoken.join(" ");
+		assert.match(line, /señor Tasio/);
+		assert.match(line, /El clima en Del Viso es de diecinueve grados centígrados con chaparrones\./);
+		assert.match(line, /Según Clarín, El dólar cerró estable\./);
+		assert.match(line, /¿En qué trabajaremos hoy\?$/);
+		assert.deepEqual(env.completions, [], "there was news, so the model was never asked");
+		// Spoken and written: the audio goes by once.
+		assert.ok(env.notes.some((note) => note.includes("Según Clarín")), "the brief is shown as well as said");
+	} finally {
+		globalThis.fetch = realFetch;
+	}
+});
+
+test("with nothing fresh in the feed the model is asked for one line, and it is the one spoken", async () => {
+	const env = setup(false);
+	const realFetch = globalThis.fetch;
+	const spoken: string[] = [];
+	// Three days old: in the feed, but not news.
+	const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+	globalThis.fetch = briefNetwork(feedWith("Algo viejo - Infobae", old), spoken);
+	try {
+		await env.fire("session_start");
+		await env.commands.get("goodmorn")!.handler("", env.ctx);
+		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+		assert.equal(env.completions.length, 1, "exactly one call, and only because there was no news");
+		assert.match(env.completions[0]!, /una sola línea graciosa/i);
+		assert.match(env.completions[0]!, /Nunca inventes una noticia/i);
+		const line = spoken.join(" ");
+		assert.match(line, /Hoy es martes, y el martes no se discute\./);
+		assert.ok(!line.includes("Algo viejo"), "a stale headline is not reported as news");
+	} finally {
+		globalThis.fetch = realFetch;
+	}
+});
+
+test("a model that fails costs the joke, and the brief is still said", async () => {
+	const env = setup(false);
+	env.setAnswer({ errorMessage: "el proveedor dijo no" });
+	const realFetch = globalThis.fetch;
+	const spoken: string[] = [];
+	globalThis.fetch = briefNetwork("<rss></rss>", spoken);
+	try {
+		await env.fire("session_start");
+		await env.commands.get("goodmorn")!.handler("", env.ctx);
+		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+		const line = spoken.join(" ");
+		assert.match(line, /señor Tasio/);
+		assert.match(line, /¿En qué trabajaremos hoy\?$/);
+		assert.ok(!line.includes("dijo no"), "an error is never read out loud");
 	} finally {
 		globalThis.fetch = realFetch;
 	}

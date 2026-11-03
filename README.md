@@ -176,6 +176,16 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 
 Players and recorders are programs already on the machine (`pw-play` or `aplay`; `pw-record` or `arecord`). Any failure is one notification per session and never touches the conversation. Subagents never use voice. Settings by environment: `VIOLETA_VOICE_NAME` (default `ef_dora(2)+em_alex(1)` — kokoro accepts a blend with weights, and this one was picked by ear over each single voice; the Spanish voices on their own are `ef_dora`, `em_alex` and `em_santa`), `VIOLETA_VOICE_TTS_MODEL`, `VIOLETA_VOICE_STT_MODEL`, `VIOLETA_VOICE_BASE_URL`. Each spoken script and each dictation uses NaN quota for those two models.
 
+## Morning brief
+
+`/goodmorn` turns the voice on if it is off (and remembers it, like `/voice on`), then says one line: the greeting the hour deserves, the time in words, the weather where you are, the day's headline, and "¿En qué trabajaremos hoy?". It is also written to the screen, because audio goes by once.
+
+- **Three services, no account and no key:** the city from your IP (`ifconfig.co`, then `ipwho.is`), the weather from Open-Meteo (a WMO code, translated to words in Spanish), the headlines from Google News' RSS feed for Argentina.
+- **Every clause is optional.** A service that fails drops its own clause: with no network at all the brief is still the greeting, the time and the question. It never says it has no data and never reads an error out loud.
+- **The day's line is real when it can be.** The newest headline from the last 12 hours, attributed ("Según Clarín, …") so it cannot pass for something the harness knows. Only when there is nothing fresh is the session's model asked for one funny line, and the prompt forbids inventing a news item, a figure or the state of the traffic: a joke that reads as a fact would be worse than no line.
+- **Spoken numbers are spelled out** ("diecinueve grados centígrados"), because a small TTS reads `18,9` unevenly.
+- The owner's name is `VIOLETA_OWNER_NAME`, defaulting to `Tasio`.
+
 ## Todo list
 
 The `todo` tool (`write`, `add`, `update`, `clear`, `list`; statuses `pending`, `in_progress`, `blocked` (needs a note), `done`, `dropped`) keeps a list that is saved in the session and restored on resume. A card above the editor shows `Tareas · N abiertas · M hechas`; when the sidebar is active the same list appears there as a `TAREAS` section instead (and not above the editor). In the sidebar the section is compact: 5 rows and then a bare `…` (the framed card above the editor keeps 8 and `… N más`). `/todo` hides or shows it wherever it is drawn. It disappears a minute after everything is finished.

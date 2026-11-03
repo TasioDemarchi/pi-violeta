@@ -312,6 +312,20 @@ const es = {
 		speakFailed: (message: string) => `La voz falló (el resto sigue funcionando): ${message}`,
 		dictateFailed: (message: string) => `El dictado falló: ${message}`,
 	},
+	goodmorning: {
+		description: "Parte de la mañana: prende la voz y te lo dice (hora, clima y la noticia del día)",
+		working: "Preparando el parte…",
+		failed: (message: string) => `No pude armar el parte: ${message}`,
+		// Model-facing, and in the dictionary because it decides the language of
+		// the answer. It is asked for a joke only when there is no real news, so
+		// the one thing it must never do is sound like a fact.
+		jokePrompt: (today: string) =>
+			`Sos el asistente de una casa, con el tono seco y formal de un mayordomo. No hay noticias frescas para el parte de la mañana de hoy (${today}).\n\n` +
+			"Escribí UNA sola línea graciosa sobre el día de hoy para cerrar el parte.\n\n" +
+			"Reglas: que se note que es un chiste y no un dato. Nunca inventes una noticia, una cifra, un hecho verificable ni el estado del tránsito. " +
+			"Máximo veinticinco palabras. Sin comillas, sin emoji, sin preámbulo. Se va a leer en voz alta, así que escribila para el oído. " +
+			"Respondé solo con la línea.",
+	},
 	notify: {
 		description: "Avisa al terminar una tira larga o cuando un diálogo espera tu respuesta",
 		usage: "uso: /notify [on|off]",
@@ -653,6 +667,17 @@ const en: typeof es = {
 		speakFailed: (message: string) => `Voice failed (everything else keeps working): ${message}`,
 		dictateFailed: (message: string) => `Dictation failed: ${message}`,
 	},
+	goodmorning: {
+		description: "Morning brief: turns voice on and reads it out (the time, the weather and the day's headline)",
+		working: "Putting the brief together…",
+		failed: (message: string) => `I could not put the brief together: ${message}`,
+		jokePrompt: (today: string) =>
+			`You are a household assistant with the dry, formal tone of a butler. There is no fresh news for today's morning brief (${today}).\n\n` +
+			"Write ONE funny line about today to close the brief.\n\n" +
+			"Rules: it must read as a joke and not as a fact. Never invent a news item, a figure, a verifiable fact or the state of the traffic. " +
+			"Twenty-five words at most. No quotes, no emoji, no preamble. It will be read aloud, so write it for the ear. " +
+			"Answer with the line only.",
+	},
 	notify: {
 		description: "Notify when a long run finishes or a dialog waits for your answer",
 		usage: "usage: /notify [on|off]",
@@ -773,3 +798,4 @@ export const context = localized("context");
 export const palette = localized("palette");
 export const modes = localized("modes");
 export const btw = localized("btw");
+export const goodmorning = localized("goodmorning");

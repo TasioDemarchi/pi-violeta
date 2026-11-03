@@ -23,7 +23,9 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { voice as t } from "../src/i18n.ts";
+import { blocksText } from "../src/btw/request.ts";
+import { goodmorning as gm, voice as t } from "../src/i18n.ts";
+import { morningBrief } from "../src/goodmorning/brief.ts";
 import { pickPlayer, pickRecorder, run, type Running } from "../src/voice/devices.ts";
 import { MAX_SPEED, MIN_SPEED, clampSpeed, joinAsWav, readApiKey, synthesize, transcribe, voiceConfigFromEnv, type VoiceConfig } from "../src/voice/nan.ts";
 import { LISTEN_PROMPT, VOICE_PROMPT, extractFull, extractSpoken } from "../src/voice/spoken.ts";
@@ -108,6 +110,26 @@ export default function (pi: ExtensionAPI) {
 			size += paragraph.length;
 		}
 		return groups;
+	}
+
+	/** One funny line for the brief, from the session's own model. Answers
+	 * nothing on any failure: the brief is better short than broken. */
+	async function jokeFromModel(ctx: ExtensionContext, now: Date): Promise<string | undefined> {
+		const model = ctx.model;
+		if (!model) return undefined;
+		const today = now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
+		try {
+			const answer = await ctx.modelRegistry.complete(model, {
+				messages: [{ role: "user", content: gm.jokePrompt(today), timestamp: Date.now() }],
+			});
+			if (answer?.errorMessage) return undefined;
+			// blocksText is the same reader /btw uses for a reply's text; it is
+			// generic and tested, so it is imported rather than copied.
+			const text = blocksText(answer?.content).trim();
+			return text === "" ? undefined : text;
+		} catch {
+			return undefined;
+		}
 	}
 
 	async function speak(ctx: ExtensionContext, text: string): Promise<void> {
@@ -206,6 +228,39 @@ export default function (pi: ExtensionAPI) {
 				if (path) writeVoiceEnabled(path, enabled);
 				if (!enabled) await stopPlayback();
 				commandCtx.ui.notify(enabled ? t.enabled : t.disabled, "info");
+			},
+		});
+
+		// `/goodmorn` — the morning brief, spoken. The facts and the decision of
+		// what the day's line is live in src/goodmorning/; this only supplies the
+		// joke (the one piece that needs a model) and reads the result aloud.
+		pi.registerCommand("goodmorn", {
+			description: gm.description,
+			handler: async (_args: string, commandCtx: ExtensionContext) => {
+				// The brief is meant to be heard, so the command turns the voice on
+				// and remembers it, exactly as `/voice on` would.
+				if (!enabled) {
+					enabled = true;
+					const path = configFile();
+					if (path) writeVoiceEnabled(path, enabled);
+				}
+				commandCtx.ui.notify(gm.working, "info");
+				const now = new Date();
+				try {
+					const line = await morningBrief({
+						name: process.env.VIOLETA_OWNER_NAME || "Tasio",
+						now,
+						joke: () => jokeFromModel(commandCtx, now),
+					});
+					// Written as well as spoken: the audio goes by once, and a headline
+					// is worth being able to re-read.
+					commandCtx.ui.notify(line, "info");
+					// Not awaited, like every other spoken line: the editor stays free
+					// while it plays, and speak() reports its own failures.
+					void speak(commandCtx, line);
+				} catch (error) {
+					commandCtx.ui.notify(gm.failed(error instanceof Error ? error.message : String(error)), "warning");
+				}
 			},
 		});
 
