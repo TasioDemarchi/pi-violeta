@@ -10,6 +10,7 @@
  * and the active mode. Pure get/set/subscribe; subscribers never throw.
  */
 
+import type { BtwState } from "./btw/state.ts";
 import type { TodoState } from "./todo/store.ts";
 
 export interface VioletaSharedState {
@@ -28,6 +29,11 @@ export interface VioletaSharedState {
 	/** The active mode's name, published by violeta-mode. violeta-ui shows it and
 	 * violeta-agents filters its definitions by `modeAgents`. */
 	activeMode?: string;
+	/** The side chat (/btw): its conversation and whether its panel is drawn,
+	 * published by violeta-btw. violeta-ui draws the panel in the sidebar
+	 * column while it is open; violeta-btw draws the same panel above the
+	 * editor when the sidebar is not active. */
+	btw?: BtwState;
 	/** Agent names the active mode exposes. `undefined` means every agent; an
 	 * empty array means none, which is how `raw` removes the agent layer. */
 	modeAgents?: string[];

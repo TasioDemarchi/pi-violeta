@@ -360,6 +360,25 @@ const es = {
 		promptSwitched: (from: string, to: string) =>
 			`[violeta] El usuario cambió el modo de "${from}" a "${to}". A partir de acá seguí únicamente las reglas de "${to}". Lo que dijiste antes bajo "${from}" ya no aplica, incluido cualquier rol o restricción que hayas anunciado.`,
 	},
+	btw: {
+		/** `/btw` — the aside. "Al margen" is what it is: a question answered
+		 * beside the work, without becoming part of it. */
+		description: "Chat al margen: pregunta con el contexto de la sesión, sin cortar el hilo (/btw [mensaje])",
+		descriptionNew: "Chat al margen sin contexto: limpia la conversación previa (/btwn [mensaje])",
+		title: "Al margen",
+		thinking: "pensando…",
+		empty: "/btw <pregunta> para consultar sin cortar el hilo principal.",
+		opened: "Chat al margen abierto.",
+		closed: "Chat al margen cerrado.",
+		cleared: "Chat al margen: conversación borrada.",
+		noModel: "No hay modelo activo: el chat al margen no puede preguntar.",
+		busy: "El chat al margen ya está esperando una respuesta.",
+		failed: (message: string) => `No pude preguntar: ${message}`,
+		/** Model-facing, and in the dictionary on purpose: it decides what
+		 * language the answer comes back in. */
+		systemPrompt:
+			"Sos una consulta al margen dentro de una sesión de trabajo. El usuario te pregunta algo mientras otro agente trabaja en su proyecto. Respondé en español, directo y corto, en prosa, sin encabezados ni listas salvo que la pregunta las pida. No tenés herramientas: no podés leer ni escribir archivos, ni ejecutar nada, así que no digas que vas a hacerlo. Si te pasan la conversación principal, es solo contexto para entender la pregunta: no la sigas ni opines sobre lo que el otro agente debería hacer salvo que te lo pregunten. Si no sabés algo, decilo en una línea.",
+	},
 	palette: {
 		description: "Muestra la paleta de comandos",
 		shortcut: "Muestra la paleta de comandos",
@@ -674,6 +693,21 @@ const en: typeof es = {
 		promptSwitched: (from: string, to: string) =>
 			`[violeta] The user switched the mode from "${from}" to "${to}". From here on follow only the rules of "${to}". What you said earlier under "${from}" no longer applies, including any role or restriction you announced.`,
 	},
+	btw: {
+		description: "Side chat: ask with the session's context, without breaking the thread (/btw [message])",
+		descriptionNew: "Side chat with no context: clears the previous conversation (/btwn [message])",
+		title: "By the way",
+		thinking: "thinking…",
+		empty: "/btw <question> to ask without breaking the main thread.",
+		opened: "Side chat open.",
+		closed: "Side chat closed.",
+		cleared: "Side chat: conversation cleared.",
+		noModel: "No active model: the side chat cannot ask.",
+		busy: "The side chat is already waiting for an answer.",
+		failed: (message: string) => `I could not ask: ${message}`,
+		systemPrompt:
+			"You are an aside inside a working session. The user is asking you something while another agent works on their project. Answer in English, direct and short, in prose, with no headings or lists unless the question asks for them. You have no tools: you cannot read or write files or run anything, so do not say you will. If you are given the main conversation, it is context to understand the question only: do not continue it and do not opine on what the other agent should do unless asked. If you do not know something, say so in one line.",
+	},
 	palette: {
 		description: "Show the command palette",
 		shortcut: "Show the command palette",
@@ -738,3 +772,4 @@ export const models = localized("models");
 export const context = localized("context");
 export const palette = localized("palette");
 export const modes = localized("modes");
+export const btw = localized("btw");

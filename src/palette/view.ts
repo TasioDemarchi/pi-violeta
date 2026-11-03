@@ -51,6 +51,8 @@ const VIOLETA_COMMAND_GROUPS: Record<string, PaletteGroup> = {
 	agents: "tools",
 	jobs: "tools",
 	grants: "tools",
+	btw: "tools",
+	btwn: "tools",
 };
 
 /** Pi's well-known built-in slash commands, with Pi's own descriptions

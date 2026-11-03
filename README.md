@@ -51,6 +51,7 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | `src/agents/breaker.ts` | Dispatch breaker: reports and asks between subagent dispatches (tested) |
 | `extensions/violeta-contract.ts`, `src/contract/` | `contract_check`: zero-token lint of a Jarvis contract (tested) |
 | `extensions/violeta-mode.ts`, `src/modes/` | `/mode` philosophy switch (prompt, model and agent roster) |
+| `extensions/violeta-btw.ts`, `src/btw/` | `/btw` side chat: state, request and framed panel (tested) |
 | `src/frontmatter.ts` | The minimal YAML reader shared by agent and mode definitions |
 | `extensions/violeta-palette.ts`, `src/palette/` | `/palette` command palette |
 | `src/context-warning.ts` | Context color thresholds and `/compact` hint |
@@ -146,6 +147,25 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 - **Subagent children** have no UI, so anything that would ask is blocked instead.
 
 
+## Side chat
+
+`/btw` is an aside: a question answered **beside** the work instead of inside it. The main agent never sees the question, the session never takes a turn for it, and nothing you ask there ends up in the context the agent is working with.
+
+| Command | What it does |
+|---|---|
+| `/btw` | Opens and closes the window |
+| `/btw <message>` | Asks with the session's conversation as context (opens the window if it was closed) |
+| `/btwn` | Forgets the side conversation, keeps the window |
+| `/btwn <message>` | Asks as a new session: no session context and no previous aside |
+
+- **Where it is drawn.** While the sidebar is active (`/sidebar on`, fullscreen, 100 columns or more) **the sidebar becomes the chat**: the framed panel takes the whole column and project, changes and model come back the moment it closes. With no room for a sidebar the same panel is a framed box above the editor. Both are drawn by one function, so the two placements cannot drift, and the frame is the point: the aside must not read as part of the conversation.
+- **Everything is typed in the main editor.** Only `/btw` and `/btwn` reach the side chat.
+- **Which model answers.** The session's current model, so the aside answers with the same head as the main thread. Raising the session model with `/models` raises the side chat too — including the Claude bridge, which is the one model that spends real money.
+- **What travels.** The conversation only: user and assistant text, in order, cut to the most recent 40,000 characters (`BTW_CONTEXT_CHARS`). Tool calls and tool output are left out — they are the bulk of a session's tokens and none of its conversation. `/btwn` sends none of it.
+- **It answers in the background.** The command returns at once, the panel says `pensando…`, and you keep typing meanwhile. A second question while one is in flight is refused, not queued. A failure becomes a line in the panel instead of a notification that scrolls away.
+- **Nothing is saved.** The side conversation lives in memory: a new session starts empty and closing violeta forgets it.
+- While the side chat owns the sidebar, the `TAREAS` section is not drawn; `/todo` and `/changes` still show the same information on demand.
+
 ## Voice (opt-in)
 
 `/voice on|off` (no argument toggles; saved in `violeta.json`, **off by default**). While it is off nothing changes: no prompt addition, no network call, no process. While it is on:
@@ -179,6 +199,7 @@ All on demand; nothing extra is drawn by default.
 | `/models` | `alt+m` | Lists models with auth available (current marked, context window); `Enter` switches for the session. |
 | `/palette` | `alt+k` | Search every command (violeta's, Pi's, extensions') grouped Session/Interface/Tools/Other, plus a shortcuts list. `Enter` puts the command in the editor (Pi has no API to run a slash command without starting a model turn). |
 | `/notify on\|off` | | Opt-in. Terminal bell plus `notify-send` (if installed) when a run longer than 20 s ends or a confirmation dialog waits. Off by default, remembered in `violeta.json`. |
+| `/btw`, `/btwn` | | The side chat; see Side chat above. |
 | `/language es\|en` | | See Language below. |
 
 - **Compact tools:** every tool call collapses to one line (`✓ read README.md`, `✓ bash npm test · 0 · 1.2s`, `✗ bash … · exit 1`); `ctrl+o` expands the full output. Display only: what the model receives is unchanged and the guard still intercepts.

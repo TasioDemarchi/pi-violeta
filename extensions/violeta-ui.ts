@@ -11,6 +11,7 @@ import { fmtCost, fmtPercent, fmtTokens } from "../src/format.ts";
 import { buildSidebarLines, type SidebarData } from "../src/sidebar-content.ts";
 import { readSidebarEnabled, writeSidebarEnabled } from "../src/sidebar-state.ts";
 import { readLanguage, writeLanguage } from "../src/language-state.ts";
+import { renderBtwPanel } from "../src/btw/panel.ts";
 import { getShared, setShared } from "../src/shared-hub.ts";
 import { activity as activityT, context as contextT, sidebar as t, ui as uiT } from "../src/i18n.ts";
 import { getLanguage, setLanguage, type Language } from "../src/i18n.ts";
@@ -392,9 +393,15 @@ export default function (pi: ExtensionAPI) {
 						const data = collectSidebarData();
 						// The sidebar owns the ctx line while the footer hides.
 						warnCompact(data.model.context?.percent ?? null);
-						return buildSidebarLines(data, { width, rows: tui.terminal.rows }, (role, text) =>
-							theme.fg(role as ThemeColor, text),
-						);
+						const fg = (role: string, text: string) => theme.fg(role as ThemeColor, text);
+						// While the side chat is open the sidebar IS the chat: the
+						// framed panel takes the whole column, and PROYECTO/CAMBIOS/
+						// MODELO come back the moment it closes. violeta-btw owns the
+						// state; drawing it here is what "the sidebar becomes a chat"
+						// means, and its own widget above the editor stays empty.
+						const side = getShared().btw;
+						if (side?.open === true) return renderBtwPanel(side, { width, rows: tui.terminal.rows }, fg);
+						return buildSidebarLines(data, { width, rows: tui.terminal.rows }, fg);
 					} catch (error) {
 						// Never draw an empty panel: show the failure so it can be reported.
 						const message = error instanceof Error ? error.message : String(error);
