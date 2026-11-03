@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { morningBrief, gatherFacts } from "../src/goodmorning/brief.ts";
-import { buildBrief, greetingFor, numberInWords, partOfDay, timeInWords } from "../src/goodmorning/greeting.ts";
+import { buildBrief, forTheEar, greetingFor, numberInWords, partOfDay, timeInWords } from "../src/goodmorning/greeting.ts";
 import {
 	decodeEntities,
 	fetchNews,
@@ -81,6 +81,27 @@ test("a source that failed drops its own clause and nothing else", () => {
 	assert.match(buildBrief({ name: "Tasio", now: at(7), tempC: 19, sky: "nublado" }), /El clima es de diecinueve grados con nublado\./);
 	// And with nothing at all it is still a greeting and a question.
 	assert.equal(buildBrief({ name: "Tasio", now: at(7) }), "Buenos días Tasio. Son las siete en punto de la mañana. ¿En qué trabajaremos hoy?");
+});
+
+test("the symbols a headline is written with become the words it is said with", () => {
+	// Money first and in order: the dollar forms contain the peso sign, and in
+	// Argentina a bare $ is pesos.
+	assert.equal(forTheEar("la RTX 5090 aumentó USD $500."), "la RTX 5090 aumentó 500 dólares.");
+	assert.equal(forTheEar("sale a u$s399 en diciembre"), "sale a 399 dólares en diciembre");
+	assert.equal(forTheEar("el dólar llegó a $1.480"), "el dólar llegó a 1.480 pesos");
+	assert.equal(forTheEar("subió 3,5%"), "subió 3,5 por ciento");
+	assert.equal(forTheEar("vendió un 20 % más"), "vendió un 20 por ciento más");
+	assert.equal(forTheEar("rinde a 85 °C"), "rinde a 85 grados");
+	// A product name is not a number to spell out: a model asked to do this in
+	// prose turned "RTX 5090" into "el modelo cinco mil noventa".
+	assert.equal(forTheEar("las RTX 50 y la RTX 5090"), "las RTX 50 y la RTX 5090");
+	assert.equal(forTheEar("una frase sin símbolos"), "una frase sin símbolos");
+	// The number must end in a digit, or it eats the sentence's full stop.
+	assert.ok(!forTheEar("costó USD $500.").includes(". dólares"));
+});
+
+test("the day's line is made sayable on its way into the brief", () => {
+	assert.match(buildBrief({ name: "T", now: at(7), extra: "Hoy la placa sale a US$ 600" }), /sale a 600 dólares\./);
 });
 
 test("the day's line gets a full stop only when it is missing one", () => {
@@ -203,6 +224,39 @@ test("the weather is read from the current block, and half an answer is no answe
 	assert.equal(await fetchWeather(-34.45, -58.79, down.doFetch), undefined);
 });
 
+test("one feed per topic, each with its own quota, and a story that matches two is kept once", async () => {
+	// A single OR query is dominated by whichever topic published most in the
+	// last hour, so each topic is asked separately and keeps its own slots.
+	const item = (title: string, minute: number) =>
+		`<item><title>${title}</title><pubDate>Tue, 03 Nov 2026 10:${String(minute).padStart(2, "0")}:00 GMT</pubDate></item>`;
+	const feed = (...items: string[]) => `<rss><channel>${items.join("")}</channel></rss>`;
+	const net = fakeFetch([
+		// Five stories, one over the per-topic quota.
+		["inteligencia", ok(feed(item("IA uno", 50), item("IA dos", 40), item("IA tres", 30), item("IA cuatro", 20), item("IA cinco", 10)))],
+		// The same story as the AI feed's newest: it matched both queries.
+		["Nvidia", ok(feed(item("IA uno", 50), item("Una placa nueva", 45)))],
+		["PlayStation", ok(feed(item("Un juego", 35)))],
+	]);
+	const stories = await fetchNews(net.doFetch);
+	assert.equal(net.asked.length, 3, "one request per topic");
+	assert.deepEqual(
+		stories.map((story) => story.title),
+		["IA uno", "Una placa nueva", "IA dos", "Un juego", "IA tres", "IA cuatro"],
+		"newest first, four per topic at most, and no title twice",
+	);
+	assert.ok(!stories.some((story) => story.title === "IA cinco"), "the fifth story of a topic is over its quota");
+});
+
+test("a topic whose feed is down costs that topic, not the news", async () => {
+	const net = fakeFetch([
+		["inteligencia", dead()],
+		["Nvidia", () => new Response("no", { status: 503 })],
+		["PlayStation", ok(FEED)],
+	]);
+	const stories = await fetchNews(net.doFetch);
+	assert.equal(stories.length, 3, "the one feed that answered is still the news");
+});
+
 test("a feed that is down is an empty list, not an exception", async () => {
 	const down = fakeFetch([["news.google.com", dead()]]);
 	assert.deepEqual(await fetchNews(down.doFetch), []);
@@ -240,7 +294,7 @@ test("every fresh story is offered for the choice, summarized, and the joke is n
 	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
 	let asked = 0;
 	let given: string[] = [];
-	const line = await morningBrief({
+	const { text: line } = await morningBrief({
 		name: "Tasio",
 		now: new Date("2026-11-03T12:00:00Z"),
 		doFetch: net.doFetch,
@@ -277,7 +331,7 @@ test("the candidate set is the fresh ones, newest first, and no more than asked 
 test("a summary that fails falls back to the headline, not to the joke", async () => {
 	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
 	let jokes = 0;
-	const line = await morningBrief({
+	const { text: line } = await morningBrief({
 		name: "Tasio",
 		now: new Date("2026-11-03T12:00:00Z"),
 		doFetch: net.doFetch,
@@ -296,7 +350,7 @@ test("a summary that fails falls back to the headline, not to the joke", async (
 
 test("an empty summary is treated as no summary", async () => {
 	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
-	const line = await morningBrief({
+	const { text: line } = await morningBrief({
 		name: "Tasio",
 		now: new Date("2026-11-03T12:00:00Z"),
 		doFetch: net.doFetch,
@@ -307,7 +361,7 @@ test("an empty summary is treated as no summary", async () => {
 
 test("the joke stands in only when there is nothing fresh to report", async () => {
 	const stale = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
-	const line = await morningBrief({
+	const { text: line } = await morningBrief({
 		name: "Tasio",
 		// Two days after the feed: everything in it is old.
 		now: new Date("2026-11-05T12:00:00Z"),
@@ -319,7 +373,7 @@ test("the joke stands in only when there is nothing fresh to report", async () =
 
 test("a joke that fails costs a clause, not the brief", async () => {
 	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok("<rss></rss>")]]);
-	const line = await morningBrief({
+	const { text: line } = await morningBrief({
 		name: "Tasio",
 		now: new Date("2026-11-03T12:00:00Z"),
 		doFetch: net.doFetch,
@@ -334,6 +388,6 @@ test("a joke that fails costs a clause, not the brief", async () => {
 
 test("with the network down the brief is still a greeting, the time and the question", async () => {
 	const net = fakeFetch([["ifconfig.co", dead()], ["ipwho.is", dead()], ["news.google.com", dead()]]);
-	const line = await morningBrief({ name: "Tasio", now: at(7, 0), doFetch: net.doFetch });
+	const { text: line } = await morningBrief({ name: "Tasio", now: at(7, 0), doFetch: net.doFetch });
 	assert.equal(line, "Buenos días Tasio. Son las siete en punto de la mañana. ¿En qué trabajaremos hoy?");
 });

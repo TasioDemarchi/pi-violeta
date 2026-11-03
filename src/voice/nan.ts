@@ -10,12 +10,13 @@ export interface VoiceConfig {
 	sttModel: string;
 	voice: string;
 	/** Speaking rate: 1 is the model's pace, lower is slower. Slowing it down is
-	 * what makes a small TTS sound synthetic, so the default stays at 1. */
+	 * what makes a small TTS sound synthetic, and at 1 it was still a little
+	 * slow by ear, so the default sits just above the model's own pace. */
 	speed: number;
 	timeoutMs: number;
 }
 
-export const DEFAULT_SPEED = 1;
+export const DEFAULT_SPEED = 1.1;
 export const MIN_SPEED = 0.5;
 export const MAX_SPEED = 1.3;
 

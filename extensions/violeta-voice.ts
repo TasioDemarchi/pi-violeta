@@ -48,6 +48,10 @@ export default function (pi: ExtensionAPI) {
 	};
 	/** Pause between paragraphs, so each step of an explanation lands before the next. */
 	const PARAGRAPH_PAUSE_MS = 700;
+	/** The brief's own pause, between its sentences. Shorter than a paragraph's:
+	 * these are five short sentences, not the steps of an explanation. Chosen by
+	 * ear against 400, 500 and 650. */
+	const BRIEF_PAUSE_MS = 450;
 	/** Paragraphs synthesized at once: enough to start fast, few enough not to hit NaN's limits. */
 	const PARALLEL = 3;
 	const voiceConfig = (): VoiceConfig => {
@@ -132,7 +136,7 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
-	async function speak(ctx: ExtensionContext, text: string): Promise<void> {
+	async function speak(ctx: ExtensionContext, text: string, pauseMs: number = PARAGRAPH_PAUSE_MS): Promise<void> {
 		const apiKey = key();
 		if (!apiKey) return warnOnce(ctx, "key", t.noKey);
 		await stopPlayback();
@@ -169,10 +173,10 @@ export default function (pi: ExtensionAPI) {
 				cursor += group.length;
 				if (mine !== generation) return;
 				const file = join(dir, `voz-${cursor}.wav`);
-				writeFileSync(file, joinAsWav(pieces as Buffer[], PARAGRAPH_PAUSE_MS));
+				writeFileSync(file, joinAsWav(pieces as Buffer[], pauseMs));
 				const player = pickPlayer(file);
 				if (!player) return warnOnce(ctx, "player", t.noPlayer);
-				if (!first) await new Promise((resolve) => setTimeout(resolve, PARAGRAPH_PAUSE_MS));
+				if (!first) await new Promise((resolve) => setTimeout(resolve, pauseMs));
 				first = false;
 				if (mine !== generation) return;
 				const running = run(player, (message) => warnOnce(ctx, "player", t.playerFailed(message)));
@@ -247,7 +251,7 @@ export default function (pi: ExtensionAPI) {
 				commandCtx.ui.notify(gm.working, "info");
 				const now = new Date();
 				try {
-					const line = await morningBrief({
+					const brief = await morningBrief({
 						name: process.env.VIOLETA_OWNER_NAME || "Tachi",
 						now,
 						// Every fresh story goes in, and the model picks the one that
@@ -259,10 +263,12 @@ export default function (pi: ExtensionAPI) {
 					});
 					// Written as well as spoken: the audio goes by once, and a headline
 					// is worth being able to re-read.
-					commandCtx.ui.notify(line, "info");
-					// Not awaited, like every other spoken line: the editor stays free
-					// while it plays, and speak() reports its own failures.
-					void speak(commandCtx, line);
+					commandCtx.ui.notify(brief.text, "info");
+					// One paragraph per sentence, so speak() synthesizes each on its own
+					// and the silence between them is measured. Not awaited, like every
+					// other spoken line: the editor stays free while it plays, and
+					// speak() reports its own failures.
+					void speak(commandCtx, brief.sentences.join("\n\n"), BRIEF_PAUSE_MS);
 				} catch (error) {
 					commandCtx.ui.notify(gm.failed(error instanceof Error ? error.message : String(error)), "warning");
 				}

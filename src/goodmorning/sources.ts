@@ -5,7 +5,9 @@
  *
  * - the city, from the IP (ifconfig.co, then ipwho.is as a second try);
  * - the weather, from Open-Meteo, which answers with a WMO code;
- * - the headlines, from Google News' RSS feed for Argentina.
+ * - the headlines, from one Google News search feed per topic the owner
+ *   cares about. The general feed was dropped: its top story is the dollar,
+ *   an accident or a football match, and the brief is for one person.
  *
  * Every fetch here answers `undefined` instead of throwing: the brief is a
  * nicety, and a service being down must cost a clause, never the greeting.
@@ -236,14 +238,43 @@ export function headlineLine(item: Headline): string {
 	return `Hoy, ${item.title}`;
 }
 
+/** What the owner wants to hear about. One query per topic, because a single
+ * OR query is dominated by whichever topic published most in the last hour:
+ * four hardware leaks would bury the only AI story of the day. Changing these
+ * three lines changes what the brief is about. */
+export const NEWS_TOPICS: readonly { name: string; query: string }[] = [
+	{ name: "ia", query: '"inteligencia artificial" OR "modelos de lenguaje" OR OpenAI OR Anthropic' },
+	{ name: "hardware", query: '"placas de video" OR "tarjetas gráficas" OR "hardware gaming" OR Nvidia OR "AMD Radeon"' },
+	{ name: "videojuegos", query: "videojuegos OR PlayStation OR Nintendo OR Steam" },
+];
+
+/** Stories kept per topic, so each one is represented in the choice. */
+export const NEWS_PER_TOPIC = 4;
+
+const searchUrl = (query: string) => `https://news.google.com/rss/search?hl=es-419&gl=AR&ceid=AR:es-419&q=${encodeURIComponent(query)}`;
+
+/** Every topic's feed, newest first, with one entry per story. A story that
+ * matches two topics comes back twice, and the same title read twice would be
+ * two chances at the same news, so titles are kept unique. */
 export async function fetchNews(doFetch: Fetch = fetch): Promise<Headline[]> {
-	try {
-		const response = await doFetch("https://news.google.com/rss?hl=es-419&gl=AR&ceid=AR:es-419", {
-			signal: AbortSignal.timeout(TIMEOUT_MS),
-		});
-		if (!response.ok) return [];
-		return parseFeed(await response.text());
-	} catch {
-		return [];
+	const perTopic = await Promise.all(
+		NEWS_TOPICS.map(async (topic) => {
+			try {
+				const response = await doFetch(searchUrl(topic.query), { signal: AbortSignal.timeout(TIMEOUT_MS) });
+				if (!response.ok) return [];
+				return parseFeed(await response.text()).slice(0, NEWS_PER_TOPIC);
+			} catch {
+				// One topic being down costs that topic, not the news.
+				return [];
+			}
+		}),
+	);
+	const seen = new Set<string>();
+	const stories: Headline[] = [];
+	for (const story of perTopic.flat().sort((a, b) => b.at.getTime() - a.at.getTime())) {
+		if (seen.has(story.title)) continue;
+		seen.add(story.title);
+		stories.push(story);
 	}
+	return stories;
 }

@@ -288,7 +288,7 @@ const es = {
 		} as Record<string, string>,
 	},
 	voice: {
-		description: "Activa o desactiva la voz: Jarvis te explica en voz alta, en modo didáctico (/voice on|off, completo|resumen, speed 1)",
+		description: "Activa o desactiva la voz: Jarvis te explica en voz alta, en modo didáctico (/voice on|off, completo|resumen, speed 1.1)",
 		usage: "uso: /voice [on|off], /voice completo|resumen o /voice speed <velocidad>",
 		modeFull: "Voz en modo completo: se lee toda la respuesta (sin el código ni las tablas, que quedan en pantalla).",
 		modeSummary: "Voz en modo resumen: se lee solo un guion corto que escribe Jarvis.",
@@ -323,15 +323,17 @@ const es = {
 		// a pile of prohibitions -- made a reasoning model spend its whole budget
 		// counting words and auditing the rules, and answer with nothing at all.
 		// One positive rule is cheaper to obey than five negative ones.
-		// The model chooses as well as summarizes: "relevant for Argentina" is a
-		// judgement (a decision in Washington can matter more here than a local
-		// mishap), and a keyword list would both miss that and drag in anything
-		// with the word Argentina in it. Each story arrives with the other
-		// outlets' headlines about it, so the choice is made on the story.
+		// The model chooses as well as summarizes. The feeds already narrow the
+		// subject to what the owner cares about; what they cannot tell apart is a
+		// real development from a local course, an upcoming event or a colour
+		// piece, which is what fills a topic feed on a slow day. Each story
+		// arrives with the other outlets' headlines about it, so the choice is
+		// made on the story and not on one phrasing.
 		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>
 			"Noticias de hoy, cada una con los titulares de distintos diarios:\n\n" +
 			stories.map((story, index) => [`${index + 1}.`, story.title, ...story.related.map((other) => `   · ${other}`)].join("\n")).join("\n\n") +
-			"\n\nElegí la que más le importa a alguien que vive en Argentina. Puede ser de afuera si lo afecta de verdad. " +
+			"\n\nElegí la más interesante para alguien que programa y le gustan la inteligencia artificial, el hardware gamer y los videojuegos. " +
+			"Preferí una novedad concreta (un lanzamiento, un producto, un resultado, algo que pasó) antes que un curso, un evento, un aniversario o una nota de color. " +
 			'Resumila en una frase corta que empiece con "Hoy", para alguien que no sigue el tema. ' +
 			"Usá solo lo que dicen los titulares, sin nombrar diarios. Respondé solo la frase.",
 		// It is asked for a joke only when there is no real news, so the one thing
@@ -658,7 +660,7 @@ const en: typeof es = {
 		} as Record<string, string>,
 	},
 	voice: {
-		description: "Turn voice on or off: Jarvis teaches aloud (/voice on|off, completo|resumen, speed 1)",
+		description: "Turn voice on or off: Jarvis teaches aloud (/voice on|off, completo|resumen, speed 1.1)",
 		usage: "usage: /voice [on|off], /voice completo|resumen or /voice speed <rate>",
 		modeFull: "Voice in full mode: the whole reply is read (code and tables stay on screen).",
 		modeSummary: "Voice in summary mode: only a short script written by Jarvis is read.",
@@ -689,7 +691,8 @@ const en: typeof es = {
 		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>
 			"Today's news, each story with several outlets' headlines:\n\n" +
 			stories.map((story, index) => [`${index + 1}.`, story.title, ...story.related.map((other) => `   · ${other}`)].join("\n")).join("\n\n") +
-			"\n\nPick the one that matters most to someone living in Argentina. It may be from abroad if it genuinely affects them. " +
+			"\n\nPick the most interesting one for someone who programs and likes artificial intelligence, gaming hardware and video games. " +
+			"Prefer a concrete development (a launch, a product, a result, something that happened) over a course, an event, an anniversary or a colour piece. " +
 			'Sum it up in one short sentence starting with "Today", for someone who does not follow the topic. ' +
 			"Use only what the headlines say, and name no outlet. Answer with the sentence only.",
 		jokePrompt: (today: string) =>

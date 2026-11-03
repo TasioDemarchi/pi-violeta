@@ -78,7 +78,7 @@ test("synthesize posts the speech request and returns the audio", async () => {
 	const body = JSON.parse(String(seen!.init.body));
 	assert.deepEqual(
 		[body.model, body.input, body.response_format, body.speed, body.voice],
-		["kokoro", "hola", "pcm", 1, "ef_dora(2)+em_alex(1)"],
+		["kokoro", "hola", "pcm", 1.1, "ef_dora(2)+em_alex(1)"],
 	);
 	assert.equal((seen!.init.headers as Record<string, string>).Authorization, "Bearer secret");
 });
@@ -262,9 +262,9 @@ test("subagent children register nothing", () => {
 });
 
 test("speed defaults to the model's own pace and is clamped to what the service accepts", () => {
-	assert.equal(voiceConfigFromEnv({}).speed, 1);
+	assert.equal(voiceConfigFromEnv({}).speed, 1.1);
 	assert.equal(voiceConfigFromEnv({ VIOLETA_VOICE_SPEED: "0.7" }).speed, 0.7);
-	assert.equal(voiceConfigFromEnv({ VIOLETA_VOICE_SPEED: "abc" }).speed, 1);
+	assert.equal(voiceConfigFromEnv({ VIOLETA_VOICE_SPEED: "abc" }).speed, 1.1);
 	assert.equal(clampSpeed(9, 0.85), 1.3);
 	assert.equal(clampSpeed(0.1, 0.85), 0.5);
 });
@@ -457,6 +457,10 @@ test("/goodmorn turns the voice on by itself, says the story as a sentence and n
 		assert.equal(readVoiceEnabled(join(env.agentDir, "violeta.json")), true, "and it remembers it");
 		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
 		assert.ok(existsSync(env.marker), "the player ran");
+		// One synthesis per sentence: that is what puts a measured silence between
+		// them instead of whatever the voice model does with a full stop.
+		assert.ok(spoken.length >= 4, `the brief is said sentence by sentence, got ${spoken.length} piece(s)`);
+		for (const piece of spoken) assert.match(piece, /[.?]$/, `a piece that is not a whole sentence: ${piece}`);
 		const line = spoken.join(" ");
 		assert.match(line, /^Buen[oa]s (días|tardes|noches) Tachi\./, "called by name, with no title in front of it");
 		assert.match(line, /El clima en Del Viso es de diecinueve grados con chaparrones\./);
@@ -465,7 +469,11 @@ test("/goodmorn turns the voice on by itself, says the story as a sentence and n
 		assert.match(line, /¿En qué trabajaremos hoy\?$/);
 		assert.equal(env.completions.length, 1, "one ask: the summary");
 		assert.match(env.completions[0]!, /Noticias de hoy/);
-		assert.match(env.completions[0]!, /más le importa a alguien que vive en Argentina/, "the filter is the ask, not a keyword list");
+		assert.match(
+			env.completions[0]!,
+			/le gustan la inteligencia artificial, el hardware gamer y los videojuegos/,
+			"the criterion is the owner's interests, asked for rather than keyword-matched",
+		);
 		assert.ok(
 			env.completions.every((prompt) => !prompt.includes("graciosa")),
 			"there was news, so no joke was paid for",

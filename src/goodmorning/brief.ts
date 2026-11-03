@@ -9,7 +9,7 @@
  * to report.
  */
 
-import { buildBrief } from "./greeting.ts";
+import { briefSentences } from "./greeting.ts";
 import { type Fetch, type Headline, fetchNews, fetchPlace, fetchWeather, freshStories, headlineLine, skyFor } from "./sources.ts";
 
 export interface GatheredFacts {
@@ -60,8 +60,16 @@ async function summarized(request: BriefRequest, stories: readonly Headline[]): 
 	}
 }
 
-/** The whole spoken brief, ready to be read. */
-export async function morningBrief(request: BriefRequest): Promise<string> {
+export interface Brief {
+	/** One line, for the screen. */
+	text: string;
+	/** The same thing in pieces, for the voice: one synthesis per sentence, so
+	 * the pause between them is measured rather than guessed. */
+	sentences: string[];
+}
+
+/** The whole brief, in both of the forms it is used in. */
+export async function morningBrief(request: BriefRequest): Promise<Brief> {
 	const facts = await gatherFacts(request.now, request.doFetch ?? fetch);
 	let extra: string | undefined;
 	const newest = facts.stories[0];
@@ -78,5 +86,6 @@ export async function morningBrief(request: BriefRequest): Promise<string> {
 			extra = undefined;
 		}
 	}
-	return buildBrief({ name: request.name, now: request.now, place: facts.place, tempC: facts.tempC, sky: facts.sky, extra });
+	const sentences = briefSentences({ name: request.name, now: request.now, place: facts.place, tempC: facts.tempC, sky: facts.sky, extra });
+	return { text: sentences.join(" "), sentences };
 }

@@ -108,17 +108,44 @@ export interface BriefParts {
 	extra?: string;
 }
 
+/** Symbols a headline is written with and nobody says out loud. Money comes
+ * first and in that order, because the dollar forms contain the peso sign:
+ * in Argentina a bare `$` is pesos, and `USD $500` is not "u-s-d five
+ * hundred". Product names are deliberately left alone -- a model asked to
+ * spell numbers out turned "RTX 5090" into "el modelo cinco mil noventa",
+ * which is worse than the symbol ever was. */
+// A number must end in a digit: `[\d.,]+` swallows the full stop that ends
+// the sentence, and "aumentó 500. dólares" is read exactly as it looks.
+const NUMBER = "\\d(?:[\\d.,]*\\d)?";
+const FOR_THE_EAR: readonly [RegExp, string][] = [
+	[new RegExp(`\\b(?:USD|US\\$|U\\$S|u\\$s)\\s?\\$?\\s?(${NUMBER})`, "g"), "$1 dólares"],
+	[/\bUSD\b/g, "dólares"],
+	[new RegExp(`\\$\\s?(${NUMBER})`, "g"), "$1 pesos"],
+	[new RegExp(`(${NUMBER})\\s?%`, "g"), "$1 por ciento"],
+	[/\s?°\s?C\b/g, " grados"],
+];
+
+/** A line written to be read, made sayable. Only the symbols: the words are
+ * the model's or the outlet's, and rewriting those would be editing the news. */
+export function forTheEar(text: string): string {
+	let out = text;
+	for (const [pattern, replacement] of FOR_THE_EAR) out = out.replace(pattern, replacement);
+	return out.replace(/\s{2,}/g, " ").trim();
+}
+
 /** `extra` comes from a headline or from a model, so it arrives with or
  * without a full stop; one is added when it is missing. */
 function asSentence(text: string): string {
-	const trimmed = text.trim();
+	const trimmed = forTheEar(text);
 	return /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
-/** The whole brief, in the order the owner dictated it. Weather needs the
+/** The brief as its sentences, which is how it is spoken: each one is
+ * synthesized on its own and the silence between them is measured, instead of
+ * being whatever the voice model does with a full stop. Weather needs the
  * temperature and the sky together: "es de diecinueve grados" with no sky, or
  * a sky with no number, reads like something broke. */
-export function buildBrief(parts: BriefParts): string {
+export function briefSentences(parts: BriefParts): string[] {
 	const said: string[] = [`${greetingFor(parts.now.getHours())} ${parts.name}.`, `${timeInWords(parts.now)}.`];
 	if (parts.tempC !== undefined && parts.sky) {
 		const where = parts.place ? ` en ${parts.place}` : "";
@@ -127,5 +154,10 @@ export function buildBrief(parts: BriefParts): string {
 	}
 	if (parts.extra && parts.extra.trim() !== "") said.push(asSentence(parts.extra));
 	said.push("¿En qué trabajaremos hoy?");
-	return said.join(" ");
+	return said;
+}
+
+/** The same brief as one line, which is how it is shown on screen. */
+export function buildBrief(parts: BriefParts): string {
+	return briefSentences(parts).join(" ");
 }
