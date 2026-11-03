@@ -458,8 +458,8 @@ test("/goodmorn turns the voice on by itself, says the story as a sentence and n
 		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
 		assert.ok(existsSync(env.marker), "the player ran");
 		const line = spoken.join(" ");
-		assert.match(line, /señor Tasio/);
-		assert.match(line, /El clima en Del Viso es de diecinueve grados centígrados con chaparrones\./);
+		assert.match(line, /^Buen[oa]s (días|tardes|noches) Tachi\./, "called by name, with no title in front of it");
+		assert.match(line, /El clima en Del Viso es de diecinueve grados con chaparrones\./);
 		assert.match(line, /Hoy el dólar se quedó quieto\./);
 		assert.ok(!line.includes("Clarín"), "the brief says what happened, not who reported it");
 		assert.match(line, /¿En qué trabajaremos hoy\?$/);
@@ -511,7 +511,7 @@ test("a model that fails costs the joke, and the brief is still said", async () 
 		await env.commands.get("goodmorn")!.handler("", env.ctx);
 		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
 		const line = spoken.join(" ");
-		assert.match(line, /señor Tasio/);
+		assert.match(line, /^Buen[oa]s (días|tardes|noches) Tachi\./, "called by name, with no title in front of it");
 		assert.match(line, /¿En qué trabajaremos hoy\?$/);
 		assert.ok(!line.includes("dijo no"), "an error is never read out loud");
 	} finally {

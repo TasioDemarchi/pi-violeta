@@ -96,7 +96,7 @@ export function timeInWords(now: Date): string {
 }
 
 export interface BriefParts {
-	/** How the owner is addressed: "señor <name>". */
+	/** What the owner is called, on its own: no title in front of it. */
 	name: string;
 	now: Date;
 	/** The city the IP resolved to; absent when that lookup failed. */
@@ -119,10 +119,11 @@ function asSentence(text: string): string {
  * temperature and the sky together: "es de diecinueve grados" with no sky, or
  * a sky with no number, reads like something broke. */
 export function buildBrief(parts: BriefParts): string {
-	const said: string[] = [`${greetingFor(parts.now.getHours())} señor ${parts.name}.`, `${timeInWords(parts.now)}.`];
+	const said: string[] = [`${greetingFor(parts.now.getHours())} ${parts.name}.`, `${timeInWords(parts.now)}.`];
 	if (parts.tempC !== undefined && parts.sky) {
 		const where = parts.place ? ` en ${parts.place}` : "";
-		said.push(`El clima${where} es de ${numberInWords(parts.tempC)} grados centígrados con ${parts.sky}.`);
+		// "grados", not "grados centígrados": nobody says the scale out loud.
+		said.push(`El clima${where} es de ${numberInWords(parts.tempC)} grados con ${parts.sky}.`);
 	}
 	if (parts.extra && parts.extra.trim() !== "") said.push(asSentence(parts.extra));
 	said.push("¿En qué trabajaremos hoy?");

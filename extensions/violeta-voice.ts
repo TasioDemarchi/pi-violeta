@@ -248,7 +248,7 @@ export default function (pi: ExtensionAPI) {
 				const now = new Date();
 				try {
 					const line = await morningBrief({
-						name: process.env.VIOLETA_OWNER_NAME || "Tasio",
+						name: process.env.VIOLETA_OWNER_NAME || "Tachi",
 						now,
 						// Every fresh story goes in, and the model picks the one that
 						// matters here before summarizing it: relevance for Argentina is

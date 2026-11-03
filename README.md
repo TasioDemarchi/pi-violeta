@@ -186,8 +186,8 @@ Players and recorders are programs already on the machine (`pw-play` or `aplay`;
 - **No outlet is named** (the owner's call): the brief says what happened, not who reported it. The fallback, when the model answers nothing, is the newest headline read as it stands — worse, since a headline is written to be read and not heard, which is the whole reason for the sentence.
 - **Only a day with no news gets a joke**, asked of the same model, and the prompt forbids it from reading as a fact.
 - **Prompts are short on purpose.** A first version carried a word ceiling and five prohibitions; a reasoning model spent its entire token budget counting words and auditing the rules, and answered with nothing at all. One positive rule is cheaper to obey than five negative ones.
-- **Spoken numbers are spelled out** ("diecinueve grados centígrados"), because a small TTS reads `18,9` unevenly.
-- The owner's name is `VIOLETA_OWNER_NAME`, defaulting to `Tasio`.
+- **Spoken numbers are spelled out** ("diecinueve grados"), because a small TTS reads `18,9` unevenly.
+- What the owner is called is `VIOLETA_OWNER_NAME`, defaulting to `Tachi`, and it is said on its own with no title in front of it.
 
 ## Todo list
 

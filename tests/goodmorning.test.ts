@@ -65,22 +65,22 @@ test("the brief has every clause when every source answered", () => {
 	const line = buildBrief({ name: "Tasio", now: at(7, 20), place: "Del Viso", tempC: 18.9, sky: "chaparrones", extra: "Según La Nación, llueve" });
 	assert.equal(
 		line,
-		"Buenos días señor Tasio. Son las siete y veinte de la mañana. El clima en Del Viso es de diecinueve grados centígrados con chaparrones. Según La Nación, llueve. ¿En qué trabajaremos hoy?",
+		"Buenos días Tasio. Son las siete y veinte de la mañana. El clima en Del Viso es de diecinueve grados con chaparrones. Según La Nación, llueve. ¿En qué trabajaremos hoy?",
 	);
 });
 
 test("a source that failed drops its own clause and nothing else", () => {
 	// No weather at all: the brief must not say it has no data.
 	const noWeather = buildBrief({ name: "Tasio", now: at(7, 20), extra: "algo" });
-	assert.equal(noWeather, "Buenos días señor Tasio. Son las siete y veinte de la mañana. algo. ¿En qué trabajaremos hoy?");
+	assert.equal(noWeather, "Buenos días Tasio. Son las siete y veinte de la mañana. algo. ¿En qué trabajaremos hoy?");
 	// Half a weather reading is not a weather reading: a temperature with no sky
 	// reads like something broke, so the clause goes whole or not at all.
 	assert.ok(!buildBrief({ name: "Tasio", now: at(7), tempC: 19 }).includes("grados"));
 	assert.ok(!buildBrief({ name: "Tasio", now: at(7), sky: "nublado" }).includes("nublado"));
 	// The city is the one piece the clause can live without.
-	assert.match(buildBrief({ name: "Tasio", now: at(7), tempC: 19, sky: "nublado" }), /El clima es de diecinueve grados centígrados con nublado\./);
+	assert.match(buildBrief({ name: "Tasio", now: at(7), tempC: 19, sky: "nublado" }), /El clima es de diecinueve grados con nublado\./);
 	// And with nothing at all it is still a greeting and a question.
-	assert.equal(buildBrief({ name: "Tasio", now: at(7) }), "Buenos días señor Tasio. Son las siete en punto de la mañana. ¿En qué trabajaremos hoy?");
+	assert.equal(buildBrief({ name: "Tasio", now: at(7) }), "Buenos días Tasio. Son las siete en punto de la mañana. ¿En qué trabajaremos hoy?");
 });
 
 test("the day's line gets a full stop only when it is missing one", () => {
@@ -335,5 +335,5 @@ test("a joke that fails costs a clause, not the brief", async () => {
 test("with the network down the brief is still a greeting, the time and the question", async () => {
 	const net = fakeFetch([["ifconfig.co", dead()], ["ipwho.is", dead()], ["news.google.com", dead()]]);
 	const line = await morningBrief({ name: "Tasio", now: at(7, 0), doFetch: net.doFetch });
-	assert.equal(line, "Buenos días señor Tasio. Son las siete en punto de la mañana. ¿En qué trabajaremos hoy?");
+	assert.equal(line, "Buenos días Tasio. Son las siete en punto de la mañana. ¿En qué trabajaremos hoy?");
 });
