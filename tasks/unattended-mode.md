@@ -1,6 +1,12 @@
 # unattended-mode
 Let the ODD orchestrator keep working after you walk away — until you turn it off — without stalling on a permission prompt nobody will answer.
 
+> **This plan predates the cleanup of 2026-11-03.** `odd`, `scout` and `vault` were
+> removed along with the agents `architect`, `planner`, `fixer`, `judge-a`, `judge-b`
+> and `verifier`; `jarvis` is the only mode left. So T6 and the parts of S8 that name
+> those files have nothing to edit, and the paths moved: `odd/tasks/` is now `tasks/`
+> and `.odd/` is now `.violeta/`. The decisions below still hold; the file names do not.
+
 Runner: npm test
 Profile: personal
 
