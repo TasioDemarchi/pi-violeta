@@ -117,7 +117,9 @@ test("the language defaults to es and setLanguage/getLanguage round-trip", () =>
 function candidateArgs(arity: number): unknown[][] {
 	switch (arity) {
 		case 0: return [[]];
-		case 1: return [[5], ["sample"], [["a", "b"]]];
+		// The last shape is a list of stories, which is what goodmorning.newsPrompt
+		// takes; without it the walker cannot exercise that entry at all.
+		case 1: return [[5], ["sample"], [["a", "b"]], [[{ title: "a", related: ["b"] }]]];
 		case 2: return [[5, ["a", "b"]], ["sample", ["a", "b"]], [5, "sample"], ["a", "b"]];
 		case 3: return [[1, 2, 3]];
 		case 4: return [[1, 2, 3, "sample"]];

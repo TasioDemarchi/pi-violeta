@@ -131,9 +131,15 @@ export async function fetchWeather(latitude: number, longitude: number, doFetch:
 
 export interface Headline {
 	title: string;
-	/** The outlet, which Google News appends to the title after " - ". */
+	/** The outlet, which Google News appends to the title after " - ". It is
+	 * parsed to be stripped off the title, not to be read out: the brief says
+	 * what happened, not who reported it. */
 	source?: string;
 	at: Date;
+	/** The other outlets' headlines about the same story, which Google News
+	 * puts in the item's description. Real material, and the only way a one
+	 * line summary can be about the story rather than about one phrasing. */
+	related: string[];
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
@@ -154,6 +160,28 @@ const tag = (item: string, name: string): string | undefined => {
 	return text === "" ? undefined : text;
 };
 
+/** The headlines inside an item's description: Google News puts a list of the
+ * other outlets covering the same story there, as escaped HTML. Only the link
+ * texts are kept, which are the headlines; the outlet names sit in a <font>
+ * and are dropped with the rest of the markup. */
+export function relatedTitles(description: string | undefined): string[] {
+	if (!description) return [];
+	const html = decodeEntities(description);
+	const titles: string[] = [];
+	for (const [, text] of html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)) {
+		const clean = decodeEntities(text!.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+		if (clean !== "" && !titles.includes(clean)) titles.push(clean);
+	}
+	return titles;
+}
+
+/** The raw text of a tag, CDATA unwrapped but markup left alone. */
+const tagRaw = (item: string, name: string): string | undefined => {
+	const match = new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`).exec(item);
+	if (!match) return undefined;
+	return match[1]!.replace(/^<!\[CDATA\[([\s\S]*?)\]\]>$/, "$1");
+};
+
 /** Every item in the feed that has a title and a usable date, newest first.
  * An item missing either is skipped rather than guessed at. */
 export function parseFeed(xml: string): Headline[] {
@@ -166,24 +194,46 @@ export function parseFeed(xml: string): Headline[] {
 		if (Number.isNaN(at.getTime())) continue;
 		// Google News appends the outlet to the title; the last dash is the one.
 		const split = /^(.*) - ([^-]+)$/.exec(title);
-		items.push({ title: split ? split[1]!.trim() : title, source: split ? split[2]!.trim() : undefined, at });
+		const bare = split ? split[1]!.trim() : title;
+		// The main headline is in the related list too; it is not "related".
+		const related = relatedTitles(tagRaw(body!, "description")).filter((other) => other !== bare);
+		items.push({ title: bare, source: split ? split[2]!.trim() : undefined, at, related });
 	}
 	return items.sort((a, b) => b.at.getTime() - a.at.getTime());
 }
 
-/** The newest headline that is still news, or nothing. */
-export function freshest(items: readonly Headline[], now: Date, maxAgeMs: number = NEWS_MAX_AGE_MS): Headline | undefined {
-	return items.find((item) => {
-		const age = now.getTime() - item.at.getTime();
-		// A date in the future is a broken feed, not tomorrow's news.
-		return age >= 0 && age <= maxAgeMs;
-	});
+/** How many stories are offered for the one that matters here to be picked
+ * out of. Enough for a real choice, few enough to stay one cheap prompt. */
+export const NEWS_CANDIDATES = 8;
+
+/** Every story that is still news, newest first. */
+export function freshStories(
+	items: readonly Headline[],
+	now: Date,
+	max: number = NEWS_CANDIDATES,
+	maxAgeMs: number = NEWS_MAX_AGE_MS,
+): Headline[] {
+	return items
+		.filter((item) => {
+			const age = now.getTime() - item.at.getTime();
+			// A date in the future is a broken feed, not tomorrow's news.
+			return age >= 0 && age <= maxAgeMs;
+		})
+		.slice(0, max);
 }
 
-/** The headline as it is said: attributed, so it is never mistaken for
- * something the harness knows by itself. */
+/** The newest headline that is still news, or nothing. It is what the brief
+ * says when no model is there to choose, so it is the feed's own order
+ * rather than a judgement about what matters here. */
+export function freshest(items: readonly Headline[], now: Date, maxAgeMs: number = NEWS_MAX_AGE_MS): Headline | undefined {
+	return freshStories(items, now, 1, maxAgeMs)[0];
+}
+
+/** The day's line when no model turned the story into a sentence: the headline
+ * itself, without the outlet, opening the way the owner asked for. A headline
+ * is written to be read, so this is the worse of the two and only a fallback. */
 export function headlineLine(item: Headline): string {
-	return item.source ? `Según ${item.source}, ${item.title}` : `En las noticias, ${item.title}`;
+	return `Hoy, ${item.title}`;
 }
 
 export async function fetchNews(doFetch: Fetch = fetch): Promise<Headline[]> {

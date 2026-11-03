@@ -10,13 +10,15 @@
  */
 
 import { buildBrief } from "./greeting.ts";
-import { type Fetch, type Headline, fetchNews, fetchPlace, fetchWeather, freshest, headlineLine, skyFor } from "./sources.ts";
+import { type Fetch, type Headline, fetchNews, fetchPlace, fetchWeather, freshStories, headlineLine, skyFor } from "./sources.ts";
 
 export interface GatheredFacts {
 	place?: string;
 	tempC?: number;
 	sky?: string;
-	headline?: Headline;
+	/** Every story still fresh, newest first: the choice of which one matters
+	 * here is a judgement, so it is not made while gathering. */
+	stories: Headline[];
 }
 
 /** The three lookups, with the two independent ones in flight together. The
@@ -29,7 +31,7 @@ export async function gatherFacts(now: Date, doFetch: Fetch = fetch): Promise<Ga
 		place: place?.city,
 		tempC: weather?.tempC,
 		sky: skyFor(weather?.code),
-		headline: freshest(await news, now),
+		stories: freshStories(await news, now),
 	};
 }
 
@@ -37,17 +39,37 @@ export interface BriefRequest {
 	name: string;
 	now: Date;
 	doFetch?: Fetch;
+	/** Picks the story that matters here and turns it into one plain sentence.
+	 * Given every fresh story with the other outlets' headlines about each, so
+	 * both the choice and the sentence are made on the stories themselves.
+	 * Answering nothing falls back to the newest headline, unjudged. */
+	summarize?: (stories: readonly Headline[]) => Promise<string | undefined>;
 	/** Asked for a line only when no fresh headline exists. May answer nothing,
 	 * in which case the brief simply has no day's line. */
 	joke?: () => Promise<string | undefined>;
+}
+
+/** The summary, or nothing when there is no summarizer or it failed. */
+async function summarized(request: BriefRequest, stories: readonly Headline[]): Promise<string | undefined> {
+	if (!request.summarize) return undefined;
+	try {
+		const line = await request.summarize(stories);
+		return line && line.trim() !== "" ? line.trim() : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 /** The whole spoken brief, ready to be read. */
 export async function morningBrief(request: BriefRequest): Promise<string> {
 	const facts = await gatherFacts(request.now, request.doFetch ?? fetch);
 	let extra: string | undefined;
-	if (facts.headline) {
-		extra = headlineLine(facts.headline);
+	const newest = facts.stories[0];
+	if (newest) {
+		// A headline is written to be read, not heard: it carries a colon, a
+		// subtitle and the words "EN VIVO". The sentence is what makes it
+		// speakable, and the newest headline is the fallback when there is none.
+		extra = (await summarized(request, facts.stories)) ?? headlineLine(newest);
 	} else if (request.joke) {
 		try {
 			extra = await request.joke();

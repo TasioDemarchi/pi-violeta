@@ -112,15 +112,15 @@ export default function (pi: ExtensionAPI) {
 		return groups;
 	}
 
-	/** One funny line for the brief, from the session's own model. Answers
-	 * nothing on any failure: the brief is better short than broken. */
-	async function jokeFromModel(ctx: ExtensionContext, now: Date): Promise<string | undefined> {
+	/** One line from the session's own model, for the brief. Answers nothing on
+	 * any failure, including a reply that is all reasoning and no text: the
+	 * brief has a fallback for every line, and is better short than broken. */
+	async function oneLineFromModel(ctx: ExtensionContext, prompt: string): Promise<string | undefined> {
 		const model = ctx.model;
 		if (!model) return undefined;
-		const today = now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
 		try {
 			const answer = await ctx.modelRegistry.complete(model, {
-				messages: [{ role: "user", content: gm.jokePrompt(today), timestamp: Date.now() }],
+				messages: [{ role: "user", content: prompt, timestamp: Date.now() }],
 			});
 			if (answer?.errorMessage) return undefined;
 			// blocksText is the same reader /btw uses for a reply's text; it is
@@ -250,7 +250,12 @@ export default function (pi: ExtensionAPI) {
 					const line = await morningBrief({
 						name: process.env.VIOLETA_OWNER_NAME || "Tasio",
 						now,
-						joke: () => jokeFromModel(commandCtx, now),
+						// Every fresh story goes in, and the model picks the one that
+						// matters here before summarizing it: relevance for Argentina is
+						// a judgement, and the feed is ordered by neither.
+						summarize: (stories) => oneLineFromModel(commandCtx, gm.newsPrompt(stories)),
+						joke: () =>
+							oneLineFromModel(commandCtx, gm.jokePrompt(now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }))),
 					});
 					// Written as well as spoken: the audio goes by once, and a headline
 					// is worth being able to re-read.

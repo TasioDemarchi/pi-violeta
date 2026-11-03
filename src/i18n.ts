@@ -317,14 +317,29 @@ const es = {
 		working: "Preparando el parte…",
 		failed: (message: string) => `No pude armar el parte: ${message}`,
 		// Model-facing, and in the dictionary because it decides the language of
-		// the answer. It is asked for a joke only when there is no real news, so
-		// the one thing it must never do is sound like a fact.
+		// the answer. The brief quotes no outlet, so the summary is the harness
+		// speaking: it may only rephrase what the headlines already say.
+		// Short on purpose. A longer version of this prompt -- a word ceiling and
+		// a pile of prohibitions -- made a reasoning model spend its whole budget
+		// counting words and auditing the rules, and answer with nothing at all.
+		// One positive rule is cheaper to obey than five negative ones.
+		// The model chooses as well as summarizes: "relevant for Argentina" is a
+		// judgement (a decision in Washington can matter more here than a local
+		// mishap), and a keyword list would both miss that and drag in anything
+		// with the word Argentina in it. Each story arrives with the other
+		// outlets' headlines about it, so the choice is made on the story.
+		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>
+			"Noticias de hoy, cada una con los titulares de distintos diarios:\n\n" +
+			stories.map((story, index) => [`${index + 1}.`, story.title, ...story.related.map((other) => `   · ${other}`)].join("\n")).join("\n\n") +
+			"\n\nElegí la que más le importa a alguien que vive en Argentina. Puede ser de afuera si lo afecta de verdad. " +
+			'Resumila en una frase corta que empiece con "Hoy", para alguien que no sigue el tema. ' +
+			"Usá solo lo que dicen los titulares, sin nombrar diarios. Respondé solo la frase.",
+		// It is asked for a joke only when there is no real news, so the one thing
+		// it must never do is sound like a fact.
 		jokePrompt: (today: string) =>
-			`Sos el asistente de una casa, con el tono seco y formal de un mayordomo. No hay noticias frescas para el parte de la mañana de hoy (${today}).\n\n` +
-			"Escribí UNA sola línea graciosa sobre el día de hoy para cerrar el parte.\n\n" +
-			"Reglas: que se note que es un chiste y no un dato. Nunca inventes una noticia, una cifra, un hecho verificable ni el estado del tránsito. " +
-			"Máximo veinticinco palabras. Sin comillas, sin emoji, sin preámbulo. Se va a leer en voz alta, así que escribila para el oído. " +
-			"Respondé solo con la línea.",
+			`Hoy es ${today} y no hay ninguna noticia fresca para el parte de la mañana.\n\n` +
+			"Escribí una línea corta y graciosa sobre el día, con el tono seco de un mayordomo. " +
+			"Que se note que es un chiste y no un dato. Respondé solo la línea.",
 	},
 	notify: {
 		description: "Avisa al terminar una tira larga o cuando un diálogo espera tu respuesta",
@@ -671,12 +686,16 @@ const en: typeof es = {
 		description: "Morning brief: turns voice on and reads it out (the time, the weather and the day's headline)",
 		working: "Putting the brief together…",
 		failed: (message: string) => `I could not put the brief together: ${message}`,
+		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>
+			"Today's news, each story with several outlets' headlines:\n\n" +
+			stories.map((story, index) => [`${index + 1}.`, story.title, ...story.related.map((other) => `   · ${other}`)].join("\n")).join("\n\n") +
+			"\n\nPick the one that matters most to someone living in Argentina. It may be from abroad if it genuinely affects them. " +
+			'Sum it up in one short sentence starting with "Today", for someone who does not follow the topic. ' +
+			"Use only what the headlines say, and name no outlet. Answer with the sentence only.",
 		jokePrompt: (today: string) =>
-			`You are a household assistant with the dry, formal tone of a butler. There is no fresh news for today's morning brief (${today}).\n\n` +
-			"Write ONE funny line about today to close the brief.\n\n" +
-			"Rules: it must read as a joke and not as a fact. Never invent a news item, a figure, a verifiable fact or the state of the traffic. " +
-			"Twenty-five words at most. No quotes, no emoji, no preamble. It will be read aloud, so write it for the ear. " +
-			"Answer with the line only.",
+			`Today is ${today} and there is no fresh news at all for the morning brief.\n\n` +
+			"Write one short, funny line about the day, in the dry tone of a butler. " +
+			"It must read as a joke and not as a fact. Answer with the line only.",
 	},
 	notify: {
 		description: "Notify when a long run finishes or a dialog waits for your answer",

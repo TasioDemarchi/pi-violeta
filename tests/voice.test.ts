@@ -144,6 +144,7 @@ function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
 	// nothing fresh, so the fake records every prompt it is given.
 	const completions: string[] = [];
 	let answer: unknown = { content: "Hoy es martes, y el martes no se discute" };
+	let newsAnswer: unknown = { content: "Hoy el dólar se quedó quieto" };
 	const ctx = {
 		mode: "tui",
 		ui: { notify: (text: string) => notes.push(text), setEditorText: () => {}, select: async () => "Cancelar" },
@@ -151,8 +152,9 @@ function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
 		model: { provider: "nan", id: "test-model" },
 		modelRegistry: {
 			complete: async (_model: unknown, request: { messages: Array<{ content: string }> }) => {
-				completions.push(request.messages[0]!.content);
-				return answer;
+				const prompt = request.messages[0]!.content;
+				completions.push(prompt);
+				return prompt.includes("Resumila") ? newsAnswer : answer;
 			},
 		},
 	};
@@ -161,6 +163,7 @@ function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
 	};
 	const setAnswer = (value: unknown) => {
 		answer = value;
+		newsAnswer = value;
 	};
 	return { fire, commands, notes, ctx, marker, agentDir, completions, setAnswer };
 }
@@ -441,7 +444,7 @@ function briefNetwork(feed: string, spoken: string[]) {
 const feedWith = (title: string, when: Date) =>
 	`<rss><channel><item><title>${title}</title><pubDate>${when.toUTCString()}</pubDate></item></channel></rss>`;
 
-test("/goodmorn turns the voice on by itself, reports the real headline and never pays for a joke", async () => {
+test("/goodmorn turns the voice on by itself, says the story as a sentence and never pays for a joke", async () => {
 	// It is a spoken command: asking the user to turn the voice on first would
 	// make it useless as a morning command.
 	const env = setup(false);
@@ -457,11 +460,18 @@ test("/goodmorn turns the voice on by itself, reports the real headline and neve
 		const line = spoken.join(" ");
 		assert.match(line, /señor Tasio/);
 		assert.match(line, /El clima en Del Viso es de diecinueve grados centígrados con chaparrones\./);
-		assert.match(line, /Según Clarín, El dólar cerró estable\./);
+		assert.match(line, /Hoy el dólar se quedó quieto\./);
+		assert.ok(!line.includes("Clarín"), "the brief says what happened, not who reported it");
 		assert.match(line, /¿En qué trabajaremos hoy\?$/);
-		assert.deepEqual(env.completions, [], "there was news, so the model was never asked");
+		assert.equal(env.completions.length, 1, "one ask: the summary");
+		assert.match(env.completions[0]!, /Noticias de hoy/);
+		assert.match(env.completions[0]!, /más le importa a alguien que vive en Argentina/, "the filter is the ask, not a keyword list");
+		assert.ok(
+			env.completions.every((prompt) => !prompt.includes("graciosa")),
+			"there was news, so no joke was paid for",
+		);
 		// Spoken and written: the audio goes by once.
-		assert.ok(env.notes.some((note) => note.includes("Según Clarín")), "the brief is shown as well as said");
+		assert.ok(env.notes.some((note) => note.includes("Hoy el dólar se quedó quieto")), "the brief is shown as well as said");
 	} finally {
 		globalThis.fetch = realFetch;
 	}
@@ -479,8 +489,9 @@ test("with nothing fresh in the feed the model is asked for one line, and it is 
 		await env.commands.get("goodmorn")!.handler("", env.ctx);
 		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
 		assert.equal(env.completions.length, 1, "exactly one call, and only because there was no news");
-		assert.match(env.completions[0]!, /una sola línea graciosa/i);
-		assert.match(env.completions[0]!, /Nunca inventes una noticia/i);
+		assert.match(env.completions[0]!, /línea corta y graciosa/i);
+		assert.match(env.completions[0]!, /no hay ninguna noticia fresca/i);
+		assert.match(env.completions[0]!, /no es un dato|no un dato/i, "the one rule the joke must carry");
 		const line = spoken.join(" ");
 		assert.match(line, /Hoy es martes, y el martes no se discute\./);
 		assert.ok(!line.includes("Algo viejo"), "a stale headline is not reported as news");

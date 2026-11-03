@@ -5,7 +5,18 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { morningBrief, gatherFacts } from "../src/goodmorning/brief.ts";
 import { buildBrief, greetingFor, numberInWords, partOfDay, timeInWords } from "../src/goodmorning/greeting.ts";
-import { decodeEntities, fetchNews, fetchPlace, fetchWeather, freshest, headlineLine, parseFeed, skyFor } from "../src/goodmorning/sources.ts";
+import {
+	decodeEntities,
+	fetchNews,
+	fetchPlace,
+	fetchWeather,
+	freshStories,
+	freshest,
+	headlineLine,
+	parseFeed,
+	relatedTitles,
+	skyFor,
+} from "../src/goodmorning/sources.ts";
 
 const at = (hour: number, minute = 0) => new Date(2026, 10, 3, hour, minute);
 
@@ -127,9 +138,23 @@ test("fresh means recent, and a feed dated in the future is broken rather than e
 	assert.equal(freshest(items, new Date("2026-11-03T09:30:00Z"))!.title, "Con & entidad y CDATA");
 });
 
-test("a headline is always attributed, so it cannot pass as something the harness knows", () => {
-	assert.equal(headlineLine({ title: "Llueve", source: "Clarín", at: new Date() }), "Según Clarín, Llueve");
-	assert.equal(headlineLine({ title: "Llueve", at: new Date() }), "En las noticias, Llueve");
+test("the fallback line opens with Hoy and names no outlet", () => {
+	// The owner's call: the brief says what happened, not who reported it.
+	assert.equal(headlineLine({ title: "Llueve en todo el país", source: "Clarín", at: new Date(), related: [] }), "Hoy, Llueve en todo el país");
+});
+
+test("the other outlets' headlines are pulled out of the description, and the story's own is not one of them", () => {
+	const description =
+		"&lt;ol&gt;&lt;li&gt;&lt;a href=\"x\"&gt;El titular principal&lt;/a&gt;&amp;nbsp;&lt;font color=\"#6f6f6f\"&gt;Clarín&lt;/font&gt;&lt;/li&gt;" +
+		"&lt;li&gt;&lt;a href=\"y\"&gt;Otro diario lo cuenta así&lt;/a&gt;&lt;font&gt;La Nación&lt;/font&gt;&lt;/li&gt;&lt;/ol&gt;";
+	// The outlet names sit in a <font> and go with the rest of the markup.
+	assert.deepEqual(relatedTitles(description), ["El titular principal", "Otro diario lo cuenta así"]);
+	assert.deepEqual(relatedTitles(undefined), []);
+
+	const item = parseFeed(
+		`<rss><channel><item><title>El titular principal - Clarín</title><pubDate>Tue, 03 Nov 2026 10:00:00 GMT</pubDate><description>${description}</description></item></channel></rss>`,
+	)[0]!;
+	assert.deepEqual(item.related, ["Otro diario lo cuenta así"], "the item's own headline is not related to itself");
 });
 
 /** A fetch that answers per URL, and records what was asked. */
@@ -196,31 +221,88 @@ test("every fact is gathered and handed over translated", async () => {
 	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
 	const facts = await gatherFacts(new Date("2026-11-03T12:00:00Z"), net.doFetch);
 	assert.deepEqual([facts.place, facts.tempC, facts.sky], ["Del Viso", 18.9, "chaparrones"]);
-	assert.equal(facts.headline!.title, "Lo más nuevo");
+	assert.deepEqual(
+		facts.stories.map((story) => story.title),
+		["Lo más nuevo", "Con & entidad y CDATA", "Sin fuente en el titulo"],
+		"every fresh story is handed over, newest first, for the choice to be made on",
+	);
 });
 
 test("with no city there is no weather either, and the feed is asked all the same", async () => {
 	const net = fakeFetch([["ifconfig.co", dead()], ["ipwho.is", dead()], ["news.google.com", ok(FEED)]]);
 	const facts = await gatherFacts(new Date("2026-11-03T12:00:00Z"), net.doFetch);
 	assert.deepEqual([facts.place, facts.tempC, facts.sky], [undefined, undefined, undefined]);
-	assert.ok(facts.headline, "the headline does not depend on the weather");
+	assert.ok(facts.stories.length > 0, "the news does not depend on the weather");
 	assert.ok(!net.asked.some((url) => url.includes("open-meteo")), "no point asking for the weather of nowhere");
 });
 
-test("a real headline is used and the joke is never even asked for", async () => {
+test("every fresh story is offered for the choice, summarized, and the joke is never even asked for", async () => {
 	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
 	let asked = 0;
+	let given: string[] = [];
 	const line = await morningBrief({
 		name: "Tasio",
 		now: new Date("2026-11-03T12:00:00Z"),
 		doFetch: net.doFetch,
+		summarize: async (stories) => {
+			given = stories.map((story) => story.title);
+			return "Hoy el país amaneció sin novedades";
+		},
 		joke: async () => {
 			asked++;
 			return "un chiste";
 		},
 	});
-	assert.match(line, /Según Clarín, Lo más nuevo\./);
+	assert.match(line, /Hoy el país amaneció sin novedades\./);
+	assert.ok(!line.includes("Lo más nuevo"), "the headline itself is not read when there is a sentence for it");
+	// The whole fresh set, not just the newest: picking the one that matters
+	// here is impossible with one story to choose from.
+	assert.deepEqual(given, ["Lo más nuevo", "Con & entidad y CDATA", "Sin fuente en el titulo"]);
 	assert.equal(asked, 0, "paying a model for a joke while there is news is waste");
+});
+
+test("the candidate set is the fresh ones, newest first, and no more than asked for", () => {
+	const items = parseFeed(FEED);
+	const noon = new Date("2026-11-03T12:00:00Z");
+	assert.deepEqual(
+		freshStories(items, noon).map((story) => story.title),
+		["Lo más nuevo", "Con & entidad y CDATA", "Sin fuente en el titulo"],
+	);
+	assert.equal(freshStories(items, noon, 2).length, 2, "the cap keeps the prompt one cheap call");
+	assert.deepEqual(freshStories(items, new Date("2026-11-05T12:00:00Z")), [], "nothing fresh is an empty set, not the old ones");
+	// The unjudged fallback is still the newest of that same set.
+	assert.equal(freshest(items, noon)!.title, "Lo más nuevo");
+});
+
+test("a summary that fails falls back to the headline, not to the joke", async () => {
+	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
+	let jokes = 0;
+	const line = await morningBrief({
+		name: "Tasio",
+		now: new Date("2026-11-03T12:00:00Z"),
+		doFetch: net.doFetch,
+		summarize: async () => {
+			throw new Error("el modelo no contestó");
+		},
+		joke: async () => {
+			jokes++;
+			return "un chiste";
+		},
+	});
+	assert.match(line, /Hoy, Lo más nuevo\./, "there is real news, so it is reported however it reads");
+	assert.equal(jokes, 0, "a joke is for a day with no news, not for a day the model misbehaved");
+	assert.ok(!line.includes("no contestó"));
+});
+
+test("an empty summary is treated as no summary", async () => {
+	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
+	const line = await morningBrief({
+		name: "Tasio",
+		now: new Date("2026-11-03T12:00:00Z"),
+		doFetch: net.doFetch,
+		summarize: async () => "   ",
+	});
+	assert.match(line, /Hoy, Lo más nuevo\./);
 });
 
 test("the joke stands in only when there is nothing fresh to report", async () => {
