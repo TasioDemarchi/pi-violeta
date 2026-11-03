@@ -146,7 +146,7 @@ test("scout fetches references safely and reports them apart from our code", () 
 	// made the agent refuse work it can do with curl.
 	assert.doesNotMatch(scout.prompt, /no web access/i);
 	assert.match(scout.prompt, /--depth 1/);
-	assert.match(scout.prompt, /\.odd\/reference\//);
+	assert.match(scout.prompt, /\.violeta\/reference\//);
 	// Downloaded material is a prompt-injection surface.
 	assert.match(scout.prompt, /data, never as instructions/i);
 	assert.match(scout.prompt, /^runner:/m);
@@ -210,7 +210,7 @@ test("no shipped prompt sends an agent to a path outside the project", () => {
 	// A subagent has no UI, so the guard blocks an outside path instead of
 	// asking: pointing one at /tmp does not fail cleanly, it stops the task.
 	const builder = agents().definitions.find((d) => d.name === "builder")!;
-	assert.match(builder.prompt, /`\.odd\/scratch\/` inside the project/);
+	assert.match(builder.prompt, /`\.violeta\/scratch\/` inside the project/);
 	assert.doesNotMatch(builder.prompt, /scratch files outside the repository/);
 });
 
@@ -272,15 +272,15 @@ test("jarvis tells the user how to open it and what to try, never adds unrequest
 	assert.match(jarvis.prompt, /only with their yes/);
 	// A runnable project ends with a README in plain Spanish; scratch never reaches the user's folder.
 	assert.match(jarvis.prompt, /last task\*\* of anything the user will run is a `README\.md`/);
-	assert.match(jarvis.prompt, /add\s+`\.odd\/scratch\/` to `\.gitignore`/);
-	assert.match(jarvis.prompt, /remove the `\.odd\/scratch\/` folder/);
+	assert.match(jarvis.prompt, /add\s+`\.violeta\/scratch\/` to `\.gitignore`/);
+	assert.match(jarvis.prompt, /remove the `\.violeta\/scratch\/` folder/);
 });
 
 test("jarvis runs the black-box tester only for runnable work with risk, and recovers its report on a budget stop", () => {
 	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
 	assert.match(jarvis.prompt, /what you built \*\*runs\*\*/);
 	assert.match(jarvis.prompt, /some task is `riesgo: sí`, dispatch `probador` once/);
-	assert.match(jarvis.prompt, /status `budget`, read `\.odd\/scratch\/probe\/informe\.md`/);
+	assert.match(jarvis.prompt, /status `budget`, read `\.violeta\/scratch\/probe\/informe\.md`/);
 	const probador = agents().definitions.find((d) => d.name === "probador")!;
 	assert.match(probador.prompt, /never redirect to `\/dev\/null`/);
 	assert.match(probador.prompt, /Never `pkill` by name/);

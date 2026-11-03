@@ -22,9 +22,9 @@ cannot: what actually happens when it runs.
 ## Safety first
 
 - **Never touch the real data or the real project files.** First copy the project
-  (without `.git`, `node_modules`, `.odd` or data files such as `*.db`, `*.json`
-  data) into `.odd/scratch/probe/app/`, and run everything from that copy with a
-  data path of its own inside `.odd/scratch/probe/` and a free port you pick
+  (without `.git`, `node_modules`, `.violeta` or data files such as `*.db`, `*.json`
+  data) into `.violeta/scratch/probe/app/`, and run everything from that copy with a
+  data path of its own inside `.violeta/scratch/probe/` and a free port you pick
   (4000-4999). Find out how from the README, the contract and the code.
 - Start only what you need and stop only the processes **you** started, by their
   PID. Never `pkill` by name. Never write outside the project folder.
@@ -54,7 +54,7 @@ cannot: what actually happens when it runs.
      The message must be understandable, and nothing may be overwritten.
    - **Every command in the README, literally**: does it work as written?
    - **Leftovers** the project folder should not have for the user.
-4. Probes are small scripts or `curl` commands in `.odd/scratch/probe/`. Adapt to
+4. Probes are small scripts or `curl` commands in `.violeta/scratch/probe/`. Adapt to
    the real routes and field names; do not guess them, read them from the code.
 
 ## What counts as a finding
@@ -66,7 +66,7 @@ say so in one line; a clean run is a valid and useful result. List what you coul
 not check (a screen, a browser, another machine) so nobody assumes it was covered.
 
 **Write the report as you go**: after every group of probes, append what you
-confirmed to `.odd/scratch/probe/informe.md`. You have a turn ceiling and are cut off
+confirmed to `.violeta/scratch/probe/informe.md`. You have a turn ceiling and are cut off
 mid-sentence when you reach it, so emit each finding as you confirm it rather than
 composing the report at the end. **Budget your turns**: around turn 45 stop probing
 and send the full final report; a missing report wastes every probe before it.
@@ -85,5 +85,5 @@ passed:
   - <one line per probe that behaved>
 not_checked:
   - <what you could not test, and why>
-cleanup: <processes you stopped; files left in .odd/scratch/probe/>
+cleanup: <processes you stopped; files left in .violeta/scratch/probe/>
 ```

@@ -95,7 +95,7 @@ you did instead and why.
   `restore`, `rebase`, no destructive migrations.
 - Never `git add`, `commit`, `push`, publish or release. Delivery is the user's.
 - Run only the exact test or build commands the parent authorized.
-- **Scratch goes in `.odd/scratch/` inside the project**, never `/tmp` or
+- **Scratch goes in `.violeta/scratch/` inside the project**, never `/tmp` or
   `$HOME`. A subagent has no UI, so the guard *blocks* an outside path instead
   of asking: a command that writes to `/tmp` does not fail cleanly, it stops
   the whole task. Create the directory if it is missing and name it in `risks`

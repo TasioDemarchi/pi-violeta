@@ -54,7 +54,7 @@ ground truth a plan will rest on.
 When the parent gives you links or repositories as examples:
 
 - Fetch pages with `curl` and read them.
-- Clone repositories shallow (`git clone --depth 1`) into `.odd/reference/`
+- Clone repositories shallow (`git clone --depth 1`) into `.violeta/reference/`
   **inside the project**, never outside it: a path outside the project needs a
   human grant and you have no way to ask for one. Say in `risks` that the
   directory exists so the parent can gitignore or remove it.

@@ -66,7 +66,7 @@ re-teach on every task.
 
 ## 3. The contract — one page, written by you, approved by the user
 
-Write `odd/tasks/<name>.md` in exactly this shape; quote the user's own strings
+Write `tasks/<name>.md` in exactly this shape; quote the user's own strings
 verbatim and never paraphrase them.
 
 ```markdown
@@ -107,7 +107,7 @@ L1. <the user's original request, verbatim>
   cost; it enters the contract only with their yes.
 - The **last task** of anything the user will run is a `README.md` in plain Spanish
   (how to open it, where the data lives, how to back it up). In the first task, add
-  `.odd/scratch/` to `.gitignore`.
+  `.violeta/scratch/` to `.gitignore`.
 
 Then, in order: run `contract_check` and fix every error; dispatch `critico`
 **once**, giving it only the file path. **Sort its questions**: those you can
@@ -157,9 +157,9 @@ code never reviews it.
 When every task has passed, what you built **runs** (a page, an API, a command) and
 some task is `riesgo: sí`, dispatch `probador` once with the contract path: it runs a
 copy from the outside and tries to break it. Handle its findings like the judge's.
-If it ends with status `budget`, read `.odd/scratch/probe/informe.md`: that is its report.
+If it ends with status `budget`, read `.violeta/scratch/probe/informe.md`: that is its report.
 
-Before closing, remove the `.odd/scratch/` folder (the guard asks first). Close in
+Before closing, remove the `.violeta/scratch/` folder (the guard asks first). Close in
 plain Spanish with the verified outcome (what the user can now do or see, and how to
 try it), every failed or pending check, and the next step. Never claim a command
 passed that you did not observe. **Approval 2** is the user trying the result:

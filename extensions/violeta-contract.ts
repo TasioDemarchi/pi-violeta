@@ -22,7 +22,7 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Lint a Jarvis contract file without calling any model: every spec has Accept and a runnable Check, every task cites existing specs with a test verdict and a risk flag, No-objetivos is not empty, L1 keeps the user's request, and an external system implies an S0/T0 spike. Run it on every contract draft before sending it to the critic.",
 		parameters: Type.Object({
-			path: Type.String({ description: "Path of the contract markdown file, relative to the project (usually odd/tasks/<name>.md)." }),
+			path: Type.String({ description: "Path of the contract markdown file, relative to the project (usually tasks/<name>.md)." }),
 		}),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			const file = resolve(ctx.cwd, params.path);

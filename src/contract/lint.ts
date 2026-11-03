@@ -4,7 +4,7 @@
  * ambiguous is the critic's job, but whether it HAS an acceptance criterion and
  * a runnable check is a fact a regex can establish for free.
  *
- * The contract format (one page, `odd/tasks/<name>.md`):
+ * The contract format (one page, `tasks/<name>.md`):
  *
  *   # <name>
  *   <one-line intent>

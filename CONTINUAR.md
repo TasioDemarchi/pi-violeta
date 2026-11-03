@@ -42,7 +42,7 @@ de una filosofía va a TypeScript. Lo que deba cumplirse siempre lo impone el ar
 | `src/` | Toda la lógica pura y testeable, sin terminal ni modelo |
 | `agents/` | 5 definiciones (el equipo de `jarvis`): modelo, razonamiento, techo de turnos y tokens, lista de herramientas |
 | `modes/` | `jarvis`, el modo por defecto y el único que queda; `raw` está integrado y siempre existe |
-| `odd/tasks/` | Contratos y planes. **Ahora sí versionado** (estaba en `.gitignore` y se habría perdido) |
+| `tasks/` | Contratos y planes. **Ahora sí versionado** (estaba en `.gitignore` y se habría perdido) |
 | `config/models.json` | Catálogo NaN: contextos, salidas máximas, resolución de la key con `jq` |
 
 ## 4. Qué está terminado y probado
@@ -62,7 +62,7 @@ de una filosofía va a TypeScript. Lo que deba cumplirse siempre lo impone el ar
 ## 5. Qué está a medias
 
 **El modo desatendido está a la mitad.** El plan completo vive en
-`odd/tasks/unattended-mode.md` (11 specs, 7 tareas, dos rondas de revisión).
+`tasks/unattended-mode.md` (11 specs, 7 tareas, dos rondas de revisión).
 Lo que existe: el guard ya bloquea en lugar de preguntar y deniega escrituras fuera del
 proyecto. Lo que **falta**: el comando `/unattended` y el módulo de estado
 (`src/unattended/state.ts`) — hoy nadie prende `getShared().unattended`, así que esa
@@ -156,7 +156,7 @@ completo, antes de escribir nada:
 1. CONTINUAR.md
 2. AGENTS.md
 3. README.md
-4. odd/tasks/unattended-mode.md   (el plan de lo único que está a medias)
+4. tasks/unattended-mode.md   (el plan de lo único que está a medias)
 
 Reglas para vos:
 - Hablás conmigo en español y me explicás en lenguaje natural, sin dar nada por
