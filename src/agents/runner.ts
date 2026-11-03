@@ -1,6 +1,6 @@
 /** Subagent runner: every task is its own child `pi --mode rpc` process fed
  * JSONL commands on stdin and reduced into the store from stdout events.
- * Neutral engine: no roles, no ODD, no philosophy — definitions come from
+ * Neutral engine: no roles, no philosophy — definitions come from
  * markdown files and every task is only what the caller asked for.
  *
  * Behavior:

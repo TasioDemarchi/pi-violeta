@@ -1,7 +1,7 @@
 /**
  * Subagent task store — the exact contract the violeta views (T2: card above
  * the editor and the alt+a overlay) consume. Neutral engine data only: no
- * roles, no ODD, no philosophy.
+ * roles, no philosophy.
  *
  * CONTRACT
  * ========

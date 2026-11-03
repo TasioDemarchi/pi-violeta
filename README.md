@@ -72,26 +72,24 @@ The engine is neutral, so a philosophy enters in exactly one place, as data: a m
 - The prompt is appended through `systemPromptOptions.appendSystemPrompt`, never by replacing `systemPrompt`: replacing would drop Pi's own tool and environment sections. Appending also keeps the cached prefix stable, so switching costs one cache miss rather than one per turn.
 - A mode file that fails to parse is reported, never swallowed: a session that quietly runs unguided is worse than one that says what broke.
 
-The repo ships four: **`odd`** (the default — proportional work, one feature document, ceilings, blind review), **`jarvis`** (contract first, two approvals, see below), **`scout`** (research and learning, read-only) and **`vault`** (notes and ideas, no code). `agents/` and `modes/` live in git and are synced into `~/.violeta/agent/` on every start, so the philosophy survives a reinstall; files you add there yourself are left alone.
+The repo ships one: **`jarvis`** (the default — contract first, two approvals, see below). Three earlier modes (`odd`, `scout`, `vault`) were removed once `jarvis` covered the work: a half-finished philosophy is a liability, since the mode decides how every task is run. `agents/` and `modes/` live in git and are synced into `~/.violeta/agent/` on every start, so the philosophy survives a reinstall; files you add there yourself are left alone.
 
 **No agent costs money** — Claude is reached only by raising the session model with `/models`. Everything runs on the flat-rate cluster, whose allowances are large enough that a heavy day of iterating spends a few percent of one pool. Roles are therefore assigned by fit, not by pool:
 
 | Role | Model | Chosen because |
 | :--- | :--- | :--- |
-| Orchestrator (`odd`) | `deepseek-v4-flash` | the one model with reports praising its natural-language handling, and ~3x the output speed, which matters while talking |
-| `architect` (specs, decomposition) | `deepseek-v4-flash` | judgment-heavy but unmetered; Claude is reached only by raising the session model |
-| `planner` (specs already clear) | `deepseek-v4-flash` | structures what was stated; GLM is reported not to reason holistically |
+| Orchestrator (`jarvis`) | `deepseek-v4-flash` | the one model with reports praising its natural-language handling, and ~3x the output speed, which matters while talking |
 | `scout` | `deepseek-v4-flash` | general workhorse, 1M context |
 | `builder` | `deepseek-v4-flash` | best of four in a replay of three real tasks (see Bake-off): fastest, fewest tokens, no false "completed" |
-| `judge-a` / `judge-b` | `glm5.3-flash` / `deepseek-v4-flash` | two different lineages, so agreement means something |
-| `fixer` | `qwen3.8-flash` | narrow and obedient; GLM is excluded here on purpose, since its reported failure is over-engineering and the fixer's cardinal sin is adding things |
-| `verifier` | `deepseek-v4-flash` | never the model that wrote the change |
+| `critico` | `qwen3.8-flash` | not the orchestrator's model, so it questions the contract instead of agreeing with its author |
+| `judge` | `qwen3.8-flash` | never the model that wrote the change |
+| `probador` | `deepseek-v4-flash` | it drives a running program over many turns, so speed is what it spends |
 
 `config/models.json` is the catalogue for the **nan_member** plan. `glm5.3` (as opposed to `glm5.3-flash`) belongs to the 200 EUR premium tier and is deliberately absent: a model that is real but out of plan fails at request time rather than at startup, so a test pins its absence.
 
 ## Jarvis
 
-`/mode jarvis` is the philosophy for work where the user decides and the agents execute. It is deliberately short (about 100 lines against ODD's 310) because everything that must always hold is code, not prose.
+`/mode jarvis` is the philosophy for work where the user decides and the agents execute. It is deliberately short (166 lines) because everything that must always hold is code, not prose.
 
 - **Flow:** understand (at most five questions, each with a recommended answer) -> one-page contract (`odd/tasks/<name>.md`) -> `contract_check` -> `critico` once -> **approval 1** -> `builder` per task, each `Check` re-run by the orchestrator -> `judge` only on `riesgo: sí` tasks -> **approval 2** (the user reads the result; commit is theirs).
 - **Roster:** `scout` (optional), `critico` (reads only the contract, at most seven closed questions, never rewrites), `builder`, `judge` (one independent reviewer; findings go to the user, who chooses what to fix) and `probador` (runs a copy of the finished program from the outside and tries to break it; only when the work runs something and a task is `riesgo: sí`; if it is cut at its ceiling, its progress file `.odd/scratch/probe/informe.md` is the report).

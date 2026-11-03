@@ -8,7 +8,7 @@
  *   delivered later as a custom message that starts a turn when idle)
  * - `subagent_status` / `subagent_result` / `subagent_cancel`
  *
- * The engine is neutral: no roles, no ODD, no philosophy. It ships no agent
+ * The engine is neutral: no roles, no philosophy. It ships no agent
  * definitions; users create their own markdown files.
  *
  * Views (the card above the editor and the alt+a overlay, built separately)

@@ -20,8 +20,8 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 	const dir = mkdtempSync(join(tmpdir(), "violeta-mode-"));
 	mkdirSync(join(dir, "modes"), { recursive: true });
 	writeFileSync(
-		join(dir, "modes", "odd.md"),
-		"---\nname: odd\ndescription: Organic Driven Development\nmodel: nan/glm5.3\nthinking: medium\nagents: [scout, builder]\n---\n\nWork proportionally.\n",
+		join(dir, "modes", "jarvis.md"),
+		"---\nname: jarvis\ndescription: You decide, Jarvis executes\nmodel: nan/glm5.3\nthinking: medium\nagents: [scout, builder]\n---\n\nWork proportionally.\n",
 	);
 	if (options.mode) writeFileSync(join(dir, "violeta.json"), JSON.stringify({ mode: options.mode, sidebar: true }));
 	process.env.PI_CODING_AGENT_DIR = dir;
@@ -71,10 +71,10 @@ function setup(options: { mode?: string; available?: Array<{ provider: string; i
 }
 
 test("session_start publishes the persisted mode and switches the session model", async () => {
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
-		assert.equal(getShared().activeMode, "odd");
+		assert.equal(getShared().activeMode, "jarvis");
 		assert.deepEqual(getShared().modeAgents, ["scout", "builder"]);
 		assert.deepEqual(h.setModels, [GLM]);
 		// Entering a mode is not a notification-worthy event; only an explicit
@@ -86,12 +86,12 @@ test("session_start publishes the persisted mode and switches the session model"
 });
 
 test("before_agent_start appends the mode prompt and never replaces the system prompt", async () => {
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
 		const event = { systemPrompt: "PI BASE PROMPT", systemPromptOptions: { appendSystemPrompt: "" } };
 		await h.fire("before_agent_start", event);
-		assert.match(event.systemPromptOptions.appendSystemPrompt, /Modo activo: odd/);
+		assert.match(event.systemPromptOptions.appendSystemPrompt, /Modo activo: jarvis/);
 		assert.match(event.systemPromptOptions.appendSystemPrompt, /Work proportionally\./);
 		// Replacing would drop Pi's own tool and environment sections.
 		assert.equal(event.systemPrompt, "PI BASE PROMPT");
@@ -101,7 +101,7 @@ test("before_agent_start appends the mode prompt and never replaces the system p
 });
 
 test("before_agent_start keeps an append already set by someone else", async () => {
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
 		const event = { systemPrompt: "base", systemPromptOptions: { appendSystemPrompt: "EARLIER" } };
@@ -116,7 +116,7 @@ test("raw exposes no agents and still names itself in the prompt", async () => {
 	// raw adds no rules, but it must still say which mode is active: a mode that
 	// contributes nothing leaves the model's earlier role unchallenged, which is
 	// exactly how /mode raw kept answering as scout.
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
 		await h.run("raw");
@@ -135,12 +135,12 @@ test("raw exposes no agents and still names itself in the prompt", async () => {
 test("switching announces the change in the conversation without costing a turn", async () => {
 	// The prompt swap alone is not enough: the model reads its own earlier turns
 	// and keeps playing the role they established.
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
 		await h.run("raw");
 		assert.equal(h.sent.length, 1);
-		assert.match(h.sent[0]!.content, /de "odd" a "raw"/);
+		assert.match(h.sent[0]!.content, /de "jarvis" a "raw"/);
 		assert.deepEqual(h.sent[0]!.options, { triggerTurn: false });
 	} finally {
 		h.cleanup();
@@ -148,10 +148,10 @@ test("switching announces the change in the conversation without costing a turn"
 });
 
 test("switching to the mode already active announces nothing", async () => {
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
-		await h.run("odd");
+		await h.run("jarvis");
 		assert.deepEqual(h.sent, []);
 	} finally {
 		h.cleanup();
@@ -159,26 +159,26 @@ test("switching to the mode already active announces nothing", async () => {
 });
 
 test("/mode with no argument reports the active mode and the catalogue", async () => {
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
 		await h.run("");
-		assert.match(h.notices.join("\n"), /Modo activo: odd/);
-		assert.match(h.notices.join("\n"), /odd, raw/);
-		assert.equal(getShared().activeMode, "odd");
+		assert.match(h.notices.join("\n"), /Modo activo: jarvis/);
+		assert.match(h.notices.join("\n"), /jarvis, raw/);
+		assert.equal(getShared().activeMode, "jarvis");
 	} finally {
 		h.cleanup();
 	}
 });
 
 test("an unknown mode is refused and leaves the active one untouched", async () => {
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
-		await h.run("vault");
-		assert.match(h.notices.join("\n"), /Modo desconocido "vault"/);
-		assert.equal(getShared().activeMode, "odd");
-		assert.equal(readActiveMode(join(h.dir, "violeta.json")), "odd");
+		await h.run("ghost");
+		assert.match(h.notices.join("\n"), /Modo desconocido "ghost"/);
+		assert.equal(getShared().activeMode, "jarvis");
+		assert.equal(readActiveMode(join(h.dir, "violeta.json")), "jarvis");
 	} finally {
 		h.cleanup();
 	}
@@ -190,8 +190,8 @@ test("a mode whose model is unavailable still activates, on the current model", 
 	const h = setup({ mode: "raw", available: [] });
 	try {
 		await h.fire("session_start");
-		await h.run("odd");
-		assert.equal(getShared().activeMode, "odd");
+		await h.run("jarvis");
+		assert.equal(getShared().activeMode, "jarvis");
 		assert.deepEqual(h.setModels, []);
 		assert.match(h.notices.join("\n"), /no está disponible/);
 	} finally {
@@ -200,12 +200,12 @@ test("a mode whose model is unavailable still activates, on the current model", 
 });
 
 test("an unreadable mode file is reported instead of silently leaving the session unguided", async () => {
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		writeFileSync(join(h.dir, "modes", "broken.md"), "no frontmatter");
 		await h.fire("session_start");
 		assert.match(h.notices.join("\n"), /No se pudo leer el modo/);
-		assert.equal(getShared().activeMode, "odd");
+		assert.equal(getShared().activeMode, "jarvis");
 	} finally {
 		h.cleanup();
 	}
@@ -215,8 +215,8 @@ test("a persisted mode that no longer exists falls back without crashing", async
 	const h = setup({ mode: "deleted-mode" });
 	try {
 		await h.fire("session_start");
-		// The default is odd and it exists here, so that is what it lands on.
-		assert.equal(getShared().activeMode, "odd");
+		// The default is jarvis and it exists here, so that is what it lands on.
+		assert.equal(getShared().activeMode, "jarvis");
 	} finally {
 		h.cleanup();
 	}
@@ -226,7 +226,7 @@ test("a mode pins the session's reasoning level on entering", async () => {
 	// More reasoning is not uniformly better: some models reach the right
 	// approach and reason themselves out of it at maximum effort, so the level
 	// is the mode's to own rather than whatever the last session left behind.
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
 		assert.deepEqual(h.thinkingLevels, ["medium"]);
@@ -236,7 +236,7 @@ test("a mode pins the session's reasoning level on entering", async () => {
 });
 
 test("a mode with no thinking level leaves the current one alone", async () => {
-	const h = setup({ mode: "odd" });
+	const h = setup({ mode: "jarvis" });
 	try {
 		await h.fire("session_start");
 		h.thinkingLevels.length = 0;

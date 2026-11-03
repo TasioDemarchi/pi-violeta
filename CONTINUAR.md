@@ -38,10 +38,10 @@ de una filosofía va a TypeScript. Lo que deba cumplirse siempre lo impone el ar
 | Dónde | Qué |
 |---|---|
 | `bin/violeta` | Lanzador: aísla `PI_CODING_AGENT_DIR`, siembra ajustes, sincroniza `config/models.json` y `agents/`+`modes/` en cada arranque |
-| `extensions/` | 13 extensiones: UI, agentes, guard, contrato, modos, jobs, todo, notify, paleta, cambios, modelos, voz |
+| `extensions/` | 14 extensiones: UI, agentes, guard, contrato, modos, jobs, todo, notify, paleta, cambios, modelos, voz, chat al margen, herramientas |
 | `src/` | Toda la lógica pura y testeable, sin terminal ni modelo |
-| `agents/` | 11 definiciones: modelo, razonamiento, techo de turnos y tokens, lista de herramientas |
-| `modes/` | `jarvis`, `odd`, `scout`, `vault`; `raw` está integrado y siempre existe |
+| `agents/` | 5 definiciones (el equipo de `jarvis`): modelo, razonamiento, techo de turnos y tokens, lista de herramientas |
+| `modes/` | `jarvis`, el modo por defecto y el único que queda; `raw` está integrado y siempre existe |
 | `odd/tasks/` | Contratos y planes. **Ahora sí versionado** (estaba en `.gitignore` y se habría perdido) |
 | `config/models.json` | Catálogo NaN: contextos, salidas máximas, resolución de la key con `jq` |
 
@@ -68,8 +68,10 @@ proyecto. Lo que **falta**: el comando `/unattended` y el módulo de estado
 (`src/unattended/state.ts`) — hoy nadie prende `getShared().unattended`, así que esa
 mitad está inerte. Tampoco está la propagación al proceso hijo (`VIOLETA_UNATTENDED`).
 
-**La filosofía está en discusión.** El dueño va a traer principios propios para
-reemplazar ODD. El motor no se toca: eso se escribe como un archivo más en `modes/`.
+**La filosofía está en discusión.** `odd`, `scout` y `vault` se borraron: estaban a
+medio hacer y el modo decide cómo se ejecuta cada tarea, así que uno incompleto es un
+riesgo, no una opción. Queda `jarvis`. Si el dueño trae principios propios, el motor no
+se toca: eso se escribe como un archivo más en `modes/`.
 
 ## 6. Trampas que ya costaron horas — no las reintroduzcas
 

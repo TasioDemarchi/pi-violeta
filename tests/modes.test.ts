@@ -6,11 +6,11 @@ import { join } from "node:path";
 import { findMode, listModes, modeExposes, parseMode, RAW_MODE } from "../src/modes/definitions.ts";
 import { DEFAULT_MODE, readActiveMode, writeActiveMode } from "../src/modes/state.ts";
 
-const ODD = `---
-name: odd
-description: Organic Driven Development
+const MODE = `---
+name: jarvis
+description: You decide, Jarvis executes
 model: nan/glm5.3
-agents: [scout, builder, verifier]
+agents: [scout, builder, probador]
 ---
 
 Work proportionally. Delegate only with a named reason.
@@ -21,35 +21,35 @@ function scratch(): string {
 }
 
 test("parseMode reads the frontmatter and keeps the body as the prompt", () => {
-	const mode = parseMode(ODD, "odd.md");
-	assert.equal(mode.name, "odd");
-	assert.equal(mode.description, "Organic Driven Development");
+	const mode = parseMode(MODE, "jarvis.md");
+	assert.equal(mode.name, "jarvis");
+	assert.equal(mode.description, "You decide, Jarvis executes");
 	assert.equal(mode.model, "nan/glm5.3");
-	assert.deepEqual(mode.agents, ["scout", "builder", "verifier"]);
+	assert.deepEqual(mode.agents, ["scout", "builder", "probador"]);
 	assert.equal(mode.prompt, "Work proportionally. Delegate only with a named reason.");
 });
 
 test("an absent agents list exposes every agent, a declared empty one exposes none", () => {
 	// The difference is a real choice: "I did not narrow the roster" is not the
 	// same statement as "this mode has no agents".
-	const open = parseMode(ODD.replace("agents: [scout, builder, verifier]\n", ""), "open.md");
+	const open = parseMode(MODE.replace("agents: [scout, builder, probador]\n", ""), "open.md");
 	assert.equal(open.agents, undefined);
 	assert.ok(modeExposes(open, "anything"));
 
-	const closed = parseMode(ODD.replace("agents: [scout, builder, verifier]", "agents:"), "closed.md");
+	const closed = parseMode(MODE.replace("agents: [scout, builder, probador]", "agents:"), "closed.md");
 	assert.deepEqual(closed.agents, []);
 	assert.ok(!modeExposes(closed, "scout"));
 });
 
 test("modeExposes honours the list and treats an unknown mode as unrestricted", () => {
-	const mode = parseMode(ODD, "odd.md");
+	const mode = parseMode(MODE, "jarvis.md");
 	assert.ok(modeExposes(mode, "scout"));
-	assert.ok(!modeExposes(mode, "architect"));
+	assert.ok(!modeExposes(mode, "ghost"));
 	assert.ok(modeExposes(undefined, "scout"));
 });
 
 test("parseMode rejects a file without a name", () => {
-	assert.throws(() => parseMode(ODD.replace("name: odd", "name:"), "bad.md"), /name/);
+	assert.throws(() => parseMode(MODE.replace("name: jarvis", "name:"), "bad.md"), /name/);
 });
 
 test("parseMode accepts a mode with no body, which is a mode that adds no prompt", () => {
@@ -70,10 +70,10 @@ test("listModes always offers raw, even with no modes directory", () => {
 test("listModes loads files, appends raw, and reports broken ones without dropping the rest", () => {
 	const dir = scratch();
 	try {
-		writeFileSync(join(dir, "odd.md"), ODD);
+		writeFileSync(join(dir, "jarvis.md"), MODE);
 		writeFileSync(join(dir, "broken.md"), "no frontmatter here");
 		const { modes, errors } = listModes(dir);
-		assert.deepEqual(modes.map((m) => m.name), ["odd", "raw"]);
+		assert.deepEqual(modes.map((m) => m.name), ["jarvis", "raw"]);
 		assert.equal(errors.length, 1);
 		assert.match(errors[0]!.source, /broken\.md$/);
 	} finally {
@@ -96,7 +96,7 @@ test("a raw.md in the catalogue replaces the built-in", () => {
 
 test("findMode returns undefined for an unknown name", () => {
 	const { modes } = listModes(join(scratch(), "nope"));
-	assert.equal(findMode(modes, "vault"), undefined);
+	assert.equal(findMode(modes, "ghost"), undefined);
 });
 
 test("the active mode defaults, round-trips, and preserves unrelated keys", () => {

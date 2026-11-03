@@ -10,7 +10,7 @@ interface VioletaConfig {
 	[key: string]: unknown;
 }
 
-export const DEFAULT_MODE = "odd";
+export const DEFAULT_MODE = "jarvis";
 
 /** The persisted mode name; a missing file, corrupt JSON or a non-string value
  * all mean the default. */
