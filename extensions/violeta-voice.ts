@@ -116,6 +116,64 @@ export default function (pi: ExtensionAPI) {
 		return groups;
 	}
 
+	/** The brief: gathered, written to the screen, and spoken when asked for.
+	 * Written either way, because the audio goes by once and a headline is
+	 * worth being able to re-read. */
+	async function runBrief(ctx: ExtensionContext, aloud: boolean): Promise<void> {
+		if (aloud && !enabled) {
+			enabled = true;
+			const path = configFile();
+			if (path) writeVoiceEnabled(path, enabled);
+		}
+		ctx.ui.notify(gm.working, "info");
+		const now = new Date();
+		try {
+			const brief = await morningBrief({
+				name: process.env.VIOLETA_OWNER_NAME || "Tachi",
+				now,
+				// Every fresh story goes in and the model picks: the feeds narrow the
+				// subject, they do not tell a development from a local course.
+				summarize: (stories) => oneLineFromModel(ctx, gm.newsPrompt(stories)),
+				joke: () =>
+					oneLineFromModel(ctx, gm.jokePrompt(now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }))),
+			});
+			ctx.ui.notify(brief.text, "info");
+			// One paragraph per sentence, so speak() synthesizes each on its own and
+			// the silence between them is measured. Not awaited, like every other
+			// spoken line: the editor stays free while it plays, and speak() reports
+			// its own failures.
+			if (aloud) void speak(ctx, brief.sentences.join("\n\n"), BRIEF_PAUSE_MS);
+		} catch (error) {
+			ctx.ui.notify(gm.failed(error instanceof Error ? error.message : String(error)), "warning");
+		}
+	}
+
+	/** The question every session opens with. The answer is the voice setting,
+	 * so this is also how the voice gets turned on and off day to day; the brief
+	 * follows either way, written when the answer is off.
+	 *
+	 * Escape answers nothing, and nothing is what happens: no feed is read, no
+	 * model is called. Someone who dismissed the question did not ask for a
+	 * brief, and `/goodmorn` is still there. */
+	async function askAndBrief(ctx: ExtensionContext): Promise<void> {
+		let choice: string | undefined;
+		try {
+			choice = await ctx.ui.select(gm.startupTitle, [gm.startupAloud, gm.startupSilent]);
+		} catch {
+			return;
+		}
+		if (choice !== gm.startupAloud && choice !== gm.startupSilent) return;
+		const aloud = choice === gm.startupAloud;
+		// The answer is remembered, so /voice reflects what was chosen here.
+		if (enabled !== aloud) {
+			enabled = aloud;
+			const path = configFile();
+			if (path) writeVoiceEnabled(path, enabled);
+			if (!enabled) await stopPlayback();
+		}
+		await runBrief(ctx, aloud);
+	}
+
 	/** One line from the session's own model, for the brief. Answers nothing on
 	 * any failure, including a reply that is all reasoning and no text: the
 	 * brief has a fallback for every line, and is better short than broken. */
@@ -199,6 +257,10 @@ export default function (pi: ExtensionAPI) {
 		lastSpokenKey = undefined;
 		if (ctx.mode !== "tui") return;
 
+		// The session opens with the question and then the brief. Not awaited: a
+		// dialog here would hold up every session_start handler behind it.
+		void askAndBrief(ctx);
+
 		pi.registerCommand("voice", {
 			description: t.description,
 			handler: async (args: string, commandCtx: ExtensionContext) => {
@@ -240,39 +302,9 @@ export default function (pi: ExtensionAPI) {
 		// joke (the one piece that needs a model) and reads the result aloud.
 		pi.registerCommand("goodmorn", {
 			description: gm.description,
-			handler: async (_args: string, commandCtx: ExtensionContext) => {
-				// The brief is meant to be heard, so the command turns the voice on
-				// and remembers it, exactly as `/voice on` would.
-				if (!enabled) {
-					enabled = true;
-					const path = configFile();
-					if (path) writeVoiceEnabled(path, enabled);
-				}
-				commandCtx.ui.notify(gm.working, "info");
-				const now = new Date();
-				try {
-					const brief = await morningBrief({
-						name: process.env.VIOLETA_OWNER_NAME || "Tachi",
-						now,
-						// Every fresh story goes in, and the model picks the one that
-						// matters here before summarizing it: relevance for Argentina is
-						// a judgement, and the feed is ordered by neither.
-						summarize: (stories) => oneLineFromModel(commandCtx, gm.newsPrompt(stories)),
-						joke: () =>
-							oneLineFromModel(commandCtx, gm.jokePrompt(now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }))),
-					});
-					// Written as well as spoken: the audio goes by once, and a headline
-					// is worth being able to re-read.
-					commandCtx.ui.notify(brief.text, "info");
-					// One paragraph per sentence, so speak() synthesizes each on its own
-					// and the silence between them is measured. Not awaited, like every
-					// other spoken line: the editor stays free while it plays, and
-					// speak() reports its own failures.
-					void speak(commandCtx, brief.sentences.join("\n\n"), BRIEF_PAUSE_MS);
-				} catch (error) {
-					commandCtx.ui.notify(gm.failed(error instanceof Error ? error.message : String(error)), "warning");
-				}
-			},
+			// Asked for by hand, the brief is meant to be heard: the command turns
+			// the voice on and remembers it, exactly as `/voice on` would.
+			handler: (_args: string, commandCtx: ExtensionContext) => runBrief(commandCtx, true),
 		});
 
 		pi.registerCommand("dictar", {

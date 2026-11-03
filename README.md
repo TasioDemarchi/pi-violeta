@@ -178,7 +178,12 @@ Players and recorders are programs already on the machine (`pw-play` or `aplay`;
 
 ## Morning brief
 
-`/goodmorn` turns the voice on if it is off (and remembers it, like `/voice on`), then says one line: the greeting the hour deserves, the time in words, the weather where you are, the day's headline, and "¿En qué trabajaremos hoy?". It is also written to the screen, because audio goes by once.
+Every new session opens with one question — **Parte de la mañana: "Con voz" or "Solo en pantalla"** — and then the brief: the greeting the hour deserves, the time in words, the weather where you are, the day's story, and "¿En qué trabajaremos hoy?".
+
+- The answer **is** the voice setting, so this is also how voice gets turned on and off day to day. Either way the brief is written to the screen, because audio goes by once and a headline is worth re-reading; "Solo en pantalla" skips the speaking, not the brief.
+- **Escape answers nothing, and nothing happens**: no feed is read and no model is called. Someone who dismissed the question did not ask for a brief.
+- The question is asked without blocking: a dialog awaited inside `session_start` would hold up every other extension's handler behind it.
+- **`/goodmorn`** runs the same brief by hand, always out loud, and turns the voice on like `/voice on`.
 
 - **Three services, no account and no key:** the city from your IP (`ifconfig.co`, then `ipwho.is`), the weather from Open-Meteo (a WMO code, translated to words in Spanish), the headlines from Google News' RSS feed for Argentina.
 - **Every clause is optional.** A service that fails drops its own clause: with no network at all the brief is still the greeting, the time and the question. It never says it has no data and never reads an error out loud.

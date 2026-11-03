@@ -314,6 +314,11 @@ const es = {
 	},
 	goodmorning: {
 		description: "Parte de la mañana: prende la voz y te lo dice (hora, clima y la noticia del día)",
+		// The question every session opens with. The options are the answer, so
+		// they say what happens, not just "sí" and "no".
+		startupTitle: "Parte de la mañana",
+		startupAloud: "Con voz",
+		startupSilent: "Solo en pantalla",
 		working: "Preparando el parte…",
 		failed: (message: string) => `No pude armar el parte: ${message}`,
 		// Model-facing, and in the dictionary because it decides the language of
@@ -686,6 +691,9 @@ const en: typeof es = {
 	},
 	goodmorning: {
 		description: "Morning brief: turns voice on and reads it out (the time, the weather and the day's headline)",
+		startupTitle: "Morning brief",
+		startupAloud: "Out loud",
+		startupSilent: "On screen only",
 		working: "Putting the brief together…",
 		failed: (message: string) => `I could not put the brief together: ${message}`,
 		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>

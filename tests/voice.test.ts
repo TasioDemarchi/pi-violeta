@@ -139,6 +139,8 @@ function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
 		registerCommand: (name: string, c: { handler: (a: string, c: unknown) => Promise<void> }) => commands.set(name, c),
 	} as never);
 	const notes: string[] = [];
+	const selects: string[] = [];
+	let choice: string | undefined = "Cancelar";
 	const branch = [{ id: "m1", type: "message", message: { role: "assistant", content: [{ type: "text", text: "Hecho.\n\nVoz: Terminé, probalo." }] } }];
 	// The brief asks the session's model for a joke, but only when the feed has
 	// nothing fresh, so the fake records every prompt it is given.
@@ -147,7 +149,16 @@ function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
 	let newsAnswer: unknown = { content: "Hoy el dólar se quedó quieto" };
 	const ctx = {
 		mode: "tui",
-		ui: { notify: (text: string) => notes.push(text), setEditorText: () => {}, select: async () => "Cancelar" },
+		ui: {
+			notify: (text: string) => notes.push(text),
+			setEditorText: () => {},
+			// "Cancelar" is not one of the brief's two answers, so by default every
+			// test starts a session that asks and is dismissed: no feed, no model.
+			select: async (title: string) => {
+				selects.push(title);
+				return choice;
+			},
+		},
 		sessionManager: { getBranch: () => branch },
 		model: { provider: "nan", id: "test-model" },
 		modelRegistry: {
@@ -165,7 +176,10 @@ function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
 		answer = value;
 		newsAnswer = value;
 	};
-	return { fire, commands, notes, ctx, marker, agentDir, completions, setAnswer };
+	const setChoice = (value: string | undefined) => {
+		choice = value;
+	};
+	return { fire, commands, notes, ctx, marker, agentDir, completions, setAnswer, selects, setChoice };
 }
 
 test("voice off: the prompt is untouched, nothing is fetched, nothing is played", async () => {
@@ -522,6 +536,75 @@ test("a model that fails costs the joke, and the brief is still said", async () 
 		assert.match(line, /^Buen[oa]s (días|tardes|noches) Tachi\./, "called by name, with no title in front of it");
 		assert.match(line, /¿En qué trabajaremos hoy\?$/);
 		assert.ok(!line.includes("dijo no"), "an error is never read out loud");
+	} finally {
+		globalThis.fetch = realFetch;
+	}
+});
+
+// --- The brief at the start of a session -----------------------------------
+
+test("a new session asks first, and with voice chosen it says the brief and remembers the choice", async () => {
+	const env = setup(false);
+	env.setChoice("Con voz");
+	const realFetch = globalThis.fetch;
+	const spoken: string[] = [];
+	globalThis.fetch = briefNetwork(feedWith("Nvidia subió los precios - Clarín", new Date()), spoken);
+	try {
+		await env.fire("session_start");
+		for (let i = 0; i < 80 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+		assert.deepEqual(env.selects, ["Parte de la mañana"], "asked once, before anything was fetched or said");
+		assert.ok(existsSync(env.marker), "the player ran");
+		assert.match(spoken.join(" "), /^Buen[oa]s (días|tardes|noches) Tachi\./);
+		assert.equal(readVoiceEnabled(join(env.agentDir, "violeta.json")), true, "the answer is the voice setting");
+	} finally {
+		globalThis.fetch = realFetch;
+	}
+});
+
+test("choosing the screen writes the brief, says nothing, and leaves the voice off", async () => {
+	// The news is worth reading even when it is not worth hearing, so the brief
+	// still runs; what the answer turns off is the voice.
+	const env = setup(true);
+	env.setChoice("Solo en pantalla");
+	const realFetch = globalThis.fetch;
+	const spoken: string[] = [];
+	globalThis.fetch = briefNetwork(feedWith("Steam bajó los precios - Infobae", new Date()), spoken);
+	try {
+		await env.fire("session_start");
+		for (let i = 0; i < 80 && !env.notes.some((note) => note.includes("Tachi")); i++) {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+		assert.ok(
+			env.notes.some((note) => /^Buen[oa]s (días|tardes|noches) Tachi\./.test(note)),
+			`the brief is written: ${JSON.stringify(env.notes)}`,
+		);
+		await new Promise((resolve) => setTimeout(resolve, 150));
+		assert.deepEqual(spoken, [], "nothing was synthesized");
+		assert.equal(existsSync(env.marker), false, "and nothing was played");
+		assert.equal(readVoiceEnabled(join(env.agentDir, "violeta.json")), false, "the voice was turned off, as answered");
+	} finally {
+		globalThis.fetch = realFetch;
+	}
+});
+
+test("dismissing the question costs nothing: no feed, no model, no sound", async () => {
+	// Someone who pressed escape did not ask for a brief, and a brief is three
+	// network calls and a model call.
+	const env = setup(false);
+	env.setChoice(undefined);
+	const realFetch = globalThis.fetch;
+	let touched = 0;
+	globalThis.fetch = (async () => {
+		touched++;
+		throw new Error("a dismissed question must not touch the network");
+	}) as unknown as typeof fetch;
+	try {
+		await env.fire("session_start");
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		assert.deepEqual(env.selects, ["Parte de la mañana"], "it did ask");
+		assert.equal(touched, 0);
+		assert.deepEqual(env.completions, []);
+		assert.deepEqual(env.notes, [], "not even a notice");
 	} finally {
 		globalThis.fetch = realFetch;
 	}
