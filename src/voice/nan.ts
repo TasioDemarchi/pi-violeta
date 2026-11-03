@@ -9,12 +9,13 @@ export interface VoiceConfig {
 	ttsModel: string;
 	sttModel: string;
 	voice: string;
-	/** Speaking rate: 1 is the model's pace, lower is slower. */
+	/** Speaking rate: 1 is the model's pace, lower is slower. Slowing it down is
+	 * what makes a small TTS sound synthetic, so the default stays at 1. */
 	speed: number;
 	timeoutMs: number;
 }
 
-export const DEFAULT_SPEED = 0.85;
+export const DEFAULT_SPEED = 1;
 export const MIN_SPEED = 0.5;
 export const MAX_SPEED = 1.3;
 
@@ -28,7 +29,10 @@ export function voiceConfigFromEnv(env: NodeJS.ProcessEnv = process.env): VoiceC
 		baseUrl: (env.VIOLETA_VOICE_BASE_URL || "https://api.nan.builders/v1").replace(/\/+$/, ""),
 		ttsModel: env.VIOLETA_VOICE_TTS_MODEL || "kokoro",
 		sttModel: env.VIOLETA_VOICE_STT_MODEL || "whisper",
-		voice: env.VIOLETA_VOICE_NAME || "ef_dora",
+		// kokoro takes a blend with weights, and the owner picked one by ear over
+		// each single voice: two parts of the Spanish female, one of the male. The
+		// parentheses are the service's own syntax, not a typo.
+		voice: env.VIOLETA_VOICE_NAME || "ef_dora(2)+em_alex(1)",
 		speed: clampSpeed(Number(env.VIOLETA_VOICE_SPEED), DEFAULT_SPEED),
 		timeoutMs: 60_000,
 	};

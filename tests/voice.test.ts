@@ -76,7 +76,10 @@ test("synthesize posts the speech request and returns the audio", async () => {
 	assert.equal(audio.length, 200);
 	assert.equal(seen!.url, "https://api.nan.builders/v1/audio/speech");
 	const body = JSON.parse(String(seen!.init.body));
-	assert.deepEqual([body.model, body.input, body.response_format, body.speed], ["kokoro", "hola", "pcm", 0.85]);
+	assert.deepEqual(
+		[body.model, body.input, body.response_format, body.speed, body.voice],
+		["kokoro", "hola", "pcm", 1, "ef_dora(2)+em_alex(1)"],
+	);
 	assert.equal((seen!.init.headers as Record<string, string>).Authorization, "Bearer secret");
 });
 
@@ -241,10 +244,10 @@ test("subagent children register nothing", () => {
 	assert.equal(registered, 0);
 });
 
-test("speed defaults to a calm pace and is clamped to what the service accepts", () => {
-	assert.equal(voiceConfigFromEnv({}).speed, 0.85);
+test("speed defaults to the model's own pace and is clamped to what the service accepts", () => {
+	assert.equal(voiceConfigFromEnv({}).speed, 1);
 	assert.equal(voiceConfigFromEnv({ VIOLETA_VOICE_SPEED: "0.7" }).speed, 0.7);
-	assert.equal(voiceConfigFromEnv({ VIOLETA_VOICE_SPEED: "abc" }).speed, 0.85);
+	assert.equal(voiceConfigFromEnv({ VIOLETA_VOICE_SPEED: "abc" }).speed, 1);
 	assert.equal(clampSpeed(9, 0.85), 1.3);
 	assert.equal(clampSpeed(0.1, 0.85), 0.5);
 });

@@ -288,7 +288,7 @@ const es = {
 		} as Record<string, string>,
 	},
 	voice: {
-		description: "Activa o desactiva la voz: Jarvis te explica en voz alta, en modo didáctico (/voice on|off, completo|resumen, speed 0.85)",
+		description: "Activa o desactiva la voz: Jarvis te explica en voz alta, en modo didáctico (/voice on|off, completo|resumen, speed 1)",
 		usage: "uso: /voice [on|off], /voice completo|resumen o /voice speed <velocidad>",
 		modeFull: "Voz en modo completo: se lee toda la respuesta (sin el código ni las tablas, que quedan en pantalla).",
 		modeSummary: "Voz en modo resumen: se lee solo un guion corto que escribe Jarvis.",
@@ -629,7 +629,7 @@ const en: typeof es = {
 		} as Record<string, string>,
 	},
 	voice: {
-		description: "Turn voice on or off: Jarvis teaches aloud (/voice on|off, completo|resumen, speed 0.85)",
+		description: "Turn voice on or off: Jarvis teaches aloud (/voice on|off, completo|resumen, speed 1)",
 		usage: "usage: /voice [on|off], /voice completo|resumen or /voice speed <rate>",
 		modeFull: "Voice in full mode: the whole reply is read (code and tables stay on screen).",
 		modeSummary: "Voice in summary mode: only a short script written by Jarvis is read.",
