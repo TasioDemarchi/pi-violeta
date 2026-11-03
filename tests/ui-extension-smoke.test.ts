@@ -185,3 +185,29 @@ for (const sidebar of [false, true]) {
 		}
 	});
 }
+
+// Without a rule under it the header's last line and the chat's first one sit
+// one row apart in the same colors, and the eye reads them as one block.
+test("a faint divider closes the header so it does not blend into the chat", async () => {
+	const env = setup(false);
+	const footer = await start(env);
+	try {
+		const roles: string[] = [];
+		const theme = {
+			fg: (role: string, text: string) => {
+				roles.push(role);
+				return text;
+			},
+			bold: (text: string) => text,
+		};
+		env.getHeader()!(env.tui, theme);
+		const node = (env.root[NODE] as () => Node)();
+		const lines = node.entries[0]!.component.render(24);
+		assert.equal(lines.length, 2, "title plus divider");
+		assert.match(lines[0]!, /violeta/);
+		assert.equal(lines[1], "─".repeat(24), "the divider spans the whole width");
+		assert.ok(roles.includes("borderMuted"), "drawn in the faintest border color");
+	} finally {
+		(footer as unknown as { dispose?(): void }).dispose?.();
+	}
+});

@@ -37,7 +37,7 @@ export default function (pi: ExtensionAPI) {
 	let sidebarComponent: Component | undefined;
 	/** Header lines, drawn by the pinned layout in fullscreen and by Pi's own
 	 * (scrolling) header container everywhere else. */
-	let headerLines: (() => string[]) | undefined;
+	let headerLines: ((width: number) => string[]) | undefined;
 	let layoutPinned = false;
 	let sidebarEnabled = false;
 	/** Last sidebar-active value published to the shared hub. */
@@ -147,7 +147,7 @@ export default function (pi: ExtensionAPI) {
 	// sidebar still gets the full height beside it. Outside fullscreen the header
 	// lives in the terminal's own scrollback and cannot be pinned.
 	const pinnedHeader: Component = {
-		render: () => headerLines?.() ?? [],
+		render: (width: number) => headerLines?.(width) ?? [],
 		invalidate() {},
 	};
 
@@ -351,7 +351,7 @@ export default function (pi: ExtensionAPI) {
 			// The active mode is always on screen: a philosophy you cannot see is one
 			// you cannot trust, and knowing which one is running is the difference
 			// between a surprising answer and an expected one.
-			const lines = (): string[] => {
+			const lines = (width: number): string[] => {
 				const mode = getShared().activeMode;
 				return [
 					theme.fg("borderAccent", "▍") +
@@ -360,6 +360,10 @@ export default function (pi: ExtensionAPI) {
 						theme.fg("dim", ` · pi ${VERSION}`) +
 						(mode ? theme.fg("accent", ` · ${mode}`) : "") +
 						(getShared().unattended ? theme.fg("warning", ` · ${uiT.unattendedLabel}`) : ""),
+					// A rule under the header, in the faintest border color: without it
+					// the title line and the first line of the conversation read as one
+					// block. Full width so it reads as the edge of a region, not as text.
+					theme.fg("borderMuted", "─".repeat(Math.max(1, width))),
 				];
 			};
 			headerLines = lines;
@@ -367,7 +371,7 @@ export default function (pi: ExtensionAPI) {
 				invalidate() {},
 				// Pinned: the layout draws it above the transcript; drawing it here too
 				// would show it twice.
-				render: () => (layoutPinned && tuiRef?.mode === "fullscreen" ? [] : lines()),
+				render: (width: number) => (layoutPinned && tuiRef?.mode === "fullscreen" ? [] : lines(width)),
 			};
 		});
 
