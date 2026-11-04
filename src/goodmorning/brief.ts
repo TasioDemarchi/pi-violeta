@@ -16,7 +16,7 @@
 
 import { briefSentences } from "./greeting.ts";
 import { goodmorning as gm } from "../i18n.ts";
-import { type Fetch, type Headline, fetchNews, fetchPlace, fetchWeather, freshStories, headlineLine, skyFor } from "./sources.ts";
+import { type Fetch, type Headline, fetchNews, fetchPlace, fetchWeather, fitsBriefLanguage, freshStories, headlineLine, skyFor } from "./sources.ts";
 
 export interface Choice {
 	/** The sentence to say. */
@@ -56,14 +56,15 @@ export async function gatherFacts(now: Date, doFetch: Fetch = fetch, alreadySaid
 	const news = fetchNews(doFetch);
 	const place = await fetchPlace(doFetch);
 	const weather = place ? await fetchWeather(place.latitude, place.longitude, doFetch) : undefined;
-	// Told stories go before the cap, not after: otherwise five already-heard
-	// ones would fill the eight slots and crowd out what is new.
+	// Told stories and foreign ones go before the cap, not after: otherwise
+	// five already-heard headlines would fill the eight slots and crowd out
+	// what is new.
 	const told = new Set(alreadySaid);
 	return {
 		place: place?.city,
 		tempC: weather?.tempC,
 		sky: skyFor(weather?.code),
-		stories: freshStories((await news).filter((story) => !told.has(story.title)), now),
+		stories: freshStories((await news).filter((story) => !told.has(story.title) && fitsBriefLanguage(story.title)), now),
 	};
 }
 

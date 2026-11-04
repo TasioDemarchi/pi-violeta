@@ -15,6 +15,7 @@ import {
 	fetchNews,
 	fetchPlace,
 	fetchWeather,
+	fitsBriefLanguage,
 	freshStories,
 	freshest,
 	headlineLine,
@@ -436,6 +437,56 @@ test("the brief reports which story it told, so the caller can remember it", asy
 	// With no model at all the fallback headline is what was said, and it is
 	// exactly what must not come up again.
 	assert.equal((await run(undefined)).saidTitle, "Lo más nuevo");
+});
+
+test("a headline the brief cannot say in Spanish is not even a candidate", () => {
+	// The ten real headlines the feed served over the two mornings this failed.
+	const foreign = [
+		"OpenAI launches Pando, a tool to make Git faster in the age of AI",
+		"Supermicro to pair SambaNova's SN50 chips with Nvidia GPUs for AI inference",
+		"Nvidia RTX 5080 Super leak points to 24 GB of VRAM",
+		"Valve bans a Russian adult game from Steam",
+	];
+	const ours = [
+		"Supermicro combinará chips SN50 de SambaNova con GPU de Nvidia para inferencia de IA",
+		"OpenAI usó GPT-6 Astra para diseñar un dispositivo de hardware",
+		"Steam ya tarda hasta 12 días hábiles en aprobar un juego, y los estudios culpan a la IA",
+		"[Análisis] The Legend of Zelda: Ocarina of Time para Nintendo Switch 2",
+		"Nintendo compensa a los jugadores de Kirby Air Riders tras cancelar el evento de Halloween",
+	];
+	for (const title of foreign) assert.equal(fitsBriefLanguage(title), false, title);
+	for (const title of ours) assert.equal(fitsBriefLanguage(title), true, title);
+	// In English mode the test is the mirror image, so the brief is never
+	// foreign to itself in either language.
+	try {
+		setLanguage("en");
+		for (const title of foreign) assert.equal(fitsBriefLanguage(title), true, title);
+		for (const title of ours) assert.equal(fitsBriefLanguage(title), false, title);
+	} finally {
+		setLanguage("es");
+	}
+});
+
+test("with nothing left to say in Spanish, the day's line is the joke", async () => {
+	const english = [
+		"<item><title>OpenAI launches Pando, a tool to make Git faster - The Verge</title><pubDate>Mon, 03 Nov 2026 11:00:00 GMT</pubDate></item>",
+		"<item><title>Nvidia RTX 5080 Super leak points to 24 GB of VRAM - Tom's Hardware</title><pubDate>Mon, 03 Nov 2026 10:00:00 GMT</pubDate></item>",
+	].join("");
+	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(`<rss><channel>${english}</channel></rss>`)]]);
+	let summarized = 0;
+	const brief = await morningBrief({
+		name: "T",
+		now: new Date("2026-11-03T12:00:00Z"),
+		doFetch: net.doFetch,
+		summarize: async () => {
+			summarized++;
+			return { line: "Hoy pasó algo", index: 1 };
+		},
+		joke: async () => "una línea graciosa",
+	});
+	assert.equal(summarized, 0, "a model is not paid to choose among stories that cannot be said");
+	assert.match(brief.text, /una línea graciosa\./);
+	assert.ok(!brief.text.includes("Pando"), "and no English headline survives to the ear");
 });
 
 test("a sentence in another language is not said: the chosen story is read instead", async () => {

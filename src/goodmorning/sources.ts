@@ -19,7 +19,7 @@
  * and a dependency for that is one more thing to keep working.
  */
 
-import { goodmorning as gm } from "../i18n.ts";
+import { getLanguage, goodmorning as gm } from "../i18n.ts";
 
 /** Long enough to survive a slow morning, short enough that a hung service
  * does not hold the greeting. */
@@ -204,6 +204,25 @@ export function parseFeed(xml: string): Headline[] {
 		items.push({ title: bare, source: split ? split[2]!.trim() : undefined, at, related });
 	}
 	return items.sort((a, b) => b.at.getTime() - a.at.getTime());
+}
+
+/** Words and characters that no English headline carries and that almost
+ * every Spanish one does. Ambiguous short words that are also English words
+ * ("son", "al", "ya", "no") are deliberately left out: a false positive would
+ * let an English headline through, which is the whole thing being prevented. */
+const SPANISH_MARKERS =
+	/[ñáéíóúü¿¡]|\b(?:de|del|la|el|los|las|un|una|unos|unas|que|para|con|por|más|pero|como|tras|sobre|sin|hasta|desde|su|sus|este|esta|estos|estas|ser|hacer|tiene|llega|lanza)\b/i;
+
+/** Whether a headline is in the language the brief speaks.
+ *
+ * The feed is asked in Spanish for Argentina and still answers with English
+ * headlines about AI and hardware, which the brief then read aloud in the
+ * middle of a Spanish sentence. A story the brief cannot say in its own
+ * language is not a candidate: it is dropped before the model ever sees it,
+ * so neither the summary nor the headline fallback can be foreign. */
+export function fitsBriefLanguage(title: string): boolean {
+	const spanish = SPANISH_MARKERS.test(title);
+	return getLanguage() === "es" ? spanish : !spanish;
 }
 
 /** How many stories are offered for the one that matters here to be picked
