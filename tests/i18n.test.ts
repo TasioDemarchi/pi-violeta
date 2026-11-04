@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agents, btw, changes, context, goodmorning, usage, guard, guardReasons, jobs, models, notify, palette, sidebar, todo, ui, activity, getLanguage, setLanguage } from "../src/i18n.ts";
+import { agents, btw, changes, context, usage, guard, guardReasons, jobs, models, notify, palette, sidebar, todo, ui, activity, getLanguage, setLanguage } from "../src/i18n.ts";
 
 test("agents card title pluralizes activos/terminados and adds fallidos only when present", () => {
 	setLanguage("es");
@@ -117,9 +117,7 @@ test("the language defaults to es and setLanguage/getLanguage round-trip", () =>
 function candidateArgs(arity: number): unknown[][] {
 	switch (arity) {
 		case 0: return [[]];
-		// The last shape is a list of stories, which is what goodmorning.newsPrompt
-		// takes; without it the walker cannot exercise that entry at all.
-		case 1: return [[5], ["sample"], [["a", "b"]], [[{ title: "a", related: ["b"] }]]];
+		case 1: return [[5], ["sample"], [["a", "b"]]];
 		case 2: return [[5, ["a", "b"]], ["sample", ["a", "b"]], [5, "sample"], ["a", "b"]];
 		case 3: return [[1, 2, 3]];
 		case 4: return [[1, 2, 3, "sample"]];
@@ -170,7 +168,6 @@ function snapshot(): Record<string, Record<string, unknown>> {
 		guardReasons: { ...guardReasons },
 		guard: { ...guard },
 		btw: { ...btw },
-		goodmorning: { ...goodmorning },
 		agents: { ...agents },
 		changes: { ...changes },
 		todo: { ...todo },

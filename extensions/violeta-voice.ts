@@ -23,10 +23,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { blocksText } from "../src/btw/request.ts";
-import { goodmorning as gm, voice as t } from "../src/i18n.ts";
-import { morningBrief, parseChoice } from "../src/goodmorning/brief.ts";
-import { readSaidStories, rememberSaidStory } from "../src/goodmorning/said.ts";
+import { voice as t } from "../src/i18n.ts";
 import { pickPlayer, pickRecorder, run, type Running } from "../src/voice/devices.ts";
 import { MAX_SPEED, MIN_SPEED, clampSpeed, joinAsWav, readApiKey, synthesize, transcribe, voiceConfigFromEnv, type VoiceConfig } from "../src/voice/nan.ts";
 import { LISTEN_PROMPT, VOICE_PROMPT, extractFull, extractSpoken } from "../src/voice/spoken.ts";
@@ -49,10 +46,6 @@ export default function (pi: ExtensionAPI) {
 	};
 	/** Pause between paragraphs, so each step of an explanation lands before the next. */
 	const PARAGRAPH_PAUSE_MS = 700;
-	/** The brief's own pause, between its sentences. Shorter than a paragraph's:
-	 * these are five short sentences, not the steps of an explanation. Chosen by
-	 * ear against 400, 500 and 650. */
-	const BRIEF_PAUSE_MS = 450;
 	/** Paragraphs synthesized at once: enough to start fast, few enough not to hit NaN's limits. */
 	const PARALLEL = 3;
 	const voiceConfig = (): VoiceConfig => {
@@ -117,94 +110,7 @@ export default function (pi: ExtensionAPI) {
 		return groups;
 	}
 
-	/** The brief: gathered, written to the screen, and spoken when asked for.
-	 * Written either way, because the audio goes by once and a headline is
-	 * worth being able to re-read. */
-	async function runBrief(ctx: ExtensionContext, aloud: boolean): Promise<void> {
-		if (aloud && !enabled) {
-			enabled = true;
-			const path = configFile();
-			if (path) writeVoiceEnabled(path, enabled);
-		}
-		ctx.ui.notify(gm.working, "info");
-		const now = new Date();
-		const path = configFile();
-		try {
-			const brief = await morningBrief({
-				name: process.env.VIOLETA_OWNER_NAME || "Tachi",
-				now,
-				// What was already told is not offered again: the feed barely moves in
-				// an hour and the model is deterministic, so without this a second
-				// session repeats the first one word for word.
-				alreadySaid: path ? readSaidStories(path) : [],
-				// Every fresh story goes in and the model picks: the feeds narrow the
-				// subject, they do not tell a development from a local course.
-				summarize: async (stories) => {
-					const answer = await oneLineFromModel(ctx, gm.newsPrompt(stories));
-					return answer === undefined ? undefined : parseChoice(answer, stories.length);
-				},
-				joke: () =>
-					oneLineFromModel(ctx, gm.jokePrompt(now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }))),
-			});
-			if (path && brief.saidTitle) rememberSaidStory(path, brief.saidTitle);
-			ctx.ui.notify(brief.text, "info");
-			// One paragraph per sentence, so speak() synthesizes each on its own and
-			// the silence between them is measured. Not awaited, like every other
-			// spoken line: the editor stays free while it plays, and speak() reports
-			// its own failures.
-			if (aloud) void speak(ctx, brief.sentences.join("\n\n"), BRIEF_PAUSE_MS);
-		} catch (error) {
-			ctx.ui.notify(gm.failed(error instanceof Error ? error.message : String(error)), "warning");
-		}
-	}
-
-	/** The question every session opens with. The answer is the voice setting,
-	 * so this is also how the voice gets turned on and off day to day; the brief
-	 * follows either way, written when the answer is off.
-	 *
-	 * Escape answers nothing, and nothing is what happens: no feed is read, no
-	 * model is called. Someone who dismissed the question did not ask for a
-	 * brief, and `/goodmorn` is still there. */
-	async function askAndBrief(ctx: ExtensionContext): Promise<void> {
-		let choice: string | undefined;
-		try {
-			choice = await ctx.ui.select(gm.startupTitle, [gm.startupAloud, gm.startupSilent]);
-		} catch {
-			return;
-		}
-		if (choice !== gm.startupAloud && choice !== gm.startupSilent) return;
-		const aloud = choice === gm.startupAloud;
-		// The answer is remembered, so /voice reflects what was chosen here.
-		if (enabled !== aloud) {
-			enabled = aloud;
-			const path = configFile();
-			if (path) writeVoiceEnabled(path, enabled);
-			if (!enabled) await stopPlayback();
-		}
-		await runBrief(ctx, aloud);
-	}
-
-	/** One line from the session's own model, for the brief. Answers nothing on
-	 * any failure, including a reply that is all reasoning and no text: the
-	 * brief has a fallback for every line, and is better short than broken. */
-	async function oneLineFromModel(ctx: ExtensionContext, prompt: string): Promise<string | undefined> {
-		const model = ctx.model;
-		if (!model) return undefined;
-		try {
-			const answer = await ctx.modelRegistry.complete(model, {
-				messages: [{ role: "user", content: prompt, timestamp: Date.now() }],
-			});
-			if (answer?.errorMessage) return undefined;
-			// blocksText is the same reader /btw uses for a reply's text; it is
-			// generic and tested, so it is imported rather than copied.
-			const text = blocksText(answer?.content).trim();
-			return text === "" ? undefined : text;
-		} catch {
-			return undefined;
-		}
-	}
-
-	async function speak(ctx: ExtensionContext, text: string, pauseMs: number = PARAGRAPH_PAUSE_MS): Promise<void> {
+	async function speak(ctx: ExtensionContext, text: string): Promise<void> {
 		const apiKey = key();
 		if (!apiKey) return warnOnce(ctx, "key", t.noKey);
 		await stopPlayback();
@@ -241,10 +147,10 @@ export default function (pi: ExtensionAPI) {
 				cursor += group.length;
 				if (mine !== generation) return;
 				const file = join(dir, `voz-${cursor}.wav`);
-				writeFileSync(file, joinAsWav(pieces as Buffer[], pauseMs));
+				writeFileSync(file, joinAsWav(pieces as Buffer[], PARAGRAPH_PAUSE_MS));
 				const player = pickPlayer(file);
 				if (!player) return warnOnce(ctx, "player", t.noPlayer);
-				if (!first) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+				if (!first) await new Promise((resolve) => setTimeout(resolve, PARAGRAPH_PAUSE_MS));
 				first = false;
 				if (mine !== generation) return;
 				const running = run(player, (message) => warnOnce(ctx, "player", t.playerFailed(message)));
@@ -266,10 +172,6 @@ export default function (pi: ExtensionAPI) {
 		warned = new Set();
 		lastSpokenKey = undefined;
 		if (ctx.mode !== "tui") return;
-
-		// The session opens with the question and then the brief. Not awaited: a
-		// dialog here would hold up every session_start handler behind it.
-		void askAndBrief(ctx);
 
 		pi.registerCommand("voice", {
 			description: t.description,
@@ -305,16 +207,6 @@ export default function (pi: ExtensionAPI) {
 				if (!enabled) await stopPlayback();
 				commandCtx.ui.notify(enabled ? t.enabled : t.disabled, "info");
 			},
-		});
-
-		// `/goodmorn` — the morning brief, spoken. The facts and the decision of
-		// what the day's line is live in src/goodmorning/; this only supplies the
-		// joke (the one piece that needs a model) and reads the result aloud.
-		pi.registerCommand("goodmorn", {
-			description: gm.description,
-			// Asked for by hand, the brief is meant to be heard: the command turns
-			// the voice on and remembers it, exactly as `/voice on` would.
-			handler: (_args: string, commandCtx: ExtensionContext) => runBrief(commandCtx, true),
 		});
 
 		pi.registerCommand("dictar", {

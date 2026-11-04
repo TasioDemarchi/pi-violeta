@@ -328,48 +328,6 @@ const es = {
 		speakFailed: (message: string) => `La voz falló (el resto sigue funcionando): ${message}`,
 		dictateFailed: (message: string) => `El dictado falló: ${message}`,
 	},
-	goodmorning: {
-		description: "Parte de la mañana: prende la voz y te lo dice (hora, clima y la noticia del día)",
-		// The question every session opens with. The options are the answer, so
-		// they say what happens, not just "sí" and "no".
-		startupTitle: "Parte de la mañana",
-		startupAloud: "Con voz",
-		startupSilent: "Solo en pantalla",
-		working: "Preparando el parte…",
-		failed: (message: string) => `No pude armar el parte: ${message}`,
-		// Model-facing, and in the dictionary because it decides the language of
-		// the answer. The brief quotes no outlet, so the summary is the harness
-		// speaking: it may only rephrase what the headlines already say.
-		// Short on purpose. A longer version of this prompt -- a word ceiling and
-		// a pile of prohibitions -- made a reasoning model spend its whole budget
-		// counting words and auditing the rules, and answer with nothing at all.
-		// One positive rule is cheaper to obey than five negative ones.
-		// The model chooses as well as summarizes. The feeds already narrow the
-		// subject to what the owner cares about; what they cannot tell apart is a
-		// real development from a local course, an upcoming event or a colour
-		// piece, which is what fills a topic feed on a slow day. Each story
-		// arrives with the other outlets' headlines about it, so the choice is
-		// made on the story and not on one phrasing.
-		/** The word the day's line opens with. The prompt asks the model for it,
-		 * and the brief checks it: an answer that does not open with it is the
-		 * model having answered in another language. */
-		opener: "Hoy",
-		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>
-			"Noticias de hoy, cada una con los titulares de distintos diarios:\n\n" +
-			stories.map((story, index) => [`${index + 1}.`, story.title, ...story.related.map((other) => `   · ${other}`)].join("\n")).join("\n\n") +
-			"\n\nElegí la más interesante para alguien que programa y le gustan la inteligencia artificial, el hardware gamer y los videojuegos. " +
-			"Preferí una novedad concreta (un lanzamiento, un producto, un resultado, algo que pasó) antes que un curso, un evento, un aniversario o una nota de color. " +
-			'Resumila en una frase corta que empiece con "Hoy", para alguien que no sigue el tema. ' +
-			"Escribí en español, aunque el titular esté en inglés. " +
-			"Usá solo lo que dicen los titulares, sin nombrar diarios. " +
-			"Respondé con el número de la noticia que elegiste, un punto, y la frase. Nada más.",
-		// It is asked for a joke only when there is no real news, so the one thing
-		// it must never do is sound like a fact.
-		jokePrompt: (today: string) =>
-			`Hoy es ${today} y no hay ninguna noticia fresca para el parte de la mañana.\n\n` +
-			"Escribí una línea corta y graciosa sobre el día, con el tono seco de un mayordomo. " +
-			"Que se note que es un chiste y no un dato. Respondé solo la línea.",
-	},
 	notify: {
 		description: "Avisa al terminar una tira larga o cuando un diálogo espera tu respuesta",
 		usage: "uso: /notify [on|off]",
@@ -741,28 +699,6 @@ const en: typeof es = {
 		speakFailed: (message: string) => `Voice failed (everything else keeps working): ${message}`,
 		dictateFailed: (message: string) => `Dictation failed: ${message}`,
 	},
-	goodmorning: {
-		description: "Morning brief: turns voice on and reads it out (the time, the weather and the day's headline)",
-		startupTitle: "Morning brief",
-		startupAloud: "Out loud",
-		startupSilent: "On screen only",
-		working: "Putting the brief together…",
-		failed: (message: string) => `I could not put the brief together: ${message}`,
-		opener: "Today",
-		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>
-			"Today's news, each story with several outlets' headlines:\n\n" +
-			stories.map((story, index) => [`${index + 1}.`, story.title, ...story.related.map((other) => `   · ${other}`)].join("\n")).join("\n\n") +
-			"\n\nPick the most interesting one for someone who programs and likes artificial intelligence, gaming hardware and video games. " +
-			"Prefer a concrete development (a launch, a product, a result, something that happened) over a course, an event, an anniversary or a colour piece. " +
-			'Sum it up in one short sentence starting with "Today", for someone who does not follow the topic. ' +
-			"Write in English, even if the headline is in another language. " +
-			"Use only what the headlines say, and name no outlet. " +
-			"Answer with the number of the story you picked, a full stop, and the sentence. Nothing else.",
-		jokePrompt: (today: string) =>
-			`Today is ${today} and there is no fresh news at all for the morning brief.\n\n` +
-			"Write one short, funny line about the day, in the dry tone of a butler. " +
-			"It must read as a joke and not as a fact. Answer with the line only.",
-	},
 	notify: {
 		description: "Notify when a long run finishes or a dialog waits for your answer",
 		usage: "usage: /notify [on|off]",
@@ -901,4 +837,3 @@ export const usage = localized("usage");
 export const palette = localized("palette");
 export const modes = localized("modes");
 export const btw = localized("btw");
-export const goodmorning = localized("goodmorning");

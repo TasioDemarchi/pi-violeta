@@ -139,47 +139,23 @@ function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
 		registerCommand: (name: string, c: { handler: (a: string, c: unknown) => Promise<void> }) => commands.set(name, c),
 	} as never);
 	const notes: string[] = [];
-	const selects: string[] = [];
-	let choice: string | undefined = "Cancelar";
 	const branch = [{ id: "m1", type: "message", message: { role: "assistant", content: [{ type: "text", text: "Hecho.\n\nVoz: Terminé, probalo." }] } }];
-	// The brief asks the session's model for a joke, but only when the feed has
-	// nothing fresh, so the fake records every prompt it is given.
-	const completions: string[] = [];
-	let answer: unknown = { content: "Hoy es martes, y el martes no se discute" };
-	let newsAnswer: unknown = { content: "Hoy el dólar se quedó quieto" };
 	const ctx = {
 		mode: "tui",
 		ui: {
 			notify: (text: string) => notes.push(text),
 			setEditorText: () => {},
-			// "Cancelar" is not one of the brief's two answers, so by default every
-			// test starts a session that asks and is dismissed: no feed, no model.
-			select: async (title: string) => {
-				selects.push(title);
-				return choice;
-			},
+			// /dictar stops the recording through a dialog; "Cancelar" is the
+			// answer that throws the take away, which is what these tests assert.
+			select: async () => "Cancelar",
 		},
 		sessionManager: { getBranch: () => branch },
 		model: { provider: "nan", id: "test-model" },
-		modelRegistry: {
-			complete: async (_model: unknown, request: { messages: Array<{ content: string }> }) => {
-				const prompt = request.messages[0]!.content;
-				completions.push(prompt);
-				return prompt.includes("Resumila") ? newsAnswer : answer;
-			},
-		},
 	};
 	const fire = async (name: string, event: unknown = {}) => {
 		for (const fn of handlers.get(name) ?? []) await fn(event, ctx);
 	};
-	const setAnswer = (value: unknown) => {
-		answer = value;
-		newsAnswer = value;
-	};
-	const setChoice = (value: string | undefined) => {
-		choice = value;
-	};
-	return { fire, commands, notes, ctx, marker, agentDir, completions, setAnswer, selects, setChoice };
+	return { fire, commands, notes, ctx, marker, agentDir };
 }
 
 test("voice off: the prompt is untouched, nothing is fetched, nothing is played", async () => {
@@ -432,179 +408,6 @@ test("a long reply is played in groups: the first one starts before the rest is 
 		assert.ok(existsSync(env.marker), "the first group played");
 		assert.ok(Date.now() - t0 < 380, `it did not wait for the slow groups (${Date.now() - t0} ms)`);
 		assert.equal(started.length, 3, "everything was requested");
-	} finally {
-		globalThis.fetch = realFetch;
-	}
-});
-
-// --- /goodmorn: the morning brief ------------------------------------------
-
-/** A network where the brief's three data services and the voice itself all
- * answer, routed by url, so one fake covers the whole command. */
-function briefNetwork(feed: string, spoken: string[]) {
-	return (async (url: string, init: RequestInit) => {
-		const target = String(url);
-		if (target.includes("/audio/speech")) {
-			spoken.push(JSON.parse(String(init.body)).input);
-			return new Response(Buffer.alloc(200, 1));
-		}
-		if (target.includes("ifconfig.co")) return new Response(JSON.stringify({ city: "Del Viso", latitude: -34.45, longitude: -58.79 }));
-		if (target.includes("open-meteo")) return new Response(JSON.stringify({ current: { temperature_2m: 18.9, weather_code: 80 } }));
-		if (target.includes("news.google.com")) return new Response(feed);
-		throw new Error(`unexpected url ${target}`);
-	}) as unknown as typeof fetch;
-}
-
-const feedWith = (title: string, when: Date) =>
-	`<rss><channel><item><title>${title}</title><pubDate>${when.toUTCString()}</pubDate></item></channel></rss>`;
-
-test("/goodmorn turns the voice on by itself, says the story as a sentence and never pays for a joke", async () => {
-	// It is a spoken command: asking the user to turn the voice on first would
-	// make it useless as a morning command.
-	const env = setup(false);
-	const realFetch = globalThis.fetch;
-	const spoken: string[] = [];
-	globalThis.fetch = briefNetwork(feedWith("El dólar cerró estable - Clarín", new Date()), spoken);
-	try {
-		await env.fire("session_start");
-		await env.commands.get("goodmorn")!.handler("", env.ctx);
-		assert.equal(readVoiceEnabled(join(env.agentDir, "violeta.json")), true, "and it remembers it");
-		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
-		assert.ok(existsSync(env.marker), "the player ran");
-		// One synthesis per sentence: that is what puts a measured silence between
-		// them instead of whatever the voice model does with a full stop.
-		assert.ok(spoken.length >= 4, `the brief is said sentence by sentence, got ${spoken.length} piece(s)`);
-		for (const piece of spoken) assert.match(piece, /[.?]$/, `a piece that is not a whole sentence: ${piece}`);
-		const line = spoken.join(" ");
-		assert.match(line, /^Buen[oa]s (días|tardes|noches) Tachi\./, "called by name, with no title in front of it");
-		assert.match(line, /El clima en Del Viso es de diecinueve grados con chaparrones\./);
-		assert.match(line, /Hoy el dólar se quedó quieto\./);
-		assert.ok(!line.includes("Clarín"), "the brief says what happened, not who reported it");
-		assert.match(line, /¿En qué trabajaremos hoy\?$/);
-		assert.equal(env.completions.length, 1, "one ask: the summary");
-		assert.match(env.completions[0]!, /Noticias de hoy/);
-		assert.match(
-			env.completions[0]!,
-			/le gustan la inteligencia artificial, el hardware gamer y los videojuegos/,
-			"the criterion is the owner's interests, asked for rather than keyword-matched",
-		);
-		assert.ok(
-			env.completions.every((prompt) => !prompt.includes("graciosa")),
-			"there was news, so no joke was paid for",
-		);
-		// Spoken and written: the audio goes by once.
-		assert.ok(env.notes.some((note) => note.includes("Hoy el dólar se quedó quieto")), "the brief is shown as well as said");
-	} finally {
-		globalThis.fetch = realFetch;
-	}
-});
-
-test("with nothing fresh in the feed the model is asked for one line, and it is the one spoken", async () => {
-	const env = setup(false);
-	const realFetch = globalThis.fetch;
-	const spoken: string[] = [];
-	// Three days old: in the feed, but not news.
-	const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-	globalThis.fetch = briefNetwork(feedWith("Algo viejo - Infobae", old), spoken);
-	try {
-		await env.fire("session_start");
-		await env.commands.get("goodmorn")!.handler("", env.ctx);
-		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
-		assert.equal(env.completions.length, 1, "exactly one call, and only because there was no news");
-		assert.match(env.completions[0]!, /línea corta y graciosa/i);
-		assert.match(env.completions[0]!, /no hay ninguna noticia fresca/i);
-		assert.match(env.completions[0]!, /no es un dato|no un dato/i, "the one rule the joke must carry");
-		const line = spoken.join(" ");
-		assert.match(line, /Hoy es martes, y el martes no se discute\./);
-		assert.ok(!line.includes("Algo viejo"), "a stale headline is not reported as news");
-	} finally {
-		globalThis.fetch = realFetch;
-	}
-});
-
-test("a model that fails costs the joke, and the brief is still said", async () => {
-	const env = setup(false);
-	env.setAnswer({ errorMessage: "el proveedor dijo no" });
-	const realFetch = globalThis.fetch;
-	const spoken: string[] = [];
-	globalThis.fetch = briefNetwork("<rss></rss>", spoken);
-	try {
-		await env.fire("session_start");
-		await env.commands.get("goodmorn")!.handler("", env.ctx);
-		for (let i = 0; i < 60 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
-		const line = spoken.join(" ");
-		assert.match(line, /^Buen[oa]s (días|tardes|noches) Tachi\./, "called by name, with no title in front of it");
-		assert.match(line, /¿En qué trabajaremos hoy\?$/);
-		assert.ok(!line.includes("dijo no"), "an error is never read out loud");
-	} finally {
-		globalThis.fetch = realFetch;
-	}
-});
-
-// --- The brief at the start of a session -----------------------------------
-
-test("a new session asks first, and with voice chosen it says the brief and remembers the choice", async () => {
-	const env = setup(false);
-	env.setChoice("Con voz");
-	const realFetch = globalThis.fetch;
-	const spoken: string[] = [];
-	globalThis.fetch = briefNetwork(feedWith("Nvidia subió los precios - Clarín", new Date()), spoken);
-	try {
-		await env.fire("session_start");
-		for (let i = 0; i < 80 && !existsSync(env.marker); i++) await new Promise((resolve) => setTimeout(resolve, 50));
-		assert.deepEqual(env.selects, ["Parte de la mañana"], "asked once, before anything was fetched or said");
-		assert.ok(existsSync(env.marker), "the player ran");
-		assert.match(spoken.join(" "), /^Buen[oa]s (días|tardes|noches) Tachi\./);
-		assert.equal(readVoiceEnabled(join(env.agentDir, "violeta.json")), true, "the answer is the voice setting");
-	} finally {
-		globalThis.fetch = realFetch;
-	}
-});
-
-test("choosing the screen writes the brief, says nothing, and leaves the voice off", async () => {
-	// The news is worth reading even when it is not worth hearing, so the brief
-	// still runs; what the answer turns off is the voice.
-	const env = setup(true);
-	env.setChoice("Solo en pantalla");
-	const realFetch = globalThis.fetch;
-	const spoken: string[] = [];
-	globalThis.fetch = briefNetwork(feedWith("Steam bajó los precios - Infobae", new Date()), spoken);
-	try {
-		await env.fire("session_start");
-		for (let i = 0; i < 80 && !env.notes.some((note) => note.includes("Tachi")); i++) {
-			await new Promise((resolve) => setTimeout(resolve, 50));
-		}
-		assert.ok(
-			env.notes.some((note) => /^Buen[oa]s (días|tardes|noches) Tachi\./.test(note)),
-			`the brief is written: ${JSON.stringify(env.notes)}`,
-		);
-		await new Promise((resolve) => setTimeout(resolve, 150));
-		assert.deepEqual(spoken, [], "nothing was synthesized");
-		assert.equal(existsSync(env.marker), false, "and nothing was played");
-		assert.equal(readVoiceEnabled(join(env.agentDir, "violeta.json")), false, "the voice was turned off, as answered");
-	} finally {
-		globalThis.fetch = realFetch;
-	}
-});
-
-test("dismissing the question costs nothing: no feed, no model, no sound", async () => {
-	// Someone who pressed escape did not ask for a brief, and a brief is three
-	// network calls and a model call.
-	const env = setup(false);
-	env.setChoice(undefined);
-	const realFetch = globalThis.fetch;
-	let touched = 0;
-	globalThis.fetch = (async () => {
-		touched++;
-		throw new Error("a dismissed question must not touch the network");
-	}) as unknown as typeof fetch;
-	try {
-		await env.fire("session_start");
-		await new Promise((resolve) => setTimeout(resolve, 200));
-		assert.deepEqual(env.selects, ["Parte de la mañana"], "it did ask");
-		assert.equal(touched, 0);
-		assert.deepEqual(env.completions, []);
-		assert.deepEqual(env.notes, [], "not even a notice");
 	} finally {
 		globalThis.fetch = realFetch;
 	}
