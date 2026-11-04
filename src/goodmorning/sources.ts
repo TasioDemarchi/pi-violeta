@@ -19,6 +19,8 @@
  * and a dependency for that is one more thing to keep working.
  */
 
+import { goodmorning as gm } from "../i18n.ts";
+
 /** Long enough to survive a slow morning, short enough that a hung service
  * does not hold the greeting. */
 const TIMEOUT_MS = 8000;
@@ -235,7 +237,7 @@ export function freshest(items: readonly Headline[], now: Date, maxAgeMs: number
  * itself, without the outlet, opening the way the owner asked for. A headline
  * is written to be read, so this is the worse of the two and only a fallback. */
 export function headlineLine(item: Headline): string {
-	return `Hoy, ${item.title}`;
+	return `${gm.opener}, ${item.title}`;
 }
 
 /** What the owner wants to hear about. One query per topic, because a single

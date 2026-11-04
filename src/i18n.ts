@@ -334,6 +334,10 @@ const es = {
 		// piece, which is what fills a topic feed on a slow day. Each story
 		// arrives with the other outlets' headlines about it, so the choice is
 		// made on the story and not on one phrasing.
+		/** The word the day's line opens with. The prompt asks the model for it,
+		 * and the brief checks it: an answer that does not open with it is the
+		 * model having answered in another language. */
+		opener: "Hoy",
 		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>
 			"Noticias de hoy, cada una con los titulares de distintos diarios:\n\n" +
 			stories.map((story, index) => [`${index + 1}.`, story.title, ...story.related.map((other) => `   · ${other}`)].join("\n")).join("\n\n") +
@@ -716,6 +720,7 @@ const en: typeof es = {
 		startupSilent: "On screen only",
 		working: "Putting the brief together…",
 		failed: (message: string) => `I could not put the brief together: ${message}`,
+		opener: "Today",
 		newsPrompt: (stories: readonly { title: string; related: readonly string[] }[]) =>
 			"Today's news, each story with several outlets' headlines:\n\n" +
 			stories.map((story, index) => [`${index + 1}.`, story.title, ...story.related.map((other) => `   · ${other}`)].join("\n")).join("\n\n") +

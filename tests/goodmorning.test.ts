@@ -6,7 +6,8 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { gatherFacts, morningBrief, parseChoice } from "../src/goodmorning/brief.ts";
+import { gatherFacts, morningBrief, opensCorrectly, parseChoice } from "../src/goodmorning/brief.ts";
+import { setLanguage } from "../src/i18n.ts";
 import { SAID_LIMIT, readSaidStories, rememberSaidStory } from "../src/goodmorning/said.ts";
 import { buildBrief, forTheEar, greetingFor, numberInWords, partOfDay, timeInWords } from "../src/goodmorning/greeting.ts";
 import {
@@ -435,6 +436,49 @@ test("the brief reports which story it told, so the caller can remember it", asy
 	// With no model at all the fallback headline is what was said, and it is
 	// exactly what must not come up again.
 	assert.equal((await run(undefined)).saidTitle, "Lo más nuevo");
+});
+
+test("a sentence in another language is not said: the chosen story is read instead", async () => {
+	// The real failure, word for word: a Spanish prompt over an Argentine feed
+	// and an English summary spoken in the middle of the brief.
+	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
+	const brief = await morningBrief({
+		name: "T",
+		now: new Date("2026-11-03T12:00:00Z"),
+		doFetch: net.doFetch,
+		summarize: async () => ({ line: "Today, Supermicro announced it will pair SambaNova chips with Nvidia GPUs", index: 2 }),
+	});
+	assert.ok(!brief.text.includes("Supermicro"), "the English sentence never reaches the ear");
+	assert.match(brief.text, /Hoy, Con & entidad y CDATA\./, "the story the model picked is read as a headline");
+	assert.equal(brief.saidTitle, "Con & entidad y CDATA", "and it still counts as told, so it does not come back");
+});
+
+test("a foreign sentence with no number falls back to the newest story", async () => {
+	const net = fakeFetch([PLACE as never, WEATHER as never, ["news.google.com", ok(FEED)]]);
+	const brief = await morningBrief({
+		name: "T",
+		now: new Date("2026-11-03T12:00:00Z"),
+		doFetch: net.doFetch,
+		summarize: async () => ({ line: "Today something happened" }),
+	});
+	assert.match(brief.text, /Hoy, Lo más nuevo\./);
+	assert.equal(brief.saidTitle, "Lo más nuevo");
+});
+
+test("opensCorrectly judges the opening word only, and ignores case and spaces", () => {
+	assert.ok(opensCorrectly("Hoy OpenAI lanzó Pando"));
+	assert.ok(opensCorrectly("  hoy algo pasó"), "the model's spacing and case are not the point");
+	assert.ok(!opensCorrectly("Today, OpenAI launched Pando"));
+	assert.ok(!opensCorrectly(""));
+	// The English dictionary moves the word with it, so the check follows the
+	// language instead of hardcoding one.
+	try {
+		setLanguage("en");
+		assert.ok(opensCorrectly("Today, OpenAI launched Pando"));
+		assert.ok(!opensCorrectly("Hoy OpenAI lanzó Pando"));
+	} finally {
+		setLanguage("es");
+	}
 });
 
 test("when everything fresh has already been told, the day's line is the joke", async () => {

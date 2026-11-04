@@ -7,9 +7,15 @@
  * in for it. The joke is a function the caller supplies, because it is the one
  * piece that needs a model, and it is never asked for when there is real news
  * to report.
+ *
+ * The language of the sentence is enforced HERE and not by the prompt. The
+ * prompt is written in the brief's language and says which language to answer
+ * in, and the model still answered in English twice over an Argentine feed. A
+ * request is not a guarantee: `opensCorrectly` is.
  */
 
 import { briefSentences } from "./greeting.ts";
+import { goodmorning as gm } from "../i18n.ts";
 import { type Fetch, type Headline, fetchNews, fetchPlace, fetchWeather, freshStories, headlineLine, skyFor } from "./sources.ts";
 
 export interface Choice {
@@ -91,6 +97,18 @@ async function summarized(request: BriefRequest, stories: readonly Headline[]): 
 	}
 }
 
+/** Whether the day's line is in the brief's own language.
+ *
+ * The prompt asks for a sentence opening with the dictionary's `opener`
+ * ("Hoy"), so an answer that opens with anything else is the model having
+ * written in another language -- which it did, out loud, in the middle of a
+ * Spanish brief. The check is this narrow on purpose: it needs no word list,
+ * it cannot misjudge a Spanish sentence that obeyed the prompt, and the worst
+ * it can do to an odd but valid sentence is read the headline instead. */
+export function opensCorrectly(line: string): boolean {
+	return line.trim().toLocaleLowerCase().startsWith(gm.opener.toLocaleLowerCase());
+}
+
 export interface Brief {
 	/** One line, for the screen. */
 	text: string;
@@ -113,10 +131,16 @@ export async function morningBrief(request: BriefRequest): Promise<Brief> {
 		// subtitle and the words "EN VIVO". The sentence is what makes it
 		// speakable, and the newest headline is the fallback when there is none.
 		const choice = await summarized(request, facts.stories);
-		extra = choice?.line ?? headlineLine(newest);
-		// Only a story that can be named is remembered. Without a number the
-		// sentence is still said; it may just come up again tomorrow.
-		said = choice ? (choice.index ? facts.stories[choice.index - 1]?.title : undefined) : newest.title;
+		const chosen = choice?.index ? facts.stories[choice.index - 1] : undefined;
+		// A sentence in the wrong language is dropped, but the choice behind it
+		// is not: the model still judged which story matters, so that story's
+		// headline is read instead of letting the foreign sentence through.
+		const sentence = choice && opensCorrectly(choice.line) ? choice.line : undefined;
+		const read = chosen ?? newest;
+		extra = sentence ?? headlineLine(read);
+		// Whatever was actually told is remembered, when it can be named: a
+		// sentence with no number cannot, and may come up again tomorrow.
+		said = sentence ? chosen?.title : read.title;
 	} else if (request.joke) {
 		try {
 			extra = await request.joke();
