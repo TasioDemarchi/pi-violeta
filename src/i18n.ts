@@ -340,6 +340,7 @@ const es = {
 			"\n\nElegí la más interesante para alguien que programa y le gustan la inteligencia artificial, el hardware gamer y los videojuegos. " +
 			"Preferí una novedad concreta (un lanzamiento, un producto, un resultado, algo que pasó) antes que un curso, un evento, un aniversario o una nota de color. " +
 			'Resumila en una frase corta que empiece con "Hoy", para alguien que no sigue el tema. ' +
+			"Escribí en español, aunque el titular esté en inglés. " +
 			"Usá solo lo que dicen los titulares, sin nombrar diarios. " +
 			"Respondé con el número de la noticia que elegiste, un punto, y la frase. Nada más.",
 		// It is asked for a joke only when there is no real news, so the one thing
@@ -703,6 +704,7 @@ const en: typeof es = {
 			"\n\nPick the most interesting one for someone who programs and likes artificial intelligence, gaming hardware and video games. " +
 			"Prefer a concrete development (a launch, a product, a result, something that happened) over a course, an event, an anniversary or a colour piece. " +
 			'Sum it up in one short sentence starting with "Today", for someone who does not follow the topic. ' +
+			"Write in English, even if the headline is in another language. " +
 			"Use only what the headlines say, and name no outlet. " +
 			"Answer with the number of the story you picked, a full stop, and the sentence. Nothing else.",
 		jokePrompt: (today: string) =>
