@@ -152,15 +152,21 @@ test("scout fetches references safely and reports them apart from our code", () 
 	assert.match(scout.prompt, /^runner:/m);
 });
 
-test("every mode answers in Spanish and offers a glossary", () => {
+test("every mode answers in Spanish, briefly, and with no closing glossary", () => {
 	// The prompts stay in English because it tokenizes more efficiently for the
 	// same content; the replies do not, and the user is an engineer rather than
 	// a career developer.
+	//
+	// The closing `— Términos —` block was retired on 2026-11-04 at the owner's
+	// request, together with a length rule: he would rather ask when something
+	// is unclear than read an explanation he did not ask for, and a glossary at
+	// the end of every reply is exactly that. A term is still explained where it
+	// is used, in the same sentence.
 	for (const mode of modes().modes) {
 		if (!mode.prompt) continue; // raw adds no rules
 		assert.match(mode.prompt, /Answer in Spanish/i, `${mode.name}: no reply language`);
-		assert.match(mode.prompt, /Glossary, on by default/i, `${mode.name}: no glossary rule`);
-		assert.match(mode.prompt, /Términos/, `${mode.name}: no glossary example`);
+		assert.match(mode.prompt, /Short by default/i, `${mode.name}: no length rule`);
+		assert.doesNotMatch(mode.prompt, /—\s*Términos\s*—/, `${mode.name}: the closing glossary is back`);
 	}
 });
 
