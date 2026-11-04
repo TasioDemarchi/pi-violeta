@@ -1,11 +1,11 @@
 import { basename, join } from "node:path";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { VERSION } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 import { type ChangeFiles, readChangesFiles } from "../src/changes.ts";
 import { activityLine, phaseForTool } from "../src/activity.ts";
 import { contextRole, createCompactWarner } from "../src/context-warning.ts";
+import { collectUsage, contextLines, usageLines } from "../src/usage.ts";
 import { modelWithThinking } from "../src/thinking.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "../src/format.ts";
 import { buildSidebarLines, type SidebarData } from "../src/sidebar-content.ts";
@@ -13,7 +13,7 @@ import { readSidebarEnabled, writeSidebarEnabled } from "../src/sidebar-state.ts
 import { readLanguage, writeLanguage } from "../src/language-state.ts";
 import { renderBtwPanel } from "../src/btw/panel.ts";
 import { getShared, setShared } from "../src/shared-hub.ts";
-import { activity as activityT, context as contextT, sidebar as t, ui as uiT } from "../src/i18n.ts";
+import { activity as activityT, context as contextT, sidebar as t, ui as uiT, usage as usageT } from "../src/i18n.ts";
 import { getLanguage, setLanguage, type Language } from "../src/i18n.ts";
 
 const SEP = "  ";
@@ -236,21 +236,13 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
+	/** The branch's assistant messages, summed. The arithmetic is in
+	 * src/usage.ts so /usage, the footer and the sidebar all show one number. */
 	function sessionUsage(): { input: number; output: number; cost: number } {
 		const ctx = uiCtx;
 		if (!ctx) return { input: 0, output: 0, cost: 0 };
-		let input = 0;
-		let output = 0;
-		let cost = 0;
-		for (const e of ctx.sessionManager.getBranch()) {
-			if (e.type === "message" && e.message.role === "assistant") {
-				const u = (e.message as AssistantMessage).usage;
-				input += u.input;
-				output += u.output;
-				cost += u.cost.total;
-			}
-		}
-		return { input, output, cost };
+		const { total } = collectUsage(ctx.sessionManager.getBranch());
+		return { input: total.input, output: total.output, cost: total.cost };
 	}
 
 	// Context warning (S5): one hysteresis warner per session, shared by
@@ -345,6 +337,23 @@ export default function (pi: ExtensionAPI) {
 					ctx.ui.notify(uiT.sidebarNeedsFullscreen, "warning");
 				}
 				tuiRef?.requestRender();
+			},
+		});
+
+		// /context and /usage: the numbers the footer shows in one glyph each,
+		// written out. They read the command's own context, so they do not
+		// depend on the sidebar being on.
+		pi.registerCommand("context", {
+			description: contextT.description,
+			handler: async (_args: string, commandCtx: ExtensionContext) => {
+				commandCtx.ui.notify(contextLines(commandCtx.getContextUsage()).join("\n"), "info");
+			},
+		});
+
+		pi.registerCommand("usage", {
+			description: usageT.description,
+			handler: async (_args: string, commandCtx: ExtensionContext) => {
+				commandCtx.ui.notify(usageLines(collectUsage(commandCtx.sessionManager.getBranch())).join("\n"), "info");
 			},
 		});
 

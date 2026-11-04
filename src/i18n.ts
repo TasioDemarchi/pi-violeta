@@ -373,6 +373,24 @@ const es = {
 	context: {
 		/** The once-per-crossing-of-80% /compact suggestion. */
 		compactSuggest: "El contexto está al 80 %. Considerá /compact.",
+		description: "Muestra cuánto contexto queda en la sesión.",
+		line: (percent: string, window: string) => `Contexto: ${percent} de ${window} tokens.`,
+		usedFree: (used: string, free: string) => `Usado ${used} · Libre ${free}`,
+		unknown: "Todavía no hay datos de contexto en esta sesión.",
+	},
+	usage: {
+		description: "Muestra los tokens y el costo de la sesión.",
+		empty: "Todavía no hubo respuestas del modelo en esta sesión.",
+		title: (replies: number) => `Uso de la sesión · ${replies} ${replies === 1 ? "respuesta" : "respuestas"}`,
+		titleWithModel: (replies: number, model: string) =>
+			`Uso de la sesión · ${replies} ${replies === 1 ? "respuesta" : "respuestas"} · ${model}`,
+		tokens: (input: string, output: string, cost: string) => `Entrada ${input} · Salida ${output} · Costo ${cost}`,
+		cache: (read: string, written: string) => `Caché: ${read} leídos · ${written} escritos`,
+		byModel: "Por modelo:",
+		modelLine: (model: string, replies: number, tokens: string, cost: string) =>
+			`  ${model} · ${replies} ${replies === 1 ? "respuesta" : "respuestas"} · ${tokens} · ${cost}`,
+		/** A message that recorded no model id; rare, but it must not print "undefined". */
+		unknownModel: "(sin nombre)",
 	},
 	modes: {
 		description: "Cambiar la filosofía activa, o mostrarla sin argumento.",
@@ -732,6 +750,23 @@ const en: typeof es = {
 	},
 	context: {
 		compactSuggest: "Context is at 80%. Consider /compact.",
+		description: "Show how much context the session has left.",
+		line: (percent: string, window: string) => `Context: ${percent} of ${window} tokens.`,
+		usedFree: (used: string, free: string) => `Used ${used} · Free ${free}`,
+		unknown: "No context reading yet in this session.",
+	},
+	usage: {
+		description: "Show the session's tokens and cost.",
+		empty: "The model has not answered yet in this session.",
+		title: (replies: number) => `Session usage · ${replies} ${replies === 1 ? "reply" : "replies"}`,
+		titleWithModel: (replies: number, model: string) =>
+			`Session usage · ${replies} ${replies === 1 ? "reply" : "replies"} · ${model}`,
+		tokens: (input: string, output: string, cost: string) => `In ${input} · Out ${output} · Cost ${cost}`,
+		cache: (read: string, written: string) => `Cache: ${read} read · ${written} written`,
+		byModel: "By model:",
+		modelLine: (model: string, replies: number, tokens: string, cost: string) =>
+			`  ${model} · ${replies} ${replies === 1 ? "reply" : "replies"} · ${tokens} · ${cost}`,
+		unknownModel: "(unnamed)",
 	},
 	modes: {
 		description: "Switch the active philosophy, or show it with no argument.",
@@ -829,6 +864,7 @@ export const activity = localized("activity");
 export const notify = localized("notify");
 export const models = localized("models");
 export const context = localized("context");
+export const usage = localized("usage");
 export const palette = localized("palette");
 export const modes = localized("modes");
 export const btw = localized("btw");

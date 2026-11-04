@@ -48,6 +48,8 @@ const VIOLETA_COMMAND_GROUPS: Record<string, PaletteGroup> = {
 	todo: "interface",
 	changes: "interface",
 	notify: "interface",
+	context: "session",
+	usage: "session",
 	agents: "tools",
 	jobs: "tools",
 	grants: "tools",

@@ -37,8 +37,8 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | Path | Role |
 |---|---|
 | `bin/violeta` | Launcher: isolates `PI_CODING_AGENT_DIR`, seeds settings, syncs `config/models.json` (NaN catalog) on every start |
-| `extensions/violeta-ui.ts` | Header, footer, `/sidebar` command, activity line |
-| `src/changes.ts`, `src/format.ts`, `src/sidebar-content.ts`, `src/sidebar-state.ts`, `src/activity.ts` | Pure logic (tested) |
+| `extensions/violeta-ui.ts` | Header, footer, `/sidebar`, `/context` and `/usage` commands, activity line |
+| `src/changes.ts`, `src/format.ts`, `src/sidebar-content.ts`, `src/sidebar-state.ts`, `src/activity.ts`, `src/usage.ts` | Pure logic (tested) |
 | `extensions/violeta-agents.ts` | Subagent tools, card and `alt+a` view |
 | `src/agents/` | Store, runner, definitions, history, card and view rendering (tested) |
 | `extensions/violeta-guard.ts`, `src/guard/` | Destructive-command guard and outside-project grants |
@@ -218,6 +218,8 @@ All on demand; nothing extra is drawn by default.
 | `/changes` | `alt+g` | Full-terminal view: files grouped created/updated/deleted on the left, the diff of the selected one on the right. `j`/`k` file, `ctrl+j`/`ctrl+k` scroll, `g`/`G` top/bottom, `o` opens it in `$VISUAL`/`$EDITOR`, `esc`/`q` close. The sidebar summarizes; this shows everything. |
 | `/models` | `alt+m` | Lists models with auth available (current marked, context window); `Enter` switches for the session. |
 | `/palette` | `alt+k` | Search every command (violeta's, Pi's, extensions') grouped Session/Interface/Tools/Other, plus a shortcuts list. `Enter` puts the command in the editor (Pi has no API to run a slash command without starting a model turn). |
+| `/context` | | What the footer shows in one glyph, written out: percent, window size, tokens used and tokens left. From 80% it repeats the `/compact` suggestion. |
+| `/usage` | | The session's tokens and cost, split by model — which the footer and the sidebar do not show, and which is the only part that costs money when the session runs on a paid model. |
 | `/notify on\|off` | | Opt-in. Terminal bell plus `notify-send` (if installed) when a run longer than 20 s ends or a confirmation dialog waits. Off by default, remembered in `violeta.json`. |
 | `/btw`, `/btwn` | | The side chat; see Side chat above. |
 | `/language es\|en` | | See Language below. |
