@@ -26,6 +26,19 @@ export function isInside(candidate: string, root: string): boolean {
 	return candidate === root || candidate.startsWith(base);
 }
 
+/**
+ * Whether a path is scratch space that needs no permission at all.
+ *
+ * The system temp root is wiped by the system (10 days on Fedora), the
+ * harness itself writes there on every voice line, every dictation and every
+ * subagent, and `grantScope` already widens any grant inside it to the root.
+ * So the dialog it used to raise once a session asked about the one place
+ * where the answer is always yes, which is noise, not safety.
+ */
+export function isScratch(resolved: string, tempRoot: string): boolean {
+	return isInside(resolved, normalize(tempRoot));
+}
+
 /** Inside the project root or inside the violeta agent dir is always allowed. */
 export function allowedLocation(resolved: string, root: string, agentDir?: string): boolean {
 	if (isInside(resolved, root)) return true;

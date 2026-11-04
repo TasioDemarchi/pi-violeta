@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allowedLocation, bashPathTargets, grantScope, isInside, resolvePath, toolCallPaths } from "../src/guard/paths.ts";
+import { allowedLocation, bashPathTargets, grantScope, isInside, isScratch, resolvePath, toolCallPaths } from "../src/guard/paths.ts";
 
 const CWD = "/repo";
 const HOME = "/home/tester";
@@ -106,4 +106,18 @@ test("grantScope collapses a temp directory to the temp root", () => {
 	assert.equal(grantScope("/tmpfoo/x", root), "/tmpfoo/x");
 	// Anything else keeps its own directory.
 	assert.equal(grantScope("/home/tasio/other", root), "/home/tasio/other");
+});
+
+test("the system temp root is scratch space, and needs no permission at all", () => {
+	// What the owner saw: a dialog for /tmp on every session, for the one
+	// place the harness itself writes to and the system wipes on its own.
+	assert.equal(isScratch("/tmp", "/tmp"), true);
+	assert.equal(isScratch("/tmp/violeta-voice-abc123/line.wav", "/tmp"), true);
+	assert.equal(isScratch("/tmp/nested/deep/file.txt", "/tmp"), true);
+	// The boundary is the same one the rest of the guard uses: a directory
+	// whose name merely starts with the root is NOT inside it.
+	assert.equal(isScratch("/tmpfoo", "/tmp"), false);
+	assert.equal(isScratch("/home/tachii/dev", "/tmp"), false);
+	// A trailing separator in the configured root must not break the test.
+	assert.equal(isScratch("/tmp/x", "/tmp/"), true);
 });

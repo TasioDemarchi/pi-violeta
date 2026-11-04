@@ -31,7 +31,7 @@ import { homedir, tmpdir } from "node:os";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { SHELL_COMMAND_TOOLS, guardDecision } from "../src/guard/command-guard.ts";
 import { OutsideGrants } from "../src/guard/grants.ts";
-import { allowedLocation, bashPathTargets, resolvePath, targetDir, grantScope, toolCallPaths } from "../src/guard/paths.ts";
+import { allowedLocation, bashPathTargets, isScratch, resolvePath, targetDir, grantScope, toolCallPaths } from "../src/guard/paths.ts";
 import { getShared, setShared } from "../src/shared-hub.ts";
 import { guard as t } from "../src/i18n.ts";
 
@@ -57,6 +57,10 @@ export default function (pi: ExtensionAPI) {
 
 	/** Ask once per target directory per session; without a UI it blocks. */
 	async function authorizeOutside(ctx: ExtensionContext, resolved: string): Promise<{ block?: boolean; reason?: string }> {
+		// Scratch space is free: the temp root is the one place outside the
+		// project where the answer is always yes, and the harness writes there
+		// itself on every voice line and every subagent.
+		if (isScratch(resolved, tmpdir())) return {};
 		// Temp paths collapse to the temp root: `mktemp -d` names a different
 		// directory every run, so granting each one asks again forever.
 		const dir = grantScope(targetDir(resolved, (path) => {

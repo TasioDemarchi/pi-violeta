@@ -7,6 +7,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
 import guardExtension from "../extensions/violeta-guard.ts";
 import { guard, setLanguage } from "../src/i18n.ts";
 
@@ -56,10 +57,10 @@ function makeCtx(selectResult: string | undefined, options: { hasUI?: boolean } 
 	return { ctx, selects, notifications };
 }
 
-const OUTSIDE_DIR = "/tmp/violeta-guard-es/fuera";
+const OUTSIDE_DIR = "/opt/violeta-guard-es/fuera";
 // A different directory from the Spanish tests: grants are remembered per
 // session and every mocked context here shares session id "s1".
-const OUTSIDE_DIR_EN = "/tmp/violeta-guard-en/fuera";
+const OUTSIDE_DIR_EN = "/opt/violeta-guard-en/fuera";
 
 test("the destructive dialog uses ctx.ui.select with the Spanish title, body and options", async () => {
 	const { toolCall } = loadGuard();
@@ -97,14 +98,14 @@ test("the outside-project dialog is Spanish, asked once per directory, and appro
 		assert.equal(selects.length, 1);
 		assert.equal(selects[0]!.options.join("|"), "Sí|No");
 		assert.ok(selects[0]!.prompt.includes("Acceso fuera del proyecto"), selects[0]!.prompt);
-		// Temp paths collapse to the temp root so `mktemp -d` stops asking again
-		// every run, so the dialog names the root rather than the leaf.
-		assert.ok(selects[0]!.prompt.includes("/tmp"), selects[0]!.prompt);
+		// The grant covers the directory that holds the file, so the dialog
+		// names it rather than the file.
+		assert.ok(selects[0]!.prompt.includes(OUTSIDE_DIR), selects[0]!.prompt);
 		assert.ok(selects[0]!.prompt.includes("El permiso dura solo esta sesión."), selects[0]!.prompt);
 		const result = await toolCall({ toolName: "read", input: { path } }, ctx);
 		assert.ok(result?.block);
-		// The refusal names the scope that was refused: the collapsed temp root.
-		assert.equal(result?.reason, guard.outsideDeclined("/tmp", "/repo"));
+		// The refusal names the scope that was refused.
+		assert.equal(result?.reason, guard.outsideDeclined(OUTSIDE_DIR, "/repo"));
 	}
 	{
 		const { ctx, selects } = makeCtx("Sí");
@@ -255,11 +256,11 @@ test("in English mode the outside-project dialog is English and approves only wi
 			assert.equal(selects[0]!.options.join("|"), "Yes|No");
 			assert.ok(selects[0]!.prompt.includes("Outside-project access"), selects[0]!.prompt);
 			assert.ok(selects[0]!.prompt.includes("Allow access outside the project"), selects[0]!.prompt);
-			assert.ok(selects[0]!.prompt.includes("/tmp"), selects[0]!.prompt);
+			assert.ok(selects[0]!.prompt.includes(OUTSIDE_DIR_EN), selects[0]!.prompt);
 			assert.ok(selects[0]!.prompt.includes("The grant lasts only for this session."), selects[0]!.prompt);
 			const declined = await toolCall({ toolName: "read", input: { path } }, ctx);
 			assert.ok(declined?.block);
-			assert.equal(declined?.reason, guard.outsideDeclined("/tmp", "/repo"));
+			assert.equal(declined?.reason, guard.outsideDeclined(OUTSIDE_DIR_EN, "/repo"));
 		}
 		{
 			const { ctx, selects } = makeCtx("Yes");
@@ -295,4 +296,20 @@ test("in English mode the no-UI block and catastrophic deny texts are the origin
 	} finally {
 		setLanguage("es");
 	}
+});
+
+test("anything under the system temp root is used without asking at all", async () => {
+	// It is wiped by the system, the harness writes there itself on every voice
+	// line and every subagent, and the dialog it used to raise once a session
+	// was the one whose answer is always yes.
+	const { toolCall } = loadGuard();
+	const { ctx, selects } = makeCtx(undefined);
+	for (const path of [`${tmpdir()}/violeta-voice-abc/line.wav`, `${tmpdir()}/x.txt`, tmpdir()]) {
+		const result = await toolCall({ toolName: "read", input: { path } }, ctx);
+		assert.equal(result, undefined, path);
+	}
+	assert.equal(selects.length, 0, "not one dialog for scratch space");
+	// A directory that merely starts like the temp root is still outside.
+	await toolCall({ toolName: "read", input: { path: `${tmpdir()}foo/x.txt` } }, ctx);
+	assert.equal(selects.length, 1, "the boundary is the same one the rest of the guard uses");
 });

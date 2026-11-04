@@ -77,6 +77,22 @@ const es = {
 		yes: "Sí",
 		no: "No",
 		destructiveTitle: "Comando destructivo",
+		/** While the free model reads the command, so the wait has a reason. */
+		explainWorking: "Leyendo el comando…",
+		/** The three things the owner asked to see instead of the script. They
+		 * are also the words the prompt asks the model for, and a test checks
+		 * that the prompt still contains all three, so they cannot drift. */
+		explainLabels: { action: "Acción", files: "Archivos", folders: "Carpetas" },
+		explainCommandLabel: "Comando",
+		explainWhy: (reasons: readonly string[]) => `Motivo: ${reasons.join("; ")}.`,
+		explainQuestion: "¿Ejecutarlo igual?",
+		explainPrompt: (command: string) =>
+			`Este comando de shell está por ejecutarse en la computadora del usuario:\n\n${command}\n\n` +
+			"Explicá qué va a hacer, en castellano, en exactamente tres líneas con este formato:\n\n" +
+			"Acción: qué hace, en una frase corta y sin tecnicismos.\n" +
+			'Archivos: los archivos que toca, separados por comas, o "ninguno".\n' +
+			'Carpetas: las carpetas que toca, separadas por comas, o "ninguna".\n\n' +
+			"Respondé solo esas tres líneas.",
 		destructiveBody: (command: string, reasons: readonly string[]) =>
 			`${command}\n\nMotivo: ${reasons.join("; ")}. ¿Ejecutarlo igual?`,
 		declined: (command: string) =>
@@ -488,6 +504,18 @@ const en: typeof es = {
 		yes: "Yes",
 		no: "No",
 		destructiveTitle: "Destructive command",
+		explainWorking: "Reading the command…",
+		explainLabels: { action: "Action", files: "Files", folders: "Folders" },
+		explainCommandLabel: "Command",
+		explainWhy: (reasons: readonly string[]) => `Why: ${reasons.join("; ")}.`,
+		explainQuestion: "Run it anyway?",
+		explainPrompt: (command: string) =>
+			`This shell command is about to run on the user's computer:\n\n${command}\n\n` +
+			"Explain what it will do, in English, in exactly three lines with this format:\n\n" +
+			"Action: what it does, in one short sentence and no jargon.\n" +
+			'Files: the files it touches, comma separated, or "none".\n' +
+			'Folders: the folders it touches, comma separated, or "none".\n\n' +
+			"Answer with those three lines only.",
 		destructiveBody: (command: string, reasons: readonly string[]) =>
 			`${command}\n\nWhy: ${reasons.join("; ")}. Run it anyway?`,
 		declined: (command: string) =>
