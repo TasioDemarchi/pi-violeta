@@ -106,6 +106,14 @@ test("every orchestrating mode pins its model, even when it shares a pool with t
 	// with two usable models it is simply the cost of having few. It used to be
 	// forbidden; the Android bake-off made deepseek-v4-flash the best writer, and
 	// its pool (3B/month) is far above the measured use (~130M in a heavy month).
+	//
+	// Since 2026-11-04 they no longer share it anyway: the orchestrator runs on
+	// glm5.3-flash (2B pool) and the writer stays on deepseek. The bake-off of
+	// that day is in the README: the two tie on code and on reading code, and
+	// deepseek is the more precise researcher, but on a vague request it keeps
+	// digging instead of asking -- 184k input tokens in one turn, with no answer
+	// -- while glm stops and asks. The one job that is mostly vague requests is
+	// the orchestrator's; the ones that are precise belong to the agents.
 	for (const name of ["jarvis"]) {
 		const mode = modes().modes.find((m) => m.name === name)!;
 		assert.ok(mode.model, `the ${name} mode must pin the orchestrator's model`);

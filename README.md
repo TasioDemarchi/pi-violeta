@@ -78,12 +78,28 @@ The repo ships one: **`jarvis`** (the default — contract first, two approvals,
 
 | Role | Model | Chosen because |
 | :--- | :--- | :--- |
-| Orchestrator (`jarvis`) | `deepseek-v4-flash` | the one model with reports praising its natural-language handling, and ~3x the output speed, which matters while talking |
-| `scout` | `deepseek-v4-flash` | general workhorse, 1M context |
+| Orchestrator (`jarvis`) | `glm5.3-flash`, thinking `high` | on a vague request it stops and asks instead of digging (see Bake-off); the one job that is mostly vague requests |
+| `scout` | `deepseek-v4-flash` | general workhorse, 1M context, and the better researcher of the two: it finds the authoritative source instead of the first one |
 | `builder` | `deepseek-v4-flash` | best of four in a replay of three real tasks (see Bake-off): fastest, fewest tokens, no false "completed" |
 | `critico` | `qwen3.8-flash` | not the orchestrator's model, so it questions the contract instead of agreeing with its author |
 | `judge` | `qwen3.8-flash` | never the model that wrote the change |
 | `probador` | `deepseek-v4-flash` | it drives a running program over many turns, so speed is what it spends |
+
+### Bake-off of 2026-11-04: who orchestrates, who works
+
+Four tests, the real jarvis prompt, `glm5.3-flash` at `high` against `deepseek-v4-flash` at `medium`.
+
+| | GLM high | DeepSeek medium |
+| :--- | :--- | :--- |
+| An O(n) sliding-window maximum | correct on 3,008 cases | correct on 3,008 cases, plus the `k <= 0` guard nobody asked for |
+| Reading `src/context-warning.ts` | both questions right | both questions right, and names `REARM_BELOW` as the knob |
+| Node's current LTS (released after both cutoffs) | right, vague on dates | right, four exact dates, from the authoritative schedule |
+| "Necesito que violeta maneje mejor los errores" | asks three questions, each with a recommendation | 28 tool calls, **184k input tokens**, no answer |
+| Total across the four | 32k tokens | 208k tokens |
+
+They tie on writing code and on reading it; deepseek is the more precise researcher. The split is ambiguity: deepseek answers a well-posed question better and a vague one not at all, because it keeps investigating instead of asking. Most of what the owner types is vague, and most of what an agent is handed is not, so the orchestrator moved to GLM and every agent stayed on deepseek. Thinking level is not a dial that goes up: GLM was wrong at `low`, wrong at `medium`, right at `high`, wrong again at `max`, where it counted the commands from the README instead of the code.
+
+One caveat kept on purpose: the bench had none of the ceilings the real harness has (the dispatch breaker, the turn limit), so part of that 184k is the bench's fault, not the model's.
 
 `config/models.json` is the catalogue for the **nan_member** plan. `glm5.3` (as opposed to `glm5.3-flash`) belongs to the 200 EUR premium tier and is deliberately absent: a model that is real but out of plan fails at request time rather than at startup, so a test pins its absence.
 
