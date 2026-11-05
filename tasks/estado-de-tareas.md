@@ -49,7 +49,7 @@ T1. Crear la copia en `~/dev/pi-violeta-test`, dejarla en una rama nueva para es
 T2. Spike: el lazo más fino de punta a punta. Un despacho de prueba para una tarea escribe un campo de estado en el archivo del contrato, y el panel lo refleja. Sin verificación, sin guard, sin persistencia: solo probar que el lazo evento→archivo→panel existe. — specs: S4 — test: recommended — riesgo: sí — commit: 71d3add (spike: src/contract/state.ts + extensions/violeta-task-state.ts; suite 594 en verde)
 T3. Lector puro de `## Tasks` en `src/contract/`, reusando lo que ya hace el lint. — specs: S2 — test: required — riesgo: no — commit: 39f7db6 (S2: src/contract/tasks.ts, 8 tests nuevos, suite 602 en verde)
 T4. Escritor de estado con un solo escritor por campo, que preserva lo que no le toca. — specs: S7 — test: required — riesgo: sí — commit: e3a2621 (Check S7: 8/8; suite 610 en verde)
-T5. El panel Todo pasa a derivarse del contrato activo, con el comportamiento de hoy intacto cuando no hay contrato. — specs: S3 — test: required — riesgo: no — commit: -
+T5. El panel Todo pasa a derivarse del contrato activo, con el comportamiento de hoy intacto cuando no hay contrato. — specs: S3 — test: required — riesgo: no — commit: 22e55df (Check S3: 6/6; suite 616 en verde; handoff de builder por presupuesto, cerrado por Jarvis)
 T6. Enganchar los eventos reales de asignación y fin de trabajador, con el id de tarea viajando como dato. — specs: S4 — test: required — riesgo: sí — commit: -
 T7. Verificación automática: correr el `Check` de la tarea y marcarla según el resultado real. — specs: S5 — test: required — riesgo: sí — commit: -
 T8. Pasar esa ejecución por el guard y apagarla en modo desatendido. — specs: S6 — test: required — riesgo: sí — commit: -
