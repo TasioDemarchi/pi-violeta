@@ -61,6 +61,11 @@ const es = {
 		shred: "shred",
 		ddDevice: "dd escribe en un dispositivo",
 		mkfs: "mkfs",
+		/** Added after a `kill -9 $H` built from a broken `ps` filter killed the
+		 * owner's whole graphical session. */
+		killEverything: "kill a un grupo entero de procesos",
+		killUnknownTarget: "kill a un objetivo que no es un PID literal",
+		killPattern: (name: string) => `${name} por patrón`,
 		recursiveBroadPath: (name: string) => `${name} recursivo en una ruta amplia`,
 		gitForcePush: "force push de git",
 		gitResetHard: "git reset --hard",
@@ -447,6 +452,9 @@ const en: typeof es = {
 		shred: "shred",
 		ddDevice: "dd writes to a device",
 		mkfs: "mkfs",
+		killEverything: "kill of a whole process group",
+		killUnknownTarget: "kill of a target that is not a literal PID",
+		killPattern: (name: string) => `${name} by pattern`,
 		recursiveBroadPath: (name: string) => `recursive ${name} on a broad path`,
 		gitForcePush: "git force push",
 		gitResetHard: "git reset --hard",

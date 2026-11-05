@@ -11,7 +11,7 @@
 
 import { guardReasons, guard as i18nGuard } from "../i18n.ts";
 
-export type DestructionKind = "filesystem" | "git" | "database";
+export type DestructionKind = "filesystem" | "git" | "database" | "process";
 
 /** Tools whose `command` input runs in a shell. The guard treats every one of
  * them exactly like `bash` (destructive forms, catastrophic targets, and
@@ -141,6 +141,63 @@ function rmMatches(args: readonly Token[]): DestructiveMatch | undefined {
 	};
 }
 
+/** A signal spec: `-9`, `-KILL`, `-SIGKILL`, `-s 9`, `--signal=TERM`. Everything
+ * else after the command name is a target. */
+const SIGNAL_FLAG = /^-(?:[0-9]{1,2}|[A-Za-z]+)$/;
+const SIGNAL_VALUE_FLAG = /^(?:-s|--signal)$/;
+
+/**
+ * `kill`, `pkill` and `killall`.
+ *
+ * This exists because of a real incident: `ps -eo pid,ppid --ppid "$D"` ignores
+ * the `--ppid` filter when `-e` is present, so `$H` held EVERY pid on the
+ * machine, and `kill -9 $H` took down the owner's whole graphical session --
+ * compositor, editor, terminals and the agent itself. The guard allowed it
+ * without a word, because it had no rule for killing anything at all.
+ *
+ * The line drawn here: a literal pid is the one case the harness can bound, so
+ * it passes. Anything the harness cannot count -- a variable, a substitution, a
+ * pattern -- asks first. A process GROUP (`-1`, `0`, a negative pid) is denied
+ * outright: `kill -9 -1` means "every process I am allowed to signal", which is
+ * exactly what happened, and there is no version of it that is a good idea
+ * inside a coding session.
+ */
+function killMatches(name: string, args: readonly Token[]): DestructiveMatch | undefined {
+	// pkill and killall take patterns, never pids: the blast radius is whatever
+	// the pattern happens to match, which is the other way this went wrong
+	// (`pkill -f` repeatedly killed the agent's own shell).
+	if (name === "pkill" || name === "killall") {
+		const pattern = args.some((arg) => !arg.value.startsWith("-"));
+		return pattern ? { kind: "process", reason: guardReasons.killPattern(name), hardDeny: false } : undefined;
+	}
+	const targets: Token[] = [];
+	let signalSeen = false;
+	for (let i = 0; i < args.length; i++) {
+		const token = args[i]!;
+		if (SIGNAL_VALUE_FLAG.test(token.value)) {
+			i++; // its value is the signal name, not a target
+			signalSeen = true;
+			continue;
+		}
+		if (token.value.startsWith("--")) continue;
+		// The FIRST `-9`-shaped token is the signal; a later one is a process group.
+		if (!signalSeen && SIGNAL_FLAG.test(token.value)) {
+			signalSeen = true;
+			continue;
+		}
+		targets.push(token);
+	}
+	if (targets.length === 0) return undefined;
+	// A process group, or init: `kill -9 -1` is "everything I can signal".
+	if (targets.some((target) => /^-\d+$/.test(target.value) || target.value === "0" || target.value === "1")) {
+		return { kind: "process", reason: guardReasons.killEverything, hardDeny: true };
+	}
+	// A pid the harness can read is a pid it can bound. Anything else -- `$H`,
+	// `$(pgrep ...)`, a backtick -- is an unknown number of unknown processes.
+	if (targets.every((target) => /^\d+$/.test(target.value) && target.raw === target.value)) return undefined;
+	return { kind: "process", reason: guardReasons.killUnknownTarget, hardDeny: false };
+}
+
 function gitMatches(args: readonly Token[]): DestructiveMatch | undefined {
 	// Skip global git options (and their values) before the action.
 	let index = 0;
@@ -224,6 +281,10 @@ function matchSegment(command: string, segment: readonly Token[], depth: number)
 		if (targets.some((target) => BROAD_DIR.test(target))) {
 			add({ kind: "filesystem", reason: guardReasons.recursiveBroadPath(name), hardDeny: false });
 		}
+	}
+	if (name === "kill" || name === "pkill" || name === "killall") {
+		const match = killMatches(name, args);
+		if (match) add(match);
 	}
 	if (name === "git") {
 		const match = gitMatches(args);

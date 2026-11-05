@@ -146,3 +146,60 @@ test("background job and monitor commands go through the same guard decision as 
 		assert.deepEqual(guardDecision("echo hi", true), { action: "allow" }, `${tool}: harmless command allows`);
 	}
 });
+
+// --- Killing processes (the incident of 2026-11-05) -------------------------
+//
+// The owner's whole graphical session died at 20:54:20: compositor, editor,
+// both terminals and the agent itself. The agent had written
+//
+//   H=$(ps -eo pid,ppid --ppid "$D" --no-headers | awk '{print $1}')
+//   kill -9 $H 2>/dev/null
+//
+// and `ps -e` ignores the `--ppid` filter, so `$H` held every pid on the
+// machine. The guard allowed it without a word: it had no rule for kill at all.
+
+test("a kill whose target the harness cannot count asks first", () => {
+	// The exact command, as the session file recorded it.
+	assert.equal(guardDecision("kill -9 $H 2>/dev/null", true).action, "confirm");
+	assert.equal(guardDecision("kill -9 $(pgrep -f daemon)", true).action, "confirm");
+	assert.equal(guardDecision("kill `cat pidfile`", true).action, "confirm");
+	// And the two-line form it was really written as.
+	const real = 'D=$(pgrep -f "daemon[.]ts" | head -1)\nH=$(ps -eo pid,ppid --ppid "$D" --no-headers)\nkill -9 $H 2>/dev/null';
+	const decision = guardDecision(real, true);
+	assert.equal(decision.action, "confirm");
+	assert.ok(decision.reasons!.some((r) => /PID literal/i.test(r)), decision.reasons!.join("; "));
+});
+
+test("a literal pid still passes, so routine work is not a dialog every time", () => {
+	assert.deepEqual(guardDecision("kill -9 61232", true), { action: "allow" });
+	assert.deepEqual(guardDecision("kill 1234", true), { action: "allow" });
+	assert.deepEqual(guardDecision("kill -s KILL 1234", true), { action: "allow" });
+	assert.deepEqual(guardDecision("kill -TERM 4321", true), { action: "allow" });
+});
+
+test("a whole process group is denied outright, never merely asked", () => {
+	// `kill -9 -1` is "every process I am allowed to signal". There is no
+	// version of it that belongs in a coding session, so it does not get a
+	// dialog that a tired owner can wave through.
+	for (const command of ["kill -9 -1", "kill -1 -9", "kill -9 0", "kill -9 1", "kill -TERM -2345"]) {
+		assert.equal(guardDecision(command, true).action, "deny", command);
+	}
+});
+
+test("pkill and killall always ask: their blast radius is whatever the pattern matches", () => {
+	// The same session killed its own shell twice with `pkill -f` before this.
+	assert.equal(guardDecision("pkill -9 -f node", true).action, "confirm");
+	assert.equal(guardDecision("killall -9 node", true).action, "confirm");
+	assert.equal(guardDecision("pkill -f 'daemon.ts'", true).action, "confirm");
+	// With no pattern at all there is nothing to kill.
+	assert.deepEqual(guardDecision("pkill --help", true), { action: "allow" });
+});
+
+test("the kill rule survives the forms that bypass a naive check", () => {
+	assert.equal(guardDecision("sudo kill -9 $H", true).action, "confirm");
+	assert.equal(guardDecision("bash -c 'kill -9 -1'", true).action, "deny");
+	assert.equal(guardDecision("ls && kill -9 $PIDS", true).action, "confirm");
+	// Prose and data are still not commands.
+	assert.deepEqual(guardDecision("echo 'kill -9 -1 is what killed it'", true), { action: "allow" });
+	assert.deepEqual(guardDecision("grep -rn 'kill -9' logs/", true), { action: "allow" });
+});
