@@ -64,6 +64,11 @@ export interface CheckResult {
 	ok: boolean;
 	/** What it printed, stdout then stderr. Only the writer's clipping reads it. */
 	output: string;
+	/** The executor refused to run the command, and this is why (S6: the guard
+	 * declined it, or the session is unattended). Set only when nothing ran, so
+	 * `ok: false` with a `refused` reason is NOT a failed Check: no process
+	 * started, and the row says `por verificar` instead of `fallada`. */
+	refused?: string;
 }
 
 /** Runs one Check in the project it belongs to. */
@@ -80,15 +85,20 @@ export const runCheckCommand: CheckExecutor = (command, cwd) =>
 		});
 	});
 
-/** The value the harness writes into `estado:` (D7), plus the output a failed
- * Check leaves for the writer to clip (D8). */
+/** The value the harness writes into `estado:` (D7), plus the note the writer
+ * clips onto D8's line: a failed Check's output, or the motive of one that was
+ * refused (S6). */
 export interface VerifyOutcome {
 	status: "verificada" | "fallada" | "por verificar";
 	output?: string;
 }
 
 /** Run the task's Check and say what it means. `run` is the executor; the
- * default is the shell, and T8 hands over its own. */
+ * default is the shell, and the extension hands over the guarded one (S6).
+ * A refused Check (the guard said no, or unattended mode) never ran, so it is
+ * `por verificar` — a task still open, with the motive written where D8 puts
+ * a failed Check's output — and never `fallada`, which is reserved for a
+ * command that really ran and really failed (S5). */
 export async function verifyTask(
 	md: string,
 	taskId: number,
@@ -98,5 +108,6 @@ export async function verifyTask(
 	const check = checkForTask(md, taskId);
 	if (check?.command === undefined) return { status: "por verificar" };
 	const result = await run(check.command, cwd);
+	if (result.refused !== undefined) return { status: "por verificar", output: result.refused };
 	return result.ok ? { status: "verificada" } : { status: "fallada", output: result.output };
 }

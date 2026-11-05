@@ -44,15 +44,21 @@
  *     extension installs nothing when `VIOLETA_AGENTS_CHILD=1` (same guard as
  *     the agents and todo extensions).
  *
- * Running the Check is `runCheckCommand` (src/contract/verify.ts), the single
- * place this feature spawns a process. Event handlers only get an
- * `ExtensionContext`, which has no `executeTool()` — that lives on
- * `ExtensionToolContext`, available inside a tool's `execute()`, not here — so
- * the Check cannot go through the bash tool from a `tool_result` handler today.
- * It is a value, not a call site, on purpose: T8 (S6, "the verification goes
- * through the guard") replaces that executor with one that asks the guard first
- * and refuses in unattended mode, and `verifyDispatch` takes it as a parameter
- * so it can be handed over without touching this file's wiring.
+ * Running the Check is `guardedCheckExecutor` (src/guard/check-executor.ts), the
+ * single place this feature spawns a process: S6 puts the guard in front of it,
+ * so a destructive `Check` asks the owner first (same dialog, same `Sí`), a
+ * declined one never runs, and unattended mode runs none of them. The decision
+ * is the guard's own `guardDecision` — no regex is copied here — and the refusal
+ * comes back as `refused` on the result, which the writer turns into
+ * `por verificar` plus the motive on D8's line.
+ *
+ * Event handlers only get an `ExtensionContext`, which has no `executeTool()` —
+ * that lives on `ExtensionToolContext`, available inside a tool's `execute()`,
+ * not here — so the Check cannot go through the bash tool from a `tool_result`
+ * handler. It runs in this (the parent's) process, which is why
+ * `VIOLETA_AGENTS_CHILD` is not set here and the guard does raise its dialog.
+ * `verifyDispatch` takes the executor as a parameter so it can be handed over
+ * without changing anything else in this file's wiring.
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -60,6 +66,7 @@ import { resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { setTaskCheckOutput, setTaskStatus } from "../src/contract/state.ts";
 import { runCheckCommand, verifyTask, type CheckExecutor } from "../src/contract/verify.ts";
+import { guardedCheckExecutor } from "../src/guard/check-executor.ts";
 import { ACTIVE_CONTRACT } from "../src/todo/source.ts";
 
 /** The tool whose dispatch carries a contract task. */
@@ -105,7 +112,9 @@ function editContract(cwd: string, edit: (md: string) => string): void {
 }
 
 /** Run the task's Check and record the real outcome on the row (S5). `run` is
- * the executor seam T8 replaces; the default is the shell. */
+ * the executor; the default is the shell, and the extension hands over the
+ * guarded one (S6). A refused Check carries its motive, which goes on the D8
+ * line under a `por verificar` row; a failed one carries its output. */
 export async function verifyDispatch(cwd: string, taskId: number | undefined, run: CheckExecutor = runCheckCommand): Promise<void> {
 	if (taskId === undefined) return;
 	try {
@@ -113,12 +122,13 @@ export async function verifyDispatch(cwd: string, taskId: number | undefined, ru
 		if (!existsSync(file)) return;
 		const md = readFileSync(file, "utf8");
 		const outcome = await verifyTask(md, taskId, cwd, run);
-		// A green or manual row carries no output line, so a Check that now
-		// passes removes the one a previous failure left behind (D8).
+		// A green or manual row carries no note, so a Check that now passes
+		// removes the one a previous failure (or refusal) left behind (D8).
 		const next = setTaskCheckOutput(
 			setTaskStatus(md, taskId, outcome.status),
 			taskId,
-			outcome.status === "fallada" ? outcome.output : undefined,
+			outcome.output,
+			outcome.status === "fallada" ? "failed" : "notRun",
 		);
 		if (next !== md) writeFileSync(file, next);
 	} catch {
@@ -145,9 +155,10 @@ export default function (pi: ExtensionAPI) {
 			editContract(ctx.cwd, (md) => setTaskStatus(md, taskId ?? 0, taskId === undefined ? undefined : FAILED));
 			return;
 		}
-		// D9: in background the row stays `en curso`; T7 verifies when the work
-		// actually ends, not when the tool call returns.
+		// D9: in background the row stays `en curso`; verification happens when the
+		// work actually ends, not when the tool call returns.
 		if (isBackground(event.input)) return;
-		await verifyDispatch(ctx.cwd, taskId);
+		// S6: the Check goes through the guard, and unattended mode runs none.
+		await verifyDispatch(ctx.cwd, taskId, guardedCheckExecutor(ctx));
 	});
 }

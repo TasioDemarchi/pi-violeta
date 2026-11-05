@@ -122,6 +122,9 @@ const es = {
 			`Rechazado (modo sin supervisión): ${reasons.join("; ")}. No se ejecutó. Omití este paso, usá una alternativa más segura y seguí con el resto del trabajo.`,
 		unattendedOutsideWrite: (dir: string, cwd: string) =>
 			`Rechazado (modo sin supervisión): fuera del proyecto (${dir}) solo se puede leer, y para eso usá read, grep, find o ls. Para escribir o ejecutar quedate dentro de ${cwd}; seguí con el resto del trabajo.`,
+		/** The motive a task row gets when its Check did not run because the session
+		 * is unattended (S6). It lands on the D8 line under the row. */
+		checkUnattended: "modo sin supervisión: la verificación automática no se ejecuta. Volvé a correr el Check en una sesión interactiva.",
 	},
 	agents: {
 		/** Display words for task statuses (the values themselves stay identifiers). */
@@ -503,6 +506,7 @@ const en: typeof es = {
 			`Refused (unattended mode): ${reasons.join("; ")}. It did not run. Skip this step, use a safer alternative and carry on with the rest of the work.`,
 		unattendedOutsideWrite: (dir: string, cwd: string) =>
 			`Refused (unattended mode): outside the project (${dir}) you can only read, using read, grep, find or ls. To write or execute stay inside ${cwd}; carry on with the rest of the work.`,
+		checkUnattended: "unattended mode: automatic verification does not run. Run the Check again in an interactive session.",
 	},
 	agents: {
 		statuses: { queued: "queued", running: "running", completed: "completed", failed: "failed", aborted: "aborted", budget: "stopped at its ceiling" } as Record<string, string>,

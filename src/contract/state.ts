@@ -31,9 +31,11 @@
  *
  * `setTaskCheckOutput` owns the ONE zone outside a row that the harness touches
  * (D8): an indented continuation line under the task holding the clipped output
- * of a failed Check. It is recognised by its own prefix, so the model's prose
- * under the same task — also indented — is never mistaken for it, and writing a
- * Check that now passes removes the line instead of leaving a stale failure.
+ * of a failed Check, or — with the `notRun` label — the motive of a Check the
+ * guard refused to run (S6: declined, or unattended mode). It is recognised by
+ * its own prefix, so the model's prose under the same task — also indented — is
+ * never mistaken for it, and writing a Check that now passes removes the line
+ * instead of leaving a stale failure.
  *
  * A field's value runs to the next ` — ` separator or to the end of the line,
  * the same rule `inlineField` uses (lint.ts), so `estado:` and `commit:` parse
@@ -131,15 +133,23 @@ export function todoFromContract(md: string): TodoTask[] {
 	});
 }
 
+/** What heads the harness's one continuation line (D8): a Check that ran and
+ * failed, or one the guard (S6) refused to run. Two labels, one zone: it is
+ * still the only place outside the row that the harness writes. */
+export type CheckNoteKind = "failed" | "notRun";
 /** Prefix that marks the continuation line as the harness's own (D8). Only a
- * line starting with exactly this is ever replaced or removed. */
-const CHECK_NOTE_PREFIX = "    Check falló: ";
+ * line starting with exactly one of these is ever replaced or removed. */
+const CHECK_NOTE_PREFIX: Record<CheckNoteKind, string> = {
+	failed: "    Check falló: ",
+	notRun: "    Check no ejecutado: ",
+};
 /** How much of a failed Check's output lands in the file: the first lines, on
  * one line, so a red row stays one row plus one line. */
 const NOTE_MAX_LINES = 3;
 const NOTE_MAX_CHARS = 300;
 
-/** The clipped form of a failed Check's output (D8). */
+/** The clipped form of a Check's note (D8): a failed Check's output, or the
+ * motive of one that was refused. */
 export function clipCheckOutput(output: string): string {
 	const lines = output
 		.split("\n")
@@ -158,16 +168,19 @@ function noteIndexOf(lines: readonly string[], rowIndex: number): number {
 		const line = lines[i]!;
 		if (line.trim() === "") break;
 		if (!/^\s/.test(line)) break;
-		if (line.startsWith(CHECK_NOTE_PREFIX)) return i;
+		if (Object.values(CHECK_NOTE_PREFIX).some((prefix) => line.startsWith(prefix))) return i;
 	}
 	return -1;
 }
 
-/** Write (`output` given) or remove (`output` undefined) the harness's line of
- * failed-Check output under task `taskId` (D8). The line goes directly under the
- * row; the model's own indented prose is left where it is, byte for byte, and an
- * unknown id or a contract without `## Tasks` returns the text unchanged. */
-export function setTaskCheckOutput(md: string, taskId: number, output: string | undefined): string {
+/** Write (`output` given) or remove (`output` undefined) the harness's line
+ * under task `taskId` (D8). `kind` says which of the two labels heads it — a
+ * failed Check's output, or the motive of one that never ran (S6) — and a line
+ * left by the other kind is replaced, so a row never keeps a stale note. The
+ * line goes directly under the row; the model's own indented prose is left
+ * where it is, byte for byte, and an unknown id or a contract without
+ * `## Tasks` returns the text unchanged. */
+export function setTaskCheckOutput(md: string, taskId: number, output: string | undefined, kind: CheckNoteKind = "failed"): string {
 	const lines = md.split("\n");
 	const row = rowIndexOf(md, taskId);
 	if (row === -1) return md;
@@ -178,7 +191,7 @@ export function setTaskCheckOutput(md: string, taskId: number, output: string | 
 		lines.splice(existing, 1);
 		return lines.join("\n");
 	}
-	const note = `${CHECK_NOTE_PREFIX}${text}`;
+	const note = `${CHECK_NOTE_PREFIX[kind]}${text}`;
 	if (existing === -1) lines.splice(row + 1, 0, note);
 	else lines[existing] = note;
 	return lines.join("\n");
