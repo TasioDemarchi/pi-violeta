@@ -51,7 +51,7 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | `src/agents/breaker.ts` | Dispatch breaker: reports and asks between subagent dispatches (tested) |
 | `extensions/violeta-contract.ts`, `src/contract/` | `contract_check`: zero-token lint of a Jarvis contract (tested) |
 | `extensions/violeta-mode.ts`, `src/modes/` | `/mode` philosophy switch (prompt, model and agent roster) |
-| `extensions/violeta-btw.ts`, `src/btw/` | `/btw` side chat: state, request and framed panel (tested) |
+| `extensions/violeta-btw.ts`, `src/btw/` | `/btw` side chat: state, request, framed panel and scrollable reader (tested) |
 | `src/frontmatter.ts` | The minimal YAML reader shared by agent and mode definitions |
 | `extensions/violeta-palette.ts`, `src/palette/` | `/palette` command palette |
 | `src/context-warning.ts` | Context color thresholds and `/compact` hint |
@@ -172,8 +172,10 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 | `/btw <message>` | Asks with the session's conversation as context (opens the window if it was closed) |
 | `/btwn` | Forgets the side conversation, keeps the window |
 | `/btwn <message>` | Asks as a new session: no session context and no previous aside |
+| `/btwv` (`alt+b`) | Opens the same conversation full screen, with scrolling |
 
 - **Where it is drawn.** While the sidebar is active (`/sidebar on`, fullscreen, 100 columns or more) **the sidebar becomes the chat**: the framed panel takes the whole column and project, changes and model come back the moment it closes. With no room for a sidebar the same panel is a framed box above the editor. Both are drawn by one function, so the two placements cannot drift, and the frame is the point: the aside must not read as part of the conversation.
+- **A long answer is read in the reader.** The panel always shows the END of the conversation and drops what does not fit, and it cannot scroll: a widget and a sidebar column never hold the keyboard focus, so there is nowhere to press a key. `alt+b` opens the same conversation as an overlay, which does take focus: `j`/`k` scroll, `ctrl+j`/`ctrl+k` page, `g`/`G` top/bottom, `esc`/`q` close. It opens at the newest line, where the panel left off, and it is read-only — the answer keeps streaming in behind it. Both the panel and the reader lay out a turn with the same function (`btwContentRows`), so they cannot drift.
 - **Everything is typed in the main editor.** Only `/btw` and `/btwn` reach the side chat.
 - **Which model answers.** The session's current model, so the aside answers with the same head as the main thread. Raising the session model with `/models` raises the side chat too — including the Claude bridge, which is the one model that spends real money.
 - **What travels.** The conversation only: user and assistant text, in order, cut to the most recent 40,000 characters (`BTW_CONTEXT_CHARS`). Tool calls and tool output are left out — they are the bulk of a session's tokens and none of its conversation. `/btwn` sends none of it.
@@ -217,6 +219,7 @@ All on demand; nothing extra is drawn by default.
 | `/usage` | | The session's tokens and cost, split by model — which the footer and the sidebar do not show, and which is the only part that costs money when the session runs on a paid model. |
 | `/notify on\|off` | | Opt-in. Terminal bell plus `notify-send` (if installed) when a run longer than 20 s ends or a confirmation dialog waits. Off by default, remembered in `violeta.json`. |
 | `/btw`, `/btwn` | | The side chat; see Side chat above. |
+| `/btwv` | `alt+b` | The side chat full screen and scrollable: `j`/`k` scroll, `ctrl+j`/`ctrl+k` page, `g`/`G` top/bottom, `esc`/`q` close. For an answer taller than the panel. |
 | `/language es\|en` | | See Language below. |
 
 - **Compact tools:** every tool call collapses to one line (`✓ read README.md`, `✓ bash npm test · 0 · 1.2s`, `✗ bash … · exit 1`); `ctrl+o` expands the full output. Display only: what the model receives is unchanged and the guard still intercepts.

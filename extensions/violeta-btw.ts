@@ -20,12 +20,27 @@
  * The call is deliberately NOT awaited by the command handler: the panel says
  * `pensando…` and you keep typing in the main editor meanwhile.
  *
+ * A long answer does not fit the panel, and neither placement has the keyboard
+ * focus, so neither can scroll. `alt+b` (or `/btwv`) opens the same conversation
+ * in an overlay, which does take focus: there `j/k` scrolls. The panel stays the
+ * glance; the overlay is for reading.
+ *
  * Nothing is persisted: the conversation is in memory and goes with the process.
  */
 
 import type { ExtensionAPI, ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
+import { matchesKey } from "@earendil-works/pi-tui";
 import { renderBtwPanel, type Fg } from "../src/btw/panel.ts";
+import {
+	btwViewLayout,
+	btwViewRows,
+	initialBtwView,
+	reduceBtwView,
+	renderBtwView,
+	type BtwViewAction,
+	type BtwViewState,
+} from "../src/btw/view.ts";
 import { blocksText, branchTurns, buildBtwPrompt, recentTurns } from "../src/btw/request.ts";
 import {
 	answerBtw,
@@ -130,6 +145,80 @@ export default function (pi: ExtensionAPI) {
 			}
 			void ask(ctx, command.message, false);
 		},
+	});
+
+	/** The conversation in an overlay, scrollable because an overlay has focus.
+	 * Read-only: it draws state, never changes it, so opening it mid-answer is
+	 * safe — the panel keeps filling behind it and the next render shows more. */
+	async function openReader(ctx: ExtensionContext): Promise<void> {
+		if (ctx.mode !== "tui" || !ctx.hasUI) {
+			// notify directly, not through `say`: `say` is silent without a UI,
+			// which is exactly the case this branch has to report. Same shape as
+			// the changes, jobs and palette overlays.
+			ctx.ui.notify(t.overlayNeedsTui, "warning");
+			return;
+		}
+		await ctx.ui.custom<void>(
+			(tui, theme, _keybindings, done) => {
+				const fg: Fg = (role, text) => theme.fg(role as ThemeColor, text);
+				let view: BtwViewState = initialBtwView();
+				let page = 1;
+				let closed = false;
+				const close = () => {
+					if (closed) return;
+					closed = true;
+					done();
+				};
+				// Repaint while the answer streams in, so the reader is not a frozen
+				// snapshot of a conversation that is still growing.
+				const unsub = subscribeShared(() => tui.requestRender());
+				return {
+					invalidate() {},
+					dispose() {
+						unsub();
+					},
+					render(width: number): string[] {
+						try {
+							const layout = btwViewLayout(width, tui.terminal.rows);
+							page = layout.bodyRows;
+							return renderBtwView(view, btwViewRows(state, layout.width), layout, fg);
+						} catch {
+							// a broken reader must never break the editor
+							return [];
+						}
+					},
+					handleInput(data: string): void {
+						const action: BtwViewAction | undefined =
+							data === "k" || matchesKey(data, "up") ? "up"
+							: data === "j" || matchesKey(data, "down") ? "down"
+							: matchesKey(data, "ctrl+k") || matchesKey(data, "pageup") ? "pageUp"
+							: matchesKey(data, "ctrl+j") || matchesKey(data, "pagedown") ? "pageDown"
+							: data === "g" ? "top"
+							: data === "G" ? "bottom"
+							: matchesKey(data, "escape") || matchesKey(data, "esc") || data === "q" ? "close"
+							: undefined;
+						if (!action) return;
+						view = reduceBtwView(view, action, page);
+						if (view.closed) {
+							close();
+							return;
+						}
+						tui.requestRender();
+					},
+				} satisfies Component;
+			},
+			{ overlay: true, overlayOptions: { width: "100%", maxHeight: "100%", margin: 0, anchor: "center" } },
+		);
+	}
+
+	pi.registerCommand("btwv", {
+		description: t.viewDescription,
+		handler: async (_args: string, ctx: ExtensionContext) => openReader(ctx),
+	});
+
+	pi.registerShortcut("alt+b", {
+		description: t.viewShortcut,
+		handler: async (ctx) => openReader(ctx),
 	});
 
 	pi.on("session_start", async (_event, ctx) => {

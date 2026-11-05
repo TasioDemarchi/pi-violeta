@@ -25,6 +25,12 @@ export const BTW_MAX_WIDGET_ROWS = 14;
  * text, a failure in error. */
 const ROLES: Record<BtwRole, string> = { user: "accent", assistant: "text", error: "error" };
 
+/** The theme role a content row is painted with. Shared with the overlay so
+ * the same turn is the same color in both places. */
+export function btwRowColor(role: BtwRole | "hint"): string {
+	return role === "hint" ? "dim" : ROLES[role];
+}
+
 /** Wrap plain text to `width` columns, breaking on spaces and hard-breaking a
  * word longer than the line. Blank lines in the text are kept: they are how a
  * model separates paragraphs. Wrapping happens before any color is applied, so
@@ -70,10 +76,19 @@ export interface PanelOptions {
 	maxRows?: number;
 }
 
+/** One rendered row of the side conversation. `hint` is the panel's own voice
+ * (a blank separator, `pensando…`, the empty-state line), never the model's. */
+export interface BtwRow {
+	role: BtwRole | "hint";
+	text: string;
+}
+
 /** The conversation as plain content rows, newest last: the question prefixed
- * `› `, the answer as it came, a failure in its own color. */
-function contentRows(state: BtwState, inner: number): Array<{ role: BtwRole | "hint"; text: string }> {
-	const rows: Array<{ role: BtwRole | "hint"; text: string }> = [];
+ * `› `, the answer as it came, a failure in its own color. Exported because the
+ * overlay reads the SAME rows the panel does: one way to turn a conversation
+ * into lines, so the glance and the scrollable view cannot drift. */
+export function btwContentRows(state: BtwState, inner: number): BtwRow[] {
+	const rows: BtwRow[] = [];
 	for (const turn of state.turns) {
 		if (rows.length > 0) rows.push({ role: "hint", text: "" });
 		const prefix = turn.role === "user" ? "› " : "";
@@ -106,11 +121,11 @@ export function renderBtwPanel(state: BtwState, opts: PanelOptions, fg: Fg): str
 
 	// The frame costs two rows; what is left is the conversation's window.
 	const budget = opts.rows !== undefined ? Math.max(1, opts.rows - 2) : Math.max(1, opts.maxRows ?? BTW_MAX_WIDGET_ROWS);
-	const rows = contentRows(state, inner);
+	const rows = btwContentRows(state, inner);
 	const shown = rows.slice(Math.max(0, rows.length - budget));
 	const body = shown.map((row) => {
 		const text = truncateToWidth(row.text, inner);
-		const painted = text === "" ? "" : fg(row.role === "hint" ? "dim" : ROLES[row.role], text);
+		const painted = text === "" ? "" : fg(btwRowColor(row.role), text);
 		return fg("borderAccent", "│ ") + painted + " ".repeat(Math.max(0, inner - visibleWidth(painted))) + fg("borderAccent", " │");
 	});
 	// The sidebar column asks for an exact height: fill it, or the panel would

@@ -15,6 +15,9 @@ delete process.env.VIOLETA_AGENTS_CHILD;
 type Command = { description?: string; handler: (args: string, ctx: unknown) => Promise<void> };
 type Handler = (event: unknown, ctx: unknown) => Promise<void>;
 type Complete = (model: unknown, context: Record<string, unknown>) => Promise<unknown>;
+type Shortcut = { description?: string; handler: (ctx: unknown) => Promise<void> };
+/** What `ctx.ui.custom` hands the extension, and what it gives back. */
+type Reader = { render(width: number): string[]; handleInput?(data: string): void; dispose?(): void };
 
 const answer = (text: string) => ({ role: "assistant", content: [{ type: "text", text }], stopReason: "stop" });
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -27,9 +30,11 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 
 	const handlers = new Map<string, Handler>();
 	const commands = new Map<string, Command>();
+	const shortcuts = new Map<string, Shortcut>();
 	extension({
 		on: (name: string, fn: Handler) => handlers.set(name, fn),
 		registerCommand: (name: string, command: Command) => commands.set(name, command),
+		registerShortcut: (key: string, shortcut: Shortcut) => shortcuts.set(key, shortcut),
 	} as never);
 
 	const calls: Array<{ model: unknown; context: { systemPrompt?: string; messages: Array<{ content: string }> } }> = [];
@@ -50,11 +55,22 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 		ui: {
 			notify: (text: string) => notes.push(text),
 			setWidget: (key: string, content: unknown) => widgets.set(key, content),
+			// Pi builds the overlay component and keeps it until `done()`; the
+			// fake builds it, hands it over and closes when the extension says so.
+			custom: async (factory: (tui: unknown, theme: unknown, keys: unknown, done: () => void) => Reader) => {
+				let open = true;
+				reader = factory(tui, theme, {}, () => {
+					open = false;
+				});
+				readerOpen = () => open;
+			},
 		},
 	};
 
 	const theme = { fg: (_role: string, text: string) => text };
 	const tui = { requestRender: () => {}, terminal: { columns: 140, rows: 40 } };
+	let reader: Reader | undefined;
+	let readerOpen: () => boolean = () => false;
 
 	return {
 		ctx,
@@ -71,6 +87,16 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 			return factory(tui, theme).render(width);
 		},
 		hasWidget: () => widgets.get("btw-panel") !== undefined,
+		shortcut: (key: string) => shortcuts.get(key),
+		/** Open the reader the way the shortcut does, then drive it by key. */
+		openReader: async () => {
+			await shortcuts.get("alt+b")!.handler(ctx);
+			return {
+				lines: (width = 60) => reader!.render(width),
+				press: (data: string) => reader!.handleInput?.(data),
+				isOpen: () => readerOpen(),
+			};
+		},
 	};
 }
 
@@ -254,6 +280,78 @@ test("btw: both commands are registered with a description, so /palette lists th
 	assert.match(env.command("btwn")!.description!, /\S/);
 	assert.match(env.command("btw")!.description!, /\/btw/);
 	assert.match(env.command("btwn")!.description!, /\/btwn/);
+});
+
+// --- The reader -------------------------------------------------------------
+// A long answer does not fit the panel, and neither the widget nor the sidebar
+// column has the keyboard focus, so neither can scroll. The reader is an
+// overlay, which does take focus. These tests drive it by key.
+
+/** An answer taller than any overlay, so there is always something off screen. */
+const longAnswer = (rows: number) =>
+	answer(Array.from({ length: rows }, (_unused, index) => `renglon ${index + 1}`).join("\n"));
+
+test("btw: alt+b and /btwv both open the reader, and it starts at the newest line", async () => {
+	const env = load({ complete: async () => longAnswer(80) });
+	await env.start();
+	await env.run("btw", "contame algo largo");
+	await flush();
+
+	assert.match(env.shortcut("alt+b")!.description!, /\S/, "the shortcut is described for /hotkeys");
+	assert.match(env.command("btwv")!.description!, /\S/);
+
+	const reader = await env.openReader();
+	const lines = reader.lines();
+	assert.ok(lines.some((line) => line.includes("renglon 80")), "the end is on screen");
+	assert.ok(!lines.some((line) => line.includes("renglon 1 ")), "the start is not");
+});
+
+test("btw: the reader scrolls — g reaches the question the panel had dropped", async () => {
+	const env = load({ complete: async () => longAnswer(80) });
+	await env.start();
+	await env.run("btw", "¿por qué no puedo hacer scroll?");
+	await flush();
+
+	// The panel itself cannot show the question any more: the answer buried it.
+	assert.ok(
+		!env.panel().some((line) => line.includes("¿por qué no puedo hacer scroll?")),
+		"the panel dropped the question, which is the bug this view fixes",
+	);
+
+	const reader = await env.openReader();
+	reader.press("g");
+	assert.ok(
+		reader.lines().some((line) => line.includes("¿por qué no puedo hacer scroll?")),
+		"the reader reaches it",
+	);
+
+	reader.press("G");
+	assert.ok(reader.lines().some((line) => line.includes("renglon 80")), "and comes back to the end");
+});
+
+test("btw: esc and q close the reader; it never touches the conversation", async () => {
+	for (const key of ["\u001b", "q"]) {
+		const env = load({ complete: async () => longAnswer(40) });
+		await env.start();
+		await env.run("btw", "algo");
+		await flush();
+		const before = env.state();
+
+		const reader = await env.openReader();
+		assert.equal(reader.isOpen(), true, `${key}: open before the key`);
+		reader.press(key);
+		assert.equal(reader.isOpen(), false, `${key}: closed after it`);
+		assert.deepEqual(env.state(), before, `${key}: the aside is unchanged`);
+		assert.equal(env.calls.length, 1, `${key}: reading asks the model nothing`);
+	}
+});
+
+test("btw: without a TUI the reader says so instead of failing", async () => {
+	const env = load();
+	await env.start();
+	env.ctx.hasUI = false;
+	await env.run("btwv");
+	assert.match(env.notes.at(-1)!, /interactivo/i);
 });
 
 test("btw: the side chat goes with the session — a new one starts empty, shutdown drops the window", async () => {
