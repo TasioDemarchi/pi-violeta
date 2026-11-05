@@ -91,7 +91,7 @@ import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "nod
 import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { setTaskCheckOutput, setTaskStatus } from "../src/contract/state.ts";
-import { runCheckCommand, verifyTask, type CheckExecutor } from "../src/contract/verify.ts";
+import { verifyTask, type CheckExecutor } from "../src/contract/verify.ts";
 import { guardedCheckExecutor } from "../src/guard/check-executor.ts";
 import { activeContractFrom } from "../src/contract/active.ts";
 
@@ -168,7 +168,7 @@ function editContract(cwd: string, path: string, edit: (md: string) => string): 
  * guard can wait for the owner, and everything the model wrote in that window
  * has to survive (S7). Applying the pure transforms to the fresh text is what
  * makes that possible — they edit one line and one note, never the file. */
-export async function verifyDispatch(cwd: string, path: string, taskId: number | undefined, run: CheckExecutor = runCheckCommand): Promise<void> {
+export async function verifyDispatch(cwd: string, path: string, taskId: number | undefined, run: CheckExecutor): Promise<void> {
 	if (taskId === undefined) return;
 	try {
 		const file = resolve(cwd, path);

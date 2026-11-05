@@ -17,11 +17,18 @@
  * whether a spec HAS a check decide which command it is, so "lint says this spec
  * has no Check" and "the harness found no Check" can never disagree.
  *
- * Running is a separate, injectable value (`CheckExecutor`). The default spawns
- * `bash -c <command>` in the project, because a `Check:` is written as a shell
- * line (`test -x ... && git ... | grep -q ...`). The seam exists for T8 (S6):
- * the guard has to see the command before it runs, and unattended mode has to be
- * able to refuse it, without this module knowing about either. */
+ * Running is a separate, injectable value (`CheckExecutor`), and it has NO
+ * default on purpose. The runner spawns `bash -c <command>` in the project, because a
+ * `Check:` is written as a shell line (`test -x ... && git ... | grep -q ...`).
+ * The seam exists for T8 (S6): the guard has to see the command before it runs,
+ * and unattended mode has to be able to refuse it, without this module knowing
+ * about either. A default here was the hole a judge found: a caller that forgot
+ * the guarded executor silently got the bare shell, with the guard nowhere in
+ * front of model-written text the harness executes by itself. So `run` is a
+ * required parameter: forgetting it is a compile error, not a silent bypass.
+ * The only place `runCheckCommand` is meant to be named is the guarded executor
+ * (src/guard/check-executor.ts), as the thing an approved `Check` finally goes
+ * through. */
 
 import { execFile } from "node:child_process";
 import { field, find, inlineField, items, sections } from "./lint.ts";
@@ -77,7 +84,10 @@ export type CheckExecutor = (command: string, cwd: string) => Promise<CheckResul
 /** The default executor: `bash -c <command>` with the project as cwd, so a
  * `Check:` is exactly the line the contract spells. The timeout is the same
  * order as a full test suite, not an interactive command: a Check that hangs
- * forever is a broken Check, and the row must still get its answer. */
+ * forever is a broken Check, and the row must still get its answer.
+ *
+ * It is NOT a default anywhere: callers pass it explicitly, and the only caller
+ * that should is the guarded executor. */
 export const runCheckCommand: CheckExecutor = (command, cwd) =>
 	new Promise((resolve) => {
 		execFile("bash", ["-c", command], { cwd, maxBuffer: 8 * 1024 * 1024, timeout: 10 * 60 * 1000 }, (error, stdout, stderr) => {
@@ -93,18 +103,14 @@ export interface VerifyOutcome {
 	output?: string;
 }
 
-/** Run the task's Check and say what it means. `run` is the executor; the
- * default is the shell, and the extension hands over the guarded one (S6).
+/** Run the task's Check and say what it means. `run` is the executor, and it is
+ * REQUIRED: there is no default, on purpose (see this file's header). The
+ * extension hands over the guarded one (S6).
  * A refused Check (the guard said no, or unattended mode) never ran, so it is
  * `por verificar` — a task still open, with the motive written where D8 puts
  * a failed Check's output — and never `fallada`, which is reserved for a
  * command that really ran and really failed (S5). */
-export async function verifyTask(
-	md: string,
-	taskId: number,
-	cwd: string,
-	run: CheckExecutor = runCheckCommand,
-): Promise<VerifyOutcome> {
+export async function verifyTask(md: string, taskId: number, cwd: string, run: CheckExecutor): Promise<VerifyOutcome> {
 	const check = checkForTask(md, taskId);
 	if (check?.command === undefined) return { status: "por verificar" };
 	const result = await run(check.command, cwd);

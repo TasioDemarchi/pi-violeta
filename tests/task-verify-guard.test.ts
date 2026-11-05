@@ -17,22 +17,31 @@
 // of asking; that is the repo's known trap, and the Check runs in the parent's
 // process, not a child's. The test drops the variable.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import extension from "../extensions/violeta-task-state.ts";
-import { guard } from "../src/i18n.ts";
+import { verifyTask } from "../src/contract/verify.ts";
+import { guard, guardReasons } from "../src/i18n.ts";
 import { setShared } from "../src/shared-hub.ts";
 
 delete process.env.VIOLETA_AGENTS_CHILD;
 
 const CONTRACT_PATH = "tasks/estado-de-tareas.md";
 
+const ROOT = join(import.meta.dirname, "..");
+// Scratch UNDER THE REPO, never the system temp root: the guard treats the temp
+// root as scratch space and asks nothing for it, so an "outside the project"
+// test cannot live there. What counts for the grant is "outside the temp
+// project", and the repo's own scratch directory is exactly that.
+const OUTSIDE_BASE = join(ROOT, ".violeta", "scratch", `task-verify-guard-${process.pid}`);
+
 // A `Check:` is a shell line, and the guard looks at shell segments: the
 // destructive segment has to be there for `rm -rf` to be recognised, and the
-// log write is what proves whether it ran.
-const CONTRACT = `# estado-de-tareas
+// log write is what proves whether it ran. `@OUT@` is replaced per test so each
+// one touches its own outside directory (a grant is remembered per directory).
+const CONTRACT_TEMPLATE = `# estado-de-tareas
 Runner: node --test tests/task-verify-guard.test.ts
 
 ## No-objetivos
@@ -48,6 +57,12 @@ S2. Un Check destructivo que falla.
 S3. Un Check inocuo.
     Accept: la fila queda verificada sin diálogo.
     Check: printf 'safe\\n' >> check.log; exit 0
+S4. Un Check que toca una ruta fuera del proyecto.
+    Accept: el guard pide el permiso de ruta antes de correrlo.
+    Check: printf 'outside\\n' >> @OUT@/check.log; exit 0
+S5. Un Check con intérprete y código inline.
+    Accept: pide confirmación antes de correrlo, aunque no sea destructivo.
+    Check: node -e "require('fs').appendFileSync('check.log','node\\n')"; exit 0
 
 ## Tasks
 T1. Destructivo verde — specs: S1 — test: required — riesgo: sí — commit: -
@@ -55,7 +70,12 @@ T2. Destructivo rojo — specs: S2 — test: required — riesgo: no — commit:
 T3. Inocuo — specs: S3 — test: required — riesgo: no — commit: -
 T4. Otro destructivo verde — specs: S1 — test: required — riesgo: no — commit: -
 T5. Otro inocuo — specs: S3 — test: required — riesgo: no — commit: -
+T6. Ruta de afuera — specs: S4 — test: required — riesgo: sí — commit: -
+T7. Código inline — specs: S5 — test: required — riesgo: sí — commit: -
 `;
+
+/** The contract with `@OUT@` replaced by an outside-project directory. */
+const contract = (outside: string) => CONTRACT_TEMPLATE.replaceAll("@OUT@", outside);
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
@@ -63,6 +83,8 @@ interface Harness {
 	handlers: Map<string, Handler[]>;
 	dir: string;
 	file: string;
+	/** The outside-project directory this run's `Check:` points at. */
+	outside: string;
 	/** What the owner answers in every dialog this run raises. */
 	answer: string | undefined;
 	selects: Array<{ prompt: string; options: string[] }>;
@@ -71,17 +93,18 @@ interface Harness {
 
 /** A temp project whose only content is the contract file at the active path,
  * plus the mocked owner: `answer` is what `ctx.ui.select` returns. */
-function project(answer: string | undefined = "Sí", options: { hasUI?: boolean } = {}): Harness {
+function project(answer: string | undefined = "Sí", options: { hasUI?: boolean; outside?: string } = {}): Harness {
 	setShared({ unattended: false });
 	const dir = mkdtempSync(join(tmpdir(), "violeta-task-verify-guard-"));
 	mkdirSync(join(dir, "tasks"), { recursive: true });
+	const outside = options.outside ?? join(OUTSIDE_BASE, "unused");
 	const file = join(dir, CONTRACT_PATH);
-	writeFileSync(file, CONTRACT);
+	writeFileSync(file, contract(outside));
 	const handlers = new Map<string, Handler[]>();
 	(extension as unknown as (pi: unknown) => void)({
 		on: (name: string, fn: Handler) => handlers.set(name, [...(handlers.get(name) ?? []), fn]),
 	});
-	return { handlers, dir, file, answer, selects: [], hasUI: options.hasUI ?? true };
+	return { handlers, dir, file, outside, answer, selects: [], hasUI: options.hasUI ?? true };
 }
 
 function ctxOf(h: Harness) {
@@ -183,7 +206,7 @@ test("a destructive Check the owner declines never runs and leaves the row por v
 	assert.ok(noteAt(md, "1").includes("rm -rf .cache"), noteAt(md, "1"));
 	assert.doesNotMatch(md, /Check falló/);
 	// exactly one line added, and no other row moved
-	assert.equal(linesOf(md).length, linesOf(CONTRACT).length + 1);
+	assert.equal(linesOf(md).length, linesOf(contract(h.outside)).length + 1);
 	assert.match(md, /^T2\..*— commit: -$/m);
 });
 
@@ -260,5 +283,117 @@ test("a row refused while unattended is verified once unattended is off and the 
 	const md = read(h!);
 	assert.match(linesOf(md)[rowAt(md, "1")]!, /— estado: verificada$/);
 	assert.doesNotMatch(md, /Check no ejecutado/);
-	assert.equal(linesOf(md).length, linesOf(CONTRACT).length);
+	assert.equal(linesOf(md).length, linesOf(contract(h!.outside)).length);
+});
+
+// --- FIX 3 (severe): the Check gets the guard's OUTSIDE-PROJECT half too ----
+//
+// The executor classified the command with `guardDecision` but never asked for
+// the path grants the guard asks for on `bash`. So a Check that touched
+// `~/dev/pi-violeta` or `~/.ssh` ran without a word. Same rule now, same dialog.
+
+test("a Check that touches a path outside the project asks for the grant first, and Sí runs it", async () => {
+	const outside = join(OUTSIDE_BASE, "granted");
+	mkdirSync(outside, { recursive: true });
+	try {
+		const h = project("Sí", { outside });
+		await dispatchAndFinish(h, 6);
+
+		// The dialog is the guard's grant dialog, naming the outside directory.
+		assert.equal(h.selects.length, 1, "exactly one dialog, and it is the grant's");
+		assert.equal(h.selects[0]!.options.join("|"), `${guard.yes}|${guard.no}`);
+		assert.ok(h.selects[0]!.prompt.includes(guard.outsideTitle), h.selects[0]!.prompt);
+		assert.ok(h.selects[0]!.prompt.includes(outside), h.selects[0]!.prompt);
+
+		// Only then did it run, and it really wrote outside the project.
+		assert.equal(readFileSync(join(outside, "check.log"), "utf8"), "outside\n");
+		assert.match(read(h), /^T6\..*— commit: - — estado: verificada$/m);
+	} finally {
+		rmSync(outside, { recursive: true, force: true });
+	}
+});
+
+test("a Check that touches a path outside the project is refused when the grant is declined", async () => {
+	const outside = join(OUTSIDE_BASE, "declined");
+	mkdirSync(outside, { recursive: true });
+	try {
+		const h = project("No", { outside });
+		await dispatchAndFinish(h, 6);
+
+		assert.equal(h.selects.length, 1);
+		assert.equal(existsSync(join(outside, "check.log")), false, "a declined grant means the Check never runs");
+		const md = read(h);
+		assert.match(linesOf(md)[rowAt(md, "6")]!, /— estado: por verificar$/);
+		assert.match(noteAt(md, "6"), /^ {4}Check no ejecutado: /);
+		// The motive is the guard's own decline text for that directory.
+		assert.ok(noteAt(md, "6").includes(guard.outsideDeclined(outside, h.dir)), noteAt(md, "6"));
+	} finally {
+		rmSync(outside, { recursive: true, force: true });
+	}
+});
+
+// --- FIX 4a (severe): an inline payload is never "obviously safe" -----------
+//
+// `guardDecision` only recognises known destructive forms, so `node -e '...'`
+// ran without ever asking. A Check is model-written text the harness executes on
+// its own, so a command the recognizer cannot read is asked about instead.
+
+test("a Check with an inline interpreter payload asks first even though nothing is destructive, and Sí runs it", async () => {
+	const h = project("Sí");
+	await dispatchAndFinish(h, 7);
+
+	assert.equal(h.selects.length, 1, "an inline payload is never silently approved");
+	assert.equal(h.selects[0]!.options.join("|"), `${guard.yes}|${guard.no}`);
+	assert.ok(h.selects[0]!.prompt.includes(guard.inlineTitle), h.selects[0]!.prompt);
+	assert.ok(h.selects[0]!.prompt.includes("node -e"), h.selects[0]!.prompt);
+	assert.ok(h.selects[0]!.prompt.includes(guardReasons.inlinePayload), h.selects[0]!.prompt);
+
+	assert.equal(readFileSync(join(h.dir, "check.log"), "utf8"), "node\n");
+	assert.match(read(h), /^T7\..*— commit: - — estado: verificada$/m);
+});
+
+test("a Check with an inline interpreter payload the owner declines never runs", async () => {
+	const h = project("No");
+	await dispatchAndFinish(h, 7);
+
+	assert.equal(h.selects.length, 1);
+	assert.equal(ranCheck(h), false, "a declined inline payload must not run");
+	const md = read(h);
+	assert.match(linesOf(md)[rowAt(md, "7")]!, /— estado: por verificar$/);
+	assert.match(noteAt(md, "7"), /^ {4}Check no ejecutado: .*rechazó/);
+});
+
+test("unattended mode refuses a Check with an inline interpreter payload without asking", async () => {
+	setShared({ unattended: true });
+	try {
+		const h = project("Sí");
+		setShared({ unattended: true });
+		await dispatchAndFinish(h, 7);
+
+		assert.equal(h.selects.length, 0, "nobody is there to answer");
+		assert.equal(ranCheck(h), false, "not run");
+		const md = read(h);
+		assert.match(linesOf(md)[rowAt(md, "7")]!, /— estado: por verificar$/);
+		assert.ok(noteAt(md, "7").includes(guard.checkUnattended), noteAt(md, "7"));
+	} finally {
+		setShared({ unattended: false });
+	}
+});
+
+// --- FIX 4b: there is no default executor to fall back to -------------------
+//
+// `verifyTask(..., run = runCheckCommand)` was the hole: a caller that forgot
+// the guarded executor silently got the bare shell, with the guard nowhere in
+// front of it. The parameter is required now. `tsc` is not part of `npm test`
+// (there is no tsconfig here; node strips the types), so the type-level half of
+// the guarantee is asserted through the signature's runtime shadow — its arity —
+// and the other half by calling it the way such a caller would: with no
+// executor it must reject instead of running the shell.
+
+test("verifyTask has no default executor: a caller without one cannot run a Check", async () => {
+	assert.equal(verifyTask.length, 4, "md, taskId, cwd, run — `run` has no default");
+	const md = `## Specs\nS1. x.\n    Check: printf 'boom\\n'\n\n## Tasks\nT1. x — specs: S1 — test: required — riesgo: no — commit: -\n`;
+	// The cast is the only way to spell the unguarded call that used to type-check.
+	const unguarded = verifyTask as unknown as (md: string, taskId: number, cwd: string) => Promise<unknown>;
+	await assert.rejects(() => unguarded(md, 1, process.cwd()), /is not a function/);
 });

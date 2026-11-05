@@ -244,16 +244,80 @@ function matchSegment(command: string, segment: readonly Token[], depth: number)
  */
 export function recognizeDestructiveCommands(command: string, depth = 0): DestructiveMatch[] {
 	if (depth > 4) return [];
-	const blanked = blankHeredocs(command);
-	const tokens = tokenize(blanked);
 	const matches: DestructiveMatch[] = [];
+	for (const segment of segments(blankHeredocs(command))) matches.push(...matchSegment(command, segment, depth));
+	return matches;
+}
+
+/** The shell segments of a command, in order (quoted tokens stay whole). */
+function segments(command: string): Token[][] {
+	const tokens = tokenize(command);
+	const out: Token[][] = [];
 	let start = 0;
 	for (let end = 0; end <= tokens.length; end++) {
 		if (end < tokens.length && !tokens[end].operator) continue;
-		matches.push(...matchSegment(command, tokens.slice(start, end), depth));
+		out.push(tokens.slice(start, end));
 		start = end + 1;
 	}
-	return matches;
+	return out;
+}
+
+/** Interpreters that take their program inline, and the flag that introduces it: `node -e`, `python -c`, `perl -e`, `sh -c`. */
+const INLINE_VALUE_FLAGS: Record<string, readonly string[]> = {
+	node: ["-e", "--eval"],
+	nodejs: ["-e", "--eval"],
+	python: ["-c"],
+	python2: ["-c"],
+	python3: ["-c"],
+	perl: ["-e"],
+	sh: ["-c"],
+	bash: ["-c"],
+	zsh: ["-c"],
+	dash: ["-c"],
+};
+const DOWNLOADERS = new Set(["curl", "wget"]);
+const SHELLS = new Set(["sh", "bash", "zsh", "dash"]);
+
+const headName = (segment: readonly Token[]): string | undefined => {
+	const head = segment[headCursor(segment)];
+	// Only unquoted heads are commands; quoted prose can never be a payload.
+	return head && head.raw === head.value ? executable(head.value) : undefined;
+};
+
+/** Whether this one segment hands code to an interpreter. */
+function inlineIn(segment: readonly Token[]): boolean {
+	const name = headName(segment);
+	if (name === undefined) return false;
+	if (name === "eval") return segment.length > headCursor(segment) + 1;
+	const flags = INLINE_VALUE_FLAGS[name];
+	if (flags === undefined) return false;
+	return segment.slice(headCursor(segment) + 1).some((token) => {
+		if (token.raw !== token.value) return false;
+		return flags.some((flag) => token.value === flag || (flag.startsWith("--") && token.value.startsWith(`${flag}=`)));
+	});
+}
+
+/**
+ * Whether a command hands its program to an interpreter in a form no recognizer
+ * can read: `node -e`, `node --eval`, `python -c`, `perl -e`, `sh -c`,
+ * `bash -c`, `eval`, and `curl … | sh` / `wget … | bash`.
+ *
+ * `recognizeDestructiveCommands` answers "is this a form I know is dangerous?".
+ * This answers the other question — "can I read it at all?" — which is the one
+ * that matters when the harness is about to run model-written text on its own
+ * (a contract `Check`, S6). Pure, and built on the same tokenizer as the
+ * recognizer: quoting, wrappers and heredoc bodies behave identically.
+ */
+export function runsInlinePayload(command: string): boolean {
+	const all = segments(blankHeredocs(command));
+	const heads = all.map(headName);
+	return all.some((segment, index) => {
+		if (inlineIn(segment)) return true;
+		// `curl … | sh`: the payload is on the other side of the pipe.
+		const previous = heads[index - 1];
+		const current = heads[index];
+		return previous !== undefined && current !== undefined && DOWNLOADERS.has(previous) && SHELLS.has(current);
+	});
 }
 
 /**

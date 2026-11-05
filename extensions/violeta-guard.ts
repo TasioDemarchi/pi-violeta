@@ -26,21 +26,20 @@
  * project root; violeta has no foreign-repo subagent launch to grant for.
  */
 
-import { existsSync, statSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { SHELL_COMMAND_TOOLS, guardDecision } from "../src/guard/command-guard.ts";
 import { OutsideGrants } from "../src/guard/grants.ts";
-import { allowedLocation, bashPathTargets, isScratch, resolvePath, targetDir, grantScope, toolCallPaths } from "../src/guard/paths.ts";
+import { authorizePaths, canAsk, home, unattended } from "../src/guard/outside.ts";
+import { bashPathTargets, toolCallPaths } from "../src/guard/paths.ts";
 import { type Explanation, explainedBody, parseExplanation } from "../src/guard/explain.ts";
 import { blocksText } from "../src/btw/request.ts";
-import { getShared, setShared } from "../src/shared-hub.ts";
+import { setShared } from "../src/shared-hub.ts";
 import { guard as t } from "../src/i18n.ts";
 
 // Shell tools (bash, bash_background, monitor) get the destructive-command
 // check and the outside-project path grant; the file tools only the grant.
-// Outside the project these may read in unattended mode; nothing else may.
-const READ_TOOLS = new Set(["read", "grep", "find", "ls"]);
+// The grant policy itself lives in src/guard/outside.ts, because the harness's
+// `Check` executor has to apply the very same rule (S6, estado-de-tareas).
 
 /** The free NaN model that reads the command for the dialog. Picked by
  * measuring all six: gemma4, qwen3.6 and deepseek-v4-flash spend their whole
@@ -65,14 +64,6 @@ export default function (pi: ExtensionAPI) {
 	// VIOLETA_AGENTS_CHILD=1: children keep the guard, and being non-interactive
 	// they are blocked on a match instead of prompting.
 	const grants = new OutsideGrants();
-
-	const agentDir = (): string | undefined => {
-		const dir = process.env.PI_CODING_AGENT_DIR;
-		return dir && dir.trim() !== "" ? dir : undefined;
-	};
-	const home = (): string => process.env.HOME && process.env.HOME.trim() !== "" ? process.env.HOME : homedir();
-	const unattended = (): boolean => getShared().unattended === true;
-	const canAsk = (): boolean => process.env.VIOLETA_AGENTS_CHILD !== "1" && !unattended();
 
 	/** The command in words, or nothing. Never throws and never waits forever:
 	 * every failure (no NaN auth, a slow model, an answer in the wrong shape)
@@ -108,66 +99,13 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	/** Ask once per target directory per session; without a UI it blocks. */
-	async function authorizeOutside(ctx: ExtensionContext, resolved: string): Promise<{ block?: boolean; reason?: string }> {
-		// Scratch space is free: the temp root is the one place outside the
-		// project where the answer is always yes, and the harness writes there
-		// itself on every voice line and every subagent.
-		if (isScratch(resolved, tmpdir())) return {};
-		// Temp paths collapse to the temp root: `mktemp -d` names a different
-		// directory every run, so granting each one asks again forever.
-		const dir = grantScope(targetDir(resolved, (path) => {
-			try {
-				return statSync(path).isDirectory();
-			} catch {
-				return existsSync(path);
-			}
-		}), tmpdir());
-		if (grants.has(dir)) return {};
-		if (!ctx.hasUI || !canAsk()) {
-			return {
-				block: true,
-				reason: t.outsideNeedsGrant(dir, ctx.cwd),
-			};
-		}
-		// select instead of confirm so the OPTIONS are Spanish; only "Sí" approves.
-		// While the dialog waits, the shared hub tells the notify extension (if
-		// loaded) to ping the user; the guard never depends on it being there.
-		setShared({ notifyNeedsAnswer: true });
-		let approved: boolean;
-		try {
-			approved = (await ctx.ui.select(`${t.outsideTitle}\n${t.outsideBody(dir)}`, [t.yes, t.no])) === t.yes;
-		} finally {
-			setShared({ notifyNeedsAnswer: false });
-		}
-		if (!approved) {
-			return { block: true, reason: t.outsideDeclined(dir, ctx.cwd) };
-		}
-		grants.grant(dir);
-		return {};
-	}
-
-	async function authorizePaths(ctx: ExtensionContext, paths: string[], toolName: string): Promise<{ block?: boolean; reason?: string }> {
-		const dir = agentDir();
-		for (const path of paths) {
-			const resolved = resolvePath(path, ctx.cwd, home());
-			if (allowedLocation(resolved, ctx.cwd, dir)) continue;
-			if (unattended()) {
-				if (READ_TOOLS.has(toolName)) continue;
-				return { block: true, reason: t.unattendedOutsideWrite(resolved, ctx.cwd) };
-			}
-			const denied = await authorizeOutside(ctx, resolved);
-			if (denied.block) return denied;
-		}
-		return {};
-	}
-
 	pi.on("tool_call", async (event, ctx) => {
 		if (!GRANTABLE_TOOLS.has(event.toolName)) return;
 		grants.sync(ctx.sessionManager.getSessionId());
 
 		if (SHELL_COMMAND_TOOLS.has(event.toolName)) {
 			const command = event.input.command;
-			const decision = guardDecision(command, ctx.hasUI && canAsk());
+			const decision = guardDecision(command, canAsk(ctx));
 			if (decision.action === "deny") {
 				return { block: true, reason: decision.reason };
 			}
@@ -193,12 +131,12 @@ export default function (pi: ExtensionAPI) {
 					return { block: true, reason: t.declined(command) };
 				}
 			}
-			const denied = await authorizePaths(ctx, bashPathTargets(command, ctx.cwd, home()), event.toolName);
+			const denied = await authorizePaths(ctx, grants, bashPathTargets(command, ctx.cwd, home()), event.toolName);
 			if (denied.block) return denied;
 			return;
 		}
 
-		const denied = await authorizePaths(ctx, toolCallPaths(event.toolName, event.input as Record<string, unknown>), event.toolName);
+		const denied = await authorizePaths(ctx, grants, toolCallPaths(event.toolName, event.input as Record<string, unknown>), event.toolName);
 		if (denied.block) return denied;
 	});
 

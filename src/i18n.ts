@@ -71,6 +71,7 @@ const es = {
 		gitRestoreWholeTree: "git restore de todo el árbol",
 		sqlDropTruncate: "sentencia SQL DROP/TRUNCATE",
 		sqlDeleteWithoutWhere: "DELETE sin WHERE",
+		inlinePayload: "código inline en un intérprete (no se puede revisar qué hace)",
 	},
 	guard: {
 		/** The only option that approves the destructive command. */
@@ -125,6 +126,10 @@ const es = {
 		/** The motive a task row gets when its Check did not run because the session
 		 * is unattended (S6). It lands on the D8 line under the row. */
 		checkUnattended: "modo sin supervisión: la verificación automática no se ejecuta. Volvé a correr el Check en una sesión interactiva.",
+		/** The dialog title for a command whose payload no recognizer can read
+		 * (`node -e`, `sh -c`, `eval`, `curl … | sh`). It is not called
+		 * destructive: it may be perfectly innocent, and still nobody can say. */
+		inlineTitle: "Comando con código inline",
 	},
 	agents: {
 		/** Display words for task statuses (the values themselves stay identifiers). */
@@ -460,6 +465,7 @@ const en: typeof es = {
 		gitRestoreWholeTree: "git restore of the whole tree",
 		sqlDropTruncate: "SQL DROP/TRUNCATE statement",
 		sqlDeleteWithoutWhere: "DELETE without WHERE",
+		inlinePayload: "inline code in an interpreter (there is no way to read what it does)",
 	},
 	guard: {
 		yes: "Yes",
@@ -507,6 +513,7 @@ const en: typeof es = {
 		unattendedOutsideWrite: (dir: string, cwd: string) =>
 			`Refused (unattended mode): outside the project (${dir}) you can only read, using read, grep, find or ls. To write or execute stay inside ${cwd}; carry on with the rest of the work.`,
 		checkUnattended: "unattended mode: automatic verification does not run. Run the Check again in an interactive session.",
+		inlineTitle: "Command with inline code",
 	},
 	agents: {
 		statuses: { queued: "queued", running: "running", completed: "completed", failed: "failed", aborted: "aborted", budget: "stopped at its ceiling" } as Record<string, string>,
