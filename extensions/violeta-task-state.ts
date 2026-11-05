@@ -29,7 +29,8 @@
  * Writing goes through `setTaskStatus` and `setTaskCheckOutput`
  * (src/contract/state.ts), the one writer of the row and of the one line under
  * it, so `commit:` and every other byte the model owns survive untouched (S7).
- * The active contract is `ACTIVE_CONTRACT` (src/todo/source.ts), the same path
+ * The active contract is the session's answer (src/contract/active.ts): what
+ * `contract_check` adopted after a clean lint, or the `tasks/<name>.md`
  * the Todo panel reads. The panel is not told about the write: it re-reads the
  * file on its own tick, because the file is the single source of truth (D2) and
  * there is no second copy to notify.
@@ -67,7 +68,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { setTaskCheckOutput, setTaskStatus } from "../src/contract/state.ts";
 import { runCheckCommand, verifyTask, type CheckExecutor } from "../src/contract/verify.ts";
 import { guardedCheckExecutor } from "../src/guard/check-executor.ts";
-import { ACTIVE_CONTRACT } from "../src/todo/source.ts";
+import { activeContractFrom } from "../src/contract/active.ts";
 
 /** The tool whose dispatch carries a contract task. */
 const DISPATCH_TOOL = "subagent_run";
@@ -99,9 +100,9 @@ function isBackground(input: unknown): boolean {
 /** Read the active contract, and write the result back only when a byte
  * changed. A missing contract, a broken file or a failed write never reach the
  * tool call: the model's work is not worth losing over the harness's bookkeeping. */
-function editContract(cwd: string, edit: (md: string) => string): void {
+function editContract(cwd: string, path: string, edit: (md: string) => string): void {
 	try {
-		const file = resolve(cwd, ACTIVE_CONTRACT);
+		const file = resolve(cwd, path);
 		if (!existsSync(file)) return;
 		const md = readFileSync(file, "utf8");
 		const next = edit(md);
@@ -115,10 +116,10 @@ function editContract(cwd: string, edit: (md: string) => string): void {
  * the executor; the default is the shell, and the extension hands over the
  * guarded one (S6). A refused Check carries its motive, which goes on the D8
  * line under a `por verificar` row; a failed one carries its output. */
-export async function verifyDispatch(cwd: string, taskId: number | undefined, run: CheckExecutor = runCheckCommand): Promise<void> {
+export async function verifyDispatch(cwd: string, path: string, taskId: number | undefined, run: CheckExecutor = runCheckCommand): Promise<void> {
 	if (taskId === undefined) return;
 	try {
-		const file = resolve(cwd, ACTIVE_CONTRACT);
+		const file = resolve(cwd, path);
 		if (!existsSync(file)) return;
 		const md = readFileSync(file, "utf8");
 		const outcome = await verifyTask(md, taskId, cwd, run);
@@ -144,21 +145,23 @@ export default function (pi: ExtensionAPI) {
 	pi.on("tool_call", (event, ctx) => {
 		if (isNested(event) || event.toolName !== DISPATCH_TOOL) return;
 		const taskId = dispatchTaskId(event.input);
-		editContract(ctx.cwd, (md) => setTaskStatus(md, taskId ?? 0, taskId === undefined ? undefined : IN_PROGRESS));
+		const path = activeContractFrom((ctx as { sessionManager?: unknown } | undefined)?.sessionManager);
+		editContract(ctx.cwd, path, (md) => setTaskStatus(md, taskId ?? 0, taskId === undefined ? undefined : IN_PROGRESS));
 	});
 
 	pi.on("tool_result", async (event, ctx) => {
 		if (isNested(event) || event.toolName !== DISPATCH_TOOL) return;
 		const taskId = dispatchTaskId(event.input);
+		const path = activeContractFrom((ctx as { sessionManager?: unknown } | undefined)?.sessionManager);
 		if (event.isError) {
 			// The dispatch itself failed: there is no delivery to verify.
-			editContract(ctx.cwd, (md) => setTaskStatus(md, taskId ?? 0, taskId === undefined ? undefined : FAILED));
+			editContract(ctx.cwd, path, (md) => setTaskStatus(md, taskId ?? 0, taskId === undefined ? undefined : FAILED));
 			return;
 		}
 		// D9: in background the row stays `en curso`; verification happens when the
 		// work actually ends, not when the tool call returns.
 		if (isBackground(event.input)) return;
 		// S6: the Check goes through the guard, and unattended mode runs none.
-		await verifyDispatch(ctx.cwd, taskId, guardedCheckExecutor(ctx));
+		await verifyDispatch(ctx.cwd, path, taskId, guardedCheckExecutor(ctx));
 	});
 }

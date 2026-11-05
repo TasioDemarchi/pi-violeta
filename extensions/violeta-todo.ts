@@ -16,10 +16,13 @@
  * minute after every task is done/dropped — the only timer is the one-shot
  * tick at the end of that hide window, unref'd and cleaned on shutdown.
  *
- * The card is a VIEW of the active contract (S3, estado-de-tareas): when
- * `tasks/estado-de-tareas.md` has a `## Tasks` section, the rows drawn come
- * from that file and not from the tool's list, re-read on a small tick so a
- * model edit to a row's `commit:` marks it done with no tool call. Without a
+ * The card is a VIEW of the active contract (S3, estado-de-tareas): when the
+ * session's contract has a `## Tasks` section, the rows drawn come from that
+ * file and not from the tool's list, re-read on a small tick so a model edit to
+ * a row's `commit:` marks it done with no tool call. The active contract is the
+ * session's (S8): the one the model adopted with `contract_check`, replayed from
+ * the branch, so it survives `/compact` and `/resume`; with none adopted the
+ * convention `tasks/<name>.md` is read, exactly as T5 did. Without a
  * contract — no file, or no `## Tasks` — the panel is exactly the tool's list,
  * as before. The rule itself is pure and lives in `src/todo/source.ts`.
  */
@@ -30,8 +33,9 @@ import type { ExtensionAPI, ExtensionContext, Theme, ThemeColor } from "@earendi
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { cardVisible, renderTodoCard, TODO_HIDE_MS, type CardFg } from "../src/todo/card.ts";
+import { activeContractFrom } from "../src/contract/active.ts";
 import { TODO_ENTRY_TYPE, replayTodo, todoSnapshot } from "../src/todo/persist.ts";
-import { ACTIVE_CONTRACT, panelTodo } from "../src/todo/source.ts";
+import { panelTodo } from "../src/todo/source.ts";
 import { applyTodo, doneCount, emptyTodo, openCount, type TodoParams, type TodoState } from "../src/todo/store.ts";
 import { getShared, setShared, subscribeShared } from "../src/shared-hub.ts";
 import { compactRenderers } from "../src/tools-view/compact.ts";
@@ -63,6 +67,10 @@ export default function (pi: ExtensionAPI) {
 	let view: TodoState = state;
 	let visible = true; // /todo toggle, in memory only
 	let cwd: string | undefined;
+	/** The session's context, kept only to answer "which contract is active?"
+	 * (S8): the branch is the answer, and it is read on the tick, so an adoption
+	 * in this very session reaches the panel with no extra event. */
+	let sessionCtx: ExtensionContext | undefined;
 	/** Last value published, so the file's tick never churns the renderer. */
 	let published: string | undefined;
 	let tuiRef: TUI | undefined;
@@ -73,12 +81,14 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	/** The active contract's text, or undefined when there is no contract to
-	 * read. T5's stand-in for "which contract" is `ACTIVE_CONTRACT`; a read that
-	 * fails reads as "no contract", never as an error on the panel. */
+	 * read. Which contract is active is the session's answer (S8,
+	 * `src/contract/active.ts`): the one the model adopted with `contract_check`,
+	 * or the convention `tasks/<name>.md` when it adopted none. A read that fails
+	 * reads as "no contract", never as an error on the panel. */
 	function contractText(): string | undefined {
 		if (cwd === undefined) return undefined;
 		try {
-			const file = resolve(cwd, ACTIVE_CONTRACT);
+			const file = resolve(cwd, activeContractFrom(sessionCtx?.sessionManager));
 			return existsSync(file) ? readFileSync(file, "utf8") : undefined;
 		} catch {
 			return undefined;
@@ -222,6 +232,7 @@ export default function (pi: ExtensionAPI) {
 		visible = true;
 		published = undefined;
 		cwd = ctx.cwd;
+		sessionCtx = ctx;
 		startContractTick();
 		publishTodo();
 		if (ctx.mode !== "tui" || !ctx.hasUI) return;
@@ -275,6 +286,7 @@ export default function (pi: ExtensionAPI) {
 		visible = true;
 		published = undefined;
 		cwd = undefined;
+		sessionCtx = undefined;
 		publishTodo();
 		tuiRef = undefined;
 		if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.setWidget(WIDGET_KEY, undefined);

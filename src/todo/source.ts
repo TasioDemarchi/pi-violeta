@@ -17,12 +17,6 @@
 import { todoFromContract } from "../contract/state.ts";
 import type { TodoState, TodoTask } from "./store.ts";
 
-/** The contract the panel reads. T5 rides on the convention `tasks/<name>.md`
- * and this one file is the whole of it: there is no detection and no setting.
- * T9 (S8) owns "which contract is active"; when it lands, this constant is the
- * single line that becomes the session's answer. */
-export const ACTIVE_CONTRACT = "tasks/estado-de-tareas.md";
-
 /** Ids come from the file (`T#`), so the next one is past the highest. */
 function nextIdOf(tasks: readonly TodoTask[]): number {
 	return tasks.reduce((max, task) => Math.max(max, task.id), 0) + 1;

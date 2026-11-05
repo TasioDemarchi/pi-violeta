@@ -6,12 +6,20 @@
  * It exists so a contract never reaches the critic (a model call) while it is
  * still missing an acceptance criterion or a runnable check: that is a fact a
  * program can establish for free.
+ *
+ * A contract that passes the lint is also the moment the session ADOPTS it
+ * (S8, estado-de-tareas): the path goes on the branch as a custom entry, so the
+ * Todo panel, the writer of `estado:` rows and the verifier read that contract
+ * for the rest of the session — including after `/compact` and `/resume` — with
+ * the model naming it exactly once. A contract that fails the lint adopts
+ * nothing: the session keeps whatever it had.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { ACTIVE_CONTRACT_ENTRY_TYPE, activeContractSnapshot } from "../src/contract/active.ts";
 import { formatLint, lintContract } from "../src/contract/lint.ts";
 import { compactRenderers } from "../src/tools-view/compact.ts";
 
@@ -34,6 +42,8 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 			const result = lintContract(readFileSync(file, "utf8"));
+			// S8: a contract that passes is this session's contract from now on.
+			if (result.ok) pi.appendEntry(ACTIVE_CONTRACT_ENTRY_TYPE, activeContractSnapshot(params.path.trim()));
 			return {
 				content: [{ type: "text" as const, text: formatLint(result) }],
 				details: { ok: result.ok, errors: result.errors.length, warnings: result.warnings.length },
