@@ -1,10 +1,15 @@
-/** Contract task state (T2 spike, estado-de-tareas). Pure transforms over the
- * contract markdown: the `## Tasks` section is the single source of truth (D2),
- * the harness writes an `— estado:` field on a task row, and the Todo panel is
- * derived from that same file, so there is no second copy of the state to keep
- * in sync. This module is the thinnest version of the reader (T3) and the
- * single-writer (T4); both replace it once the loop is proven. */
+/** Contract task state (T2 spike, estado-de-tareas). The `## Tasks` section is
+ * the single source of truth (D2), the harness writes an `— estado:` field on a
+ * task row, and the Todo panel is derived from that same file, so there is no
+ * second copy of the state to keep in sync.
+ *
+ * The reading half now delegates to `./tasks.ts` (T3, S2): one definition of
+ * what a task row is, what its title is and what makes it done. This module
+ * keeps only what the spike added — the harness-owned `estado:` field and the
+ * panel projection. T4 replaces the writer, T5 the projection, T6 the wiring. */
 
+import { readContractTasks } from "./tasks.ts";
+import { find, sections } from "./lint.ts";
 import type { TodoStatus, TodoTask } from "../todo/store.ts";
 
 const TASK_ROW = /^T(\d+)\. /;
@@ -21,14 +26,14 @@ export interface ContractTaskRow {
 /** The `## Tasks` rows, in order; a contract without the section yields an
  * empty list instead of throwing. */
 export function parseContractTasks(md: string): ContractTaskRow[] {
-	const lines = md.split("\n");
-	const start = lines.findIndex((line) => line.trim() === "## Tasks");
-	if (start === -1) return [];
-	const rest = lines.slice(start + 1);
-	const end = rest.findIndex((line) => /^## /.test(line));
-	return (end === -1 ? rest : rest.slice(0, end))
-		.filter((line) => TASK_ROW.test(line))
-		.map((line) => ({ id: Number(TASK_ROW.exec(line)![1]), line }));
+	const section = find(sections(md), "tasks", "tareas");
+	if (!section) return [];
+	const rows: ContractTaskRow[] = [];
+	for (const { text } of section.lines) {
+		const match = TASK_ROW.exec(text);
+		if (match) rows.push({ id: Number(match[1]), line: text });
+	}
+	return rows;
 }
 
 /** Write (status given) or clear (status undefined) the harness field on task
@@ -46,19 +51,14 @@ export function setTaskStatus(md: string, taskId: number, status: string | undef
 	return lines.join("\n");
 }
 
-/** The panel's view of the contract: `commit:` with content other than `-`
- * means done (S2), `estado: en curso` means in progress, everything else
- * pending. The title is the row text before its first field. */
+/** The panel's view of the contract: `done` comes from `commit:` (S2, via the
+ * T3 reader), `estado: en curso` means in progress, everything else pending. */
 export function todoFromContract(md: string): TodoTask[] {
-	return parseContractTasks(md).map((row) => {
-		const title = row.line
-			.replace(/^T\d+\.\s*/, "")
-			.replace(/\s+—.*$/, "")
-			.trim();
-		const commit = / — commit: (.*?)(?: —|$)/.exec(row.line)?.[1]?.trim() ?? "";
+	const rows = new Map(parseContractTasks(md).map((row) => [row.id, row.line]));
+	return readContractTasks(md).map((task) => {
 		let status: TodoStatus = "pending";
-		if (commit !== "" && commit !== "-") status = "done";
-		else if (/ — estado: en curso$/.test(row.line)) status = "in_progress";
-		return { id: row.id, title, status };
+		if (task.done) status = "done";
+		else if (/ — estado: en curso$/.test(rows.get(task.id) ?? "")) status = "in_progress";
+		return { id: task.id, title: task.title, status };
 	});
 }

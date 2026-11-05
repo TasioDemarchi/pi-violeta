@@ -49,13 +49,15 @@ const EXTERNAL = /\b(adb|android|ios|tablet|dispositivo|device|celular|emulador|
 const PLACEHOLDER = /^(?:<[^>]*>|tbd|todo|\?+|-|n\/a)?$/i;
 const MAX_LINES = 100;
 
-interface Section {
+export interface Section {
 	title: string;
 	start: number;
 	lines: Array<{ text: string; line: number }>;
 }
 
-function sections(text: string): Section[] {
+/** The `## <heading>` blocks of a contract, in order, with their line numbers.
+ * Exported so the task reader splits the file exactly like the lint does. */
+export function sections(text: string): Section[] {
 	const out: Section[] = [];
 	let current: Section | undefined;
 	text.split("\n").forEach((raw, i) => {
@@ -70,10 +72,10 @@ function sections(text: string): Section[] {
 	return out;
 }
 
-const find = (all: Section[], ...names: string[]) => all.find((s) => names.includes(s.title));
+export const find = (all: Section[], ...names: string[]) => all.find((s) => names.includes(s.title));
 
 /** Items like `S1. ...` plus their indented continuation lines, up to the next item. */
-function items(section: Section | undefined, letter: string): Array<{ id: string; line: number; body: string }> {
+export function items(section: Section | undefined, letter: string): Array<{ id: string; line: number; body: string }> {
 	if (!section) return [];
 	const found: Array<{ id: string; line: number; body: string }> = [];
 	for (const { text, line } of section.lines) {
@@ -90,7 +92,7 @@ function field(body: string, name: string): string | undefined {
 }
 
 /** Task rows keep their fields inline, separated by an em dash. */
-function inlineField(body: string, name: string): string | undefined {
+export function inlineField(body: string, name: string): string | undefined {
 	const m = body.match(new RegExp(`(?:^|[\\s—])${name}:\\s*([^—\\n]*)`, "i"));
 	return m ? m[1]!.trim() : undefined;
 }
