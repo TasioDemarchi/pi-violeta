@@ -1,8 +1,10 @@
-// T2 spike (estado-de-tareas): the event → file → panel loop. The pure
-// transforms are tested directly; the wiring is driven against a fake Pi the
-// same way agents-breaker-extension.test.ts does it: a `subagent_run` tool_call
-// writes `estado: en curso` into the contract file and the shared hub receives
-// a panel list derived from that same file.
+// T2 spike (estado-de-tareas), reduced by T5: the event → file half of the
+// loop. The pure transforms are tested directly; the wiring is driven against
+// a fake Pi the same way agents-breaker-extension.test.ts does it: a
+// `subagent_run` tool_call writes `estado: en curso` into the contract file.
+// The panel half moved to the one derivation in `src/todo/source.ts` and is
+// covered by tests/todo-from-contract.test.ts (S3), so it is no longer asserted
+// here.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +12,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 import extension from "../extensions/violeta-task-state.ts";
 import { parseContractTasks, setTaskStatus, todoFromContract } from "../src/contract/state.ts";
-import { getShared } from "../src/shared-hub.ts";
 
 const CONTRACT = `# contrato
 Runner: none
@@ -58,7 +59,7 @@ test("todoFromContract: commit content is done, en curso is in_progress, else pe
 	assert.equal(list[0].title, "Hacer la cosa");
 });
 
-test("the loop: a subagent_run dispatch writes the file and the panel reflects it", async () => {
+test("the loop: a subagent_run dispatch writes the estado into the contract file", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "violeta-task-state-"));
 	const file = join(dir, "tasks", "estado-de-tareas.md");
 	mkdirSync(join(dir, "tasks"));
@@ -70,18 +71,16 @@ test("the loop: a subagent_run dispatch writes the file and the panel reflects i
 			handlers.set(name, [...(handlers.get(name) ?? []), fn]),
 	});
 
-	// dispatch start → the row reads en curso and the hub got the derived list
+	// dispatch start → the row reads en curso; the panel reads it from the file
 	for (const fn of handlers.get("tool_call") ?? [])
 		await fn({ type: "tool_call", toolName: "subagent_run", toolCallId: "x", input: { label: "T1 hacer la cosa" } }, { cwd: dir });
 	assert.match(readFileSync(file, "utf8"), /T1\..*— estado: en curso/m);
-	assert.equal(getShared().todoState?.tasks[0]?.status, "in_progress");
-	assert.equal(getShared().todoState?.tasks[0]?.id, 1);
 
 	// dispatch end → the row reads back as it started
 	for (const fn of handlers.get("tool_result") ?? [])
 		await fn({ type: "tool_result", toolName: "subagent_run", toolCallId: "x", input: { label: "T1 hacer la cosa" }, isError: false }, { cwd: dir });
 	assert.doesNotMatch(readFileSync(file, "utf8"), /— estado:/m);
-	assert.equal(getShared().todoState?.tasks[0]?.status, "pending");
+	assert.equal(readFileSync(file, "utf8"), CONTRACT);
 });
 
 test("the loop ignores dispatches with no task id in the label", async () => {

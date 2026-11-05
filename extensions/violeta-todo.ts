@@ -15,13 +15,23 @@
  * card (in memory). The card hides itself when the list is empty, and one
  * minute after every task is done/dropped — the only timer is the one-shot
  * tick at the end of that hide window, unref'd and cleaned on shutdown.
+ *
+ * The card is a VIEW of the active contract (S3, estado-de-tareas): when
+ * `tasks/estado-de-tareas.md` has a `## Tasks` section, the rows drawn come
+ * from that file and not from the tool's list, re-read on a small tick so a
+ * model edit to a row's `commit:` marks it done with no tool call. Without a
+ * contract — no file, or no `## Tasks` — the panel is exactly the tool's list,
+ * as before. The rule itself is pure and lives in `src/todo/source.ts`.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { cardVisible, renderTodoCard, TODO_HIDE_MS, type CardFg } from "../src/todo/card.ts";
 import { TODO_ENTRY_TYPE, replayTodo, todoSnapshot } from "../src/todo/persist.ts";
+import { ACTIVE_CONTRACT, panelTodo } from "../src/todo/source.ts";
 import { applyTodo, doneCount, emptyTodo, openCount, type TodoParams, type TodoState } from "../src/todo/store.ts";
 import { getShared, setShared, subscribeShared } from "../src/shared-hub.ts";
 import { compactRenderers } from "../src/tools-view/compact.ts";
@@ -48,7 +58,13 @@ export default function (pi: ExtensionAPI) {
 	if (process.env.VIOLETA_AGENTS_CHILD === "1") return;
 
 	let state: TodoState = emptyTodo();
+	/** What the panel draws: the contract's rows when there is one, `state`
+	 * otherwise (S3). `state` stays the model's list either way. */
+	let view: TodoState = state;
 	let visible = true; // /todo toggle, in memory only
+	let cwd: string | undefined;
+	/** Last value published, so the file's tick never churns the renderer. */
+	let published: string | undefined;
 	let tuiRef: TUI | undefined;
 	let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -56,10 +72,54 @@ export default function (pi: ExtensionAPI) {
 		tuiRef?.requestRender();
 	}
 
+	/** The active contract's text, or undefined when there is no contract to
+	 * read. T5's stand-in for "which contract" is `ACTIVE_CONTRACT`; a read that
+	 * fails reads as "no contract", never as an error on the panel. */
+	function contractText(): string | undefined {
+		if (cwd === undefined) return undefined;
+		try {
+			const file = resolve(cwd, ACTIVE_CONTRACT);
+			return existsSync(file) ? readFileSync(file, "utf8") : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
 	/** Publish the list and the /todo flag to the shared hub, so violeta-ui can
-	 * draw the TAREAS section when the sidebar owns the card (T1/S2). */
+	 * draw the TAREAS section when the sidebar owns the card (T1/S2). The panel
+	 * is derived, never stored: re-reading the file here is what makes a model
+	 * edit to `commit:` show up with no tool call in between. */
 	function publishTodo(): void {
-		setShared({ todoState: state, todoVisible: visible });
+		view = panelTodo(contractText(), state);
+		const key = `${visible ? 1 : 0}:${JSON.stringify(view)}`;
+		if (key === published) return;
+		published = key;
+		setShared({ todoState: view, todoVisible: visible });
+	}
+
+	/** How often the active contract is re-read so a model edit shows up on the
+	 * panel on its own. Chosen over `fs.watch` because the watch API is one more
+	 * platform to get wrong (rename-vs-write, editors that swap the file) and
+	 * this file is a few kilobytes: a synchronous read per tick costs nothing. */
+	const CONTRACT_TICK_MS = 250;
+	let contractTimer: ReturnType<typeof setInterval> | undefined;
+
+	function stopContractTick(): void {
+		if (contractTimer) {
+			clearInterval(contractTimer);
+			contractTimer = undefined;
+		}
+	}
+
+	/** Start the tick: the contract is the source of truth (D2), and nothing
+	 * calls this extension when the model edits the file with its own tool. The
+	 * tick is unref'd so it never keeps the process alive on its own. */
+	function startContractTick(): void {
+		stopContractTick();
+		contractTimer = setInterval(() => {
+			publishTodo();
+		}, CONTRACT_TICK_MS);
+		contractTimer.unref();
 	}
 
 	/** One-shot tick when the hide window closes; only armed while it is pending. */
@@ -160,6 +220,9 @@ export default function (pi: ExtensionAPI) {
 		// /resume brings the list back and /new (no entries yet) starts empty.
 		state = replayTodo(ctx.sessionManager.getBranch());
 		visible = true;
+		published = undefined;
+		cwd = ctx.cwd;
+		startContractTick();
 		publishTodo();
 		if (ctx.mode !== "tui" || !ctx.hasUI) return;
 		// Re-render when the sidebar flag flips (/sidebar toggle, resize across
@@ -192,8 +255,8 @@ export default function (pi: ExtensionAPI) {
 					// sidebar owns the card; draw nothing above the editor.
 					if (getShared().sidebarActive === true) return [];
 					const now = Date.now();
-					if (!cardVisible(state, now)) return [];
-					const lines = renderTodoCard(state, { width, now }, fg);
+					if (!cardVisible(view, now)) return [];
+					const lines = renderTodoCard(view, { width, now }, fg);
 					return lines.length > 0 ? [...lines, ""] : [];
 				} catch {
 					// a broken card must never break the editor
@@ -206,8 +269,12 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_shutdown", async (_event, ctx) => {
 		// The card goes with the session: stop the hide timer and drop the widget.
 		stopHideTimer();
+		stopContractTick();
 		state = emptyTodo();
+		view = state;
 		visible = true;
+		published = undefined;
+		cwd = undefined;
 		publishTodo();
 		tuiRef = undefined;
 		if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.setWidget(WIDGET_KEY, undefined);
