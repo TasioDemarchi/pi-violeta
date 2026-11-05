@@ -45,7 +45,7 @@ S8. La sesión sabe cuál es el contrato activo, y lo sigue sabiendo después de
     Check: node --test tests/active-contract.test.ts
 
 ## Tasks
-T1. Crear la copia en `~/dev/pi-violeta-test`, dejarla en una rama nueva para esta feature, instalarla como `violeta-test` sin tocar el `violeta` de todos los días, y correr su suite para probar que arranca sana. Todo lo que sigue pasa ahí. — specs: S1 — test: n/a — riesgo: sí — commit: -
+T1. Crear la copia en `~/dev/pi-violeta-test`, dejarla en una rama nueva para esta feature, instalarla como `violeta-test` sin tocar el `violeta` de todos los días, y correr su suite para probar que arranca sana. Todo lo que sigue pasa ahí. — specs: S1 — test: n/a — riesgo: sí — commit: 6863b38 (Check S1 PASS, 588 tests en verde; sin commit propio: es un clon)
 T2. Spike: el lazo más fino de punta a punta. Un despacho de prueba para una tarea escribe un campo de estado en el archivo del contrato, y el panel lo refleja. Sin verificación, sin guard, sin persistencia: solo probar que el lazo evento→archivo→panel existe. — specs: S4 — test: recommended — riesgo: sí — commit: -
 T3. Lector puro de `## Tasks` en `src/contract/`, reusando lo que ya hace el lint. — specs: S2 — test: required — riesgo: no — commit: -
 T4. Escritor de estado con un solo escritor por campo, que preserva lo que no le toca. — specs: S7 — test: required — riesgo: sí — commit: -
