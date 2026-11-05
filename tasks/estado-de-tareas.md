@@ -53,7 +53,7 @@ T5. El panel Todo pasa a derivarse del contrato activo, con el comportamiento de
 T6. Enganchar los eventos reales de asignación y fin de trabajador, con el id de tarea viajando como dato. — specs: S4 — test: required — riesgo: sí — commit: a209e1e (Check S4: 10/10; suite 626 en verde; handoff de builder por presupuesto, test del spike migrado por Jarvis)
 T7. Verificación automática: correr el `Check` de la tarea y marcarla según el resultado real. — specs: S5 — test: required — riesgo: sí — commit: 4ace5ec (Check S5: 9/9; suite 638 en verde; handoff de builder por presupuesto, cerrado por Jarvis)
 T8. Pasar esa ejecución por el guard y apagarla en modo desatendido. — specs: S6 — test: required — riesgo: sí — commit: f6160de (Check S6: 7/7; suite 645 en verde)
-T9. Persistir cuál es el contrato activo para que sobreviva a `/compact`. — specs: S8 — test: required — riesgo: no — commit: -
+T9. Persistir cuál es el contrato activo para que sobreviva a `/compact`. — specs: S8 — test: required — riesgo: no — commit: 046cbd7 (Check S8: 10/10; suite 655 en verde; handoff de builder por presupuesto, cerrado por Jarvis)
 
 ## Decisiones
 D1. La copia vive en `~/dev/pi-violeta-test` y se invoca con `violeta-test`, en rama propia. Es pedido del dueño: esta feature no puede pisar la herramienta con la que trabaja todos los días.
