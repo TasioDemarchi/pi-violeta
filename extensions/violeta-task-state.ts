@@ -1,17 +1,41 @@
-/** T2 spike (estado-de-tareas), reduced by T5: the harness-side writer of the
- * `estado:` field. When a `subagent_run` dispatch starts, it writes
- * `estado: en curso` on the task's row of the active contract; when the call
- * settles it writes `estado: fin` (or `fallada`), so the row reads as it did
- * before the dispatch. No verification, no guard, no persistence — those are
- * T7, T8 and T9.
+/**
+ * violeta-task-state — the harness-side writer of a contract task's `estado:`
+ * field (S4, estado-de-tareas). It is the event half of "the harness records
+ * on its own": the model decides what to dispatch, this file decides what that
+ * dispatch means for the task row.
  *
- * It no longer publishes the panel: the Todo panel is derived in ONE place now
- * (S3), by violeta-todo through `src/todo/source.ts`, which re-reads this file
- * on its own tick. This module only writes; the file is the handoff between
- * the two, which is the whole point of D2.
+ * The loop it closes:
  *
- * Spike crutch, to be removed by T6: the task id is read from the dispatch's
- * `label` text. The contract (D4) requires the id to travel as dispatch data. */
+ *   `subagent_run` tool_call  with `contractTask: N` → `estado: en curso`
+ *   `subagent_run` tool_result       no isError      → the field is cleared
+ *   `subagent_run` tool_result       isError         → `estado: fallada`
+ *   anything else                                    → the file is not touched
+ *
+ * The task id travels as DISPATCH DATA (`contractTask` on the call, D4). It is
+ * never read out of `label`, `task` or any other prose: a dispatch whose label
+ * happens to say "T1" writes nothing, and the only thing that writes is the
+ * parameter. The spike read it from `label`; T6 removed that crutch.
+ *
+ * Writing goes through `setTaskStatus` (src/contract/state.ts), the one writer
+ * of that field, so `commit:` and every other byte the model owns survive
+ * untouched (S7). The active contract is `ACTIVE_CONTRACT`
+ * (src/todo/source.ts), the same path the Todo panel reads. The panel is not
+ * told about the write: it re-reads the file on its own tick, because the file
+ * is the single source of truth (D2) and there is no second copy to notify.
+ *
+ * Two guards worth naming:
+ *
+ *   - calls made by another tool (`parentToolCallId`, e.g. a codemode script or
+ *     a nested `executeTool`) are ignored: only a first-level dispatch is the
+ *     model assigning work, and a nested call would otherwise clear the state
+ *     of the dispatch that is still running.
+ *   - children spawned by the subagent runner load this package too, so the
+ *     extension installs nothing when `VIOLETA_AGENTS_CHILD=1` (same guard as
+ *     the agents and todo extensions).
+ *
+ * Verification (T7), the guard on that verification (T8) and persisting which
+ * contract is active (T9) are not here.
+ */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -19,16 +43,31 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { setTaskStatus } from "../src/contract/state.ts";
 import { ACTIVE_CONTRACT } from "../src/todo/source.ts";
 
+/** The tool whose dispatch carries a contract task. */
+const DISPATCH_TOOL = "subagent_run";
+/** The two values this file writes; `undefined` means "clear the field". */
+const IN_PROGRESS = "en curso";
+const FAILED = "fallada";
+
+/** The task id of a dispatch, or undefined when the dispatch carries none. The
+ * parameter is declared as `Type.Integer` on `subagent_run`, and anything that
+ * is not a positive integer is treated as "no task" rather than coerced: a
+ * typo must not land on somebody else's row. */
+export function dispatchTaskId(input: unknown): number | undefined {
+	const value = (input as { contractTask?: unknown } | undefined)?.contractTask;
+	return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+/** True for a call another tool issued. Only first-level dispatches count. */
+function isNested(event: unknown): boolean {
+	const parent = (event as { parentToolCallId?: unknown } | undefined)?.parentToolCallId;
+	return typeof parent === "string" && parent !== "";
+}
+
 export default function (pi: ExtensionAPI) {
 	// Children spawned by the subagent runner load this package too: no state
 	// writes there (same guard as the agents and todo extensions).
 	if (process.env.VIOLETA_AGENTS_CHILD === "1") return;
-
-	function taskIdOf(input: unknown): number | undefined {
-		const label = (input as { label?: unknown } | undefined)?.label;
-		const match = /T(\d+)/.exec(typeof label === "string" ? label : "");
-		return match ? Number(match[1]) : undefined;
-	}
 
 	function mark(cwd: string, taskId: number | undefined, status: string | undefined): void {
 		if (taskId === undefined) return;
@@ -45,10 +84,12 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.on("tool_call", (event, ctx) => {
-		if (event.toolName === "subagent_run") mark(ctx.cwd, taskIdOf(event.input), "en curso");
+		if (isNested(event) || event.toolName !== DISPATCH_TOOL) return;
+		mark(ctx.cwd, dispatchTaskId(event.input), IN_PROGRESS);
 	});
 
 	pi.on("tool_result", (event, ctx) => {
-		if (event.toolName === "subagent_run") mark(ctx.cwd, taskIdOf(event.input), event.isError ? "fallada" : undefined);
+		if (isNested(event) || event.toolName !== DISPATCH_TOOL) return;
+		mark(ctx.cwd, dispatchTaskId(event.input), event.isError ? FAILED : undefined);
 	});
 }

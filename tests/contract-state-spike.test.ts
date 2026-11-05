@@ -73,17 +73,17 @@ test("the loop: a subagent_run dispatch writes the estado into the contract file
 
 	// dispatch start → the row reads en curso; the panel reads it from the file
 	for (const fn of handlers.get("tool_call") ?? [])
-		await fn({ type: "tool_call", toolName: "subagent_run", toolCallId: "x", input: { label: "T1 hacer la cosa" } }, { cwd: dir });
+		await fn({ type: "tool_call", toolName: "subagent_run", toolCallId: "x", input: { contractTask: 1 } }, { cwd: dir });
 	assert.match(readFileSync(file, "utf8"), /T1\..*— estado: en curso/m);
 
 	// dispatch end → the row reads back as it started
 	for (const fn of handlers.get("tool_result") ?? [])
-		await fn({ type: "tool_result", toolName: "subagent_run", toolCallId: "x", input: { label: "T1 hacer la cosa" }, isError: false }, { cwd: dir });
+		await fn({ type: "tool_result", toolName: "subagent_run", toolCallId: "x", input: { contractTask: 1 }, isError: false }, { cwd: dir });
 	assert.doesNotMatch(readFileSync(file, "utf8"), /— estado:/m);
 	assert.equal(readFileSync(file, "utf8"), CONTRACT);
 });
 
-test("the loop ignores dispatches with no task id in the label", async () => {
+test("the loop ignores dispatches with no contractTask", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "violeta-task-state-"));
 	mkdirSync(join(dir, "tasks"));
 	writeFileSync(join(dir, "tasks", "estado-de-tareas.md"), CONTRACT);
@@ -93,6 +93,6 @@ test("the loop ignores dispatches with no task id in the label", async () => {
 			handlers.set(name, [...(handlers.get(name) ?? []), fn]),
 	});
 	for (const fn of handlers.get("tool_call") ?? [])
-		await fn({ type: "tool_call", toolName: "subagent_run", toolCallId: "x", input: { label: "sin id" } }, { cwd: dir });
+		await fn({ type: "tool_call", toolName: "subagent_run", toolCallId: "x", input: { label: "T1 pero sin contractTask" } }, { cwd: dir });
 	assert.equal(readFileSync(join(dir, "tasks", "estado-de-tareas.md"), "utf8"), CONTRACT);
 });

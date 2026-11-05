@@ -196,6 +196,16 @@ export default function (pi: ExtensionAPI) {
 			label: Type.String({ description: "what this agent does, 3 to 6 words, phrased as an action" }),
 			context: Type.Optional(Type.String({ description: "Extra context the subagent needs (paths, constraints, prior findings)." })),
 			mode: ModeParam,
+			// The contract task this dispatch IS, when there is one (S4/D4). It travels
+			// as data so the harness never has to read it out of `label` or `task`:
+			// prose changes, ids do not. The runner does not see it; violeta-task-state
+			// reads it off the tool_call/tool_result events and writes the row.
+			contractTask: Type.Optional(
+				Type.Integer({
+					description:
+						"Id of the active contract task this dispatch carries out, as the number in its `T#` row (T6 → 6). Omit it for dispatches that are not a contract task; with no contractTask the harness writes no state.",
+				}),
+			),
 		}),
 		async execute(_id, params, signal, _onUpdate, ctx) {
 			const { definitions } = listDefinitions();
