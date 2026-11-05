@@ -50,7 +50,7 @@ T2. Spike: el lazo más fino de punta a punta. Un despacho de prueba para una ta
 T3. Lector puro de `## Tasks` en `src/contract/`, reusando lo que ya hace el lint. — specs: S2 — test: required — riesgo: no — commit: 39f7db6 (S2: src/contract/tasks.ts, 8 tests nuevos, suite 602 en verde)
 T4. Escritor de estado con un solo escritor por campo, que preserva lo que no le toca. — specs: S7 — test: required — riesgo: sí — commit: e3a2621 (Check S7: 8/8; suite 610 en verde)
 T5. El panel Todo pasa a derivarse del contrato activo, con el comportamiento de hoy intacto cuando no hay contrato. — specs: S3 — test: required — riesgo: no — commit: 22e55df (Check S3: 6/6; suite 616 en verde; handoff de builder por presupuesto, cerrado por Jarvis)
-T6. Enganchar los eventos reales de asignación y fin de trabajador, con el id de tarea viajando como dato. — specs: S4 — test: required — riesgo: sí — commit: -
+T6. Enganchar los eventos reales de asignación y fin de trabajador, con el id de tarea viajando como dato. — specs: S4 — test: required — riesgo: sí — commit: a209e1e (Check S4: 10/10; suite 626 en verde; handoff de builder por presupuesto, test del spike migrado por Jarvis)
 T7. Verificación automática: correr el `Check` de la tarea y marcarla según el resultado real. — specs: S5 — test: required — riesgo: sí — commit: -
 T8. Pasar esa ejecución por el guard y apagarla en modo desatendido. — specs: S6 — test: required — riesgo: sí — commit: -
 T9. Persistir cuál es el contrato activo para que sobreviva a `/compact`. — specs: S8 — test: required — riesgo: no — commit: -
@@ -62,6 +62,9 @@ D3. Una tarea se da por hecha solo con su `Check` en verde, corrido por el harne
 D4. El id de la tarea viaja como dato en el despacho, no se deduce del texto. Deducirlo de prosa es la clase de acople que vuelve a romperse cuando cambia una palabra.
 D5. La §4 de `modes/jarvis.md` no se recorta en esta entrega, aunque quede prosa repetida. Sacarla antes de ver el código andando dejaría la garantía sin nadie que la sostenga.
 D6. T2 se ejecutó en la sesión principal (Jarvis) porque los subagentes, con el guard fijado al repo de producción, no alcanzaban la copia. Con la sesión re-anclada en `~/dev/pi-violeta-test` el bloqueo desapareció: T3 en adelante vuelven a ser tareas de builder.
+D7. La verificación del harness vive en el campo `estado:` (que es suyo, S7), no en `commit:` (que es del modelo). Valores: `en curso`, `fallada`, `verificada`, `por verificar`. El lector puro de T3 conserva la definición de S2 (hecha = `commit:` ≠ `-`); la proyección al panel (S3/D3) cuenta también `estado: verificada` como hecha. Así el harness no escribe nunca en el campo del modelo.
+D8. La salida de un `Check` fallido va en una línea de continuación con sangría bajo la fila de la tarea, escrita solo por el harness y recortada (primeras líneas). Es la única zona fuera de la fila que el harness toca.
+D9. Despachos en modo `background`: el `tool_result` llega inmediato, así que no se limpia el `estado:` en ese evento; la fila queda `en curso` hasta que la verificación de T7 la cierre. Decidido así porque S4 dice "al terminar el trabajador" y en background ese cierre llega después, no con el resultado de la herramienta.
 
 ## Log
 L1. "Y que te parece si en vez de dejar todo al agente, hacemos que el agente tenga menos trabajo y hacemos todo por codigo. Haciendo que el harness dispare eventos cuando ciertas cosas (tareas, asignacion de tareas, cambios) se disparan o se completan y que el propio harness modifique el estado segun el resultado ?"
