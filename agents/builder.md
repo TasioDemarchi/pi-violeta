@@ -3,7 +3,7 @@ name: builder
 description: Scoped implementation writer. Works one task against its specs, inside the exact files it was given.
 model: nan/deepseek-v4-flash
 thinking: medium
-maxTurns: 30
+maxTurns: 60
 maxTokens: 4000000
 tools:
   - read

@@ -604,20 +604,72 @@ test("an aborted run is still aborted, answer or not", async () => {
 // said last is the handoff. The runner therefore asks for the report early.
 const steersOf = (h: Harness) => h.lines(h.children[0]!).map((l) => JSON.parse(l) as { type: string; message?: string }).filter((r) => r.type === "steer");
 
-test("a run at 75% of its turn ceiling is told, once, to send its final report", async () => {
+// Changed on 2026-11-05, deliberately: this used to assert that the 75% notice
+// asked for the final report. It did, and that was the bug. Measured on a real
+// session, ten of eighteen builders answered that notice with their report on
+// the next turn and abandoned a fifth of their budget; one reported
+// `status: blocked — paré por techo de turnos` with six turns still to spend.
+// There are now two notices: a warning that says keep working, then the order.
+test("the 75% notice tells the run to KEEP WORKING, and never asks for the report", async () => {
 	const h = harness();
 	try {
 		const task = h.runner.start(definition({ maxTurns: 20 }), { task: "a long probe", mode: "task" });
 		for (let i = 1; i <= 14; i++) h.write(h.children[0]!, assistantTurn(`step ${i}`));
 		assert.deepEqual(steersOf(h), [], "14 of 20 turns is still below 75%");
+
 		h.write(h.children[0]!, assistantTurn("step 15"));
 		const sent = steersOf(h);
 		assert.equal(sent.length, 1);
 		assert.match(sent[0]!.message!, /Budget notice: 5 turns left of 20/);
-		assert.match(sent[0]!.message!, /complete final report/);
-		for (let i = 16; i <= 18; i++) h.write(h.children[0]!, assistantTurn(`step ${i}`));
-		assert.deepEqual(steersOf(h), [], "the notice is sent once");
+		assert.match(sent[0]!.message!, /KEEP WORKING/);
+		assert.match(sent[0]!.message!, /not a stop order/i);
+		assert.match(sent[0]!.message!, /Do not send your final report yet/i);
+		assert.doesNotMatch(sent[0]!.message!, /Stop starting new work/i, "that line belongs to the order, not the warning");
+
+		h.write(h.children[0]!, assistantTurn("step 16"));
+		assert.deepEqual(steersOf(h), [], "the warning is sent once");
 		assert.equal(h.store.get(task.id)!.status, "running", "a notice is not a stop");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("the 90% notice is the order to report, and it is the last one", async () => {
+	const h = harness();
+	try {
+		const task = h.runner.start(definition({ maxTurns: 20 }), { task: "a long probe", mode: "task" });
+		for (let i = 1; i <= 15; i++) h.write(h.children[0]!, assistantTurn(`step ${i}`));
+		assert.equal(steersOf(h).length, 1, "the warning went out at 15 of 20");
+
+		for (let i = 16; i <= 17; i++) h.write(h.children[0]!, assistantTurn(`step ${i}`));
+		assert.deepEqual(steersOf(h), [], "17 of 20 is still below 90%");
+
+		h.write(h.children[0]!, assistantTurn("step 18"));
+		const sent = steersOf(h);
+		assert.equal(sent.length, 1, "18 of 20 is 90%: the order goes out");
+		assert.match(sent[0]!.message!, /This is the last one/i);
+		assert.match(sent[0]!.message!, /Stop starting new work now/i);
+		assert.match(sent[0]!.message!, /complete final report/);
+
+		h.write(h.children[0]!, assistantTurn("step 19"));
+		assert.deepEqual(steersOf(h), [], "the order is sent once");
+		assert.equal(h.store.get(task.id)!.status, "running", "neither notice is a stop");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a run that jumps straight past 90% gets the order, not the warning", async () => {
+	const h = harness();
+	try {
+		// One turn whose tokens blow through both thresholds at once: the warning
+		// would be noise, and the order is the only thing still worth saying.
+		h.runner.start(definition({ maxTurns: 20, maxTokens: 1_000 }), { task: "a costly probe", mode: "task" });
+		h.write(h.children[0]!, assistantTurn("one enormous step", 980));
+		const sent = steersOf(h);
+		assert.equal(sent.length, 1);
+		assert.match(sent[0]!.message!, /Stop starting new work now/i, "the order, with no warning first");
+		assert.doesNotMatch(sent[0]!.message!, /KEEP WORKING/);
 	} finally {
 		h.cleanup();
 	}
