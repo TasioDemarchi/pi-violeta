@@ -46,14 +46,14 @@ S8. La sesión sabe cuál es el contrato activo, y lo sigue sabiendo después de
 
 ## Tasks
 T1. Crear la copia en `~/dev/pi-violeta-test`, dejarla en una rama nueva para esta feature, instalarla como `violeta-test` sin tocar el `violeta` de todos los días, y correr su suite para probar que arranca sana. Todo lo que sigue pasa ahí. — specs: S1 — test: n/a — riesgo: sí — commit: 6863b38 (Check S1 PASS, 588 tests en verde; sin commit propio: es un clon)
-T2. Spike: el lazo más fino de punta a punta. Un despacho de prueba para una tarea escribe un campo de estado en el archivo del contrato, y el panel lo refleja. Sin verificación, sin guard, sin persistencia: solo probar que el lazo evento→archivo→panel existe. — specs: S4 — test: recommended — riesgo: sí — commit: -
-T3. Lector puro de `## Tasks` en `src/contract/`, reusando lo que ya hace el lint. — specs: S2 — test: required — riesgo: no — commit: -
-T4. Escritor de estado con un solo escritor por campo, que preserva lo que no le toca. — specs: S7 — test: required — riesgo: sí — commit: -
-T5. El panel Todo pasa a derivarse del contrato activo, con el comportamiento de hoy intacto cuando no hay contrato. — specs: S3 — test: required — riesgo: no — commit: -
-T6. Enganchar los eventos reales de asignación y fin de trabajador, con el id de tarea viajando como dato. — specs: S4 — test: required — riesgo: sí — commit: -
-T7. Verificación automática: correr el `Check` de la tarea y marcarla según el resultado real. — specs: S5 — test: required — riesgo: sí — commit: -
-T8. Pasar esa ejecución por el guard y apagarla en modo desatendido. — specs: S6 — test: required — riesgo: sí — commit: -
-T9. Persistir cuál es el contrato activo para que sobreviva a `/compact`. — specs: S8 — test: required — riesgo: no — commit: -
+T2. Spike: el lazo más fino de punta a punta. Un despacho de prueba para una tarea escribe un campo de estado en el archivo del contrato, y el panel lo refleja. Sin verificación, sin guard, sin persistencia: solo probar que el lazo evento→archivo→panel existe. — specs: S4 — test: recommended — riesgo: sí — commit: - — quién: Jarvis
+T3. Lector puro de `## Tasks` en `src/contract/`, reusando lo que ya hace el lint. — specs: S2 — test: required — riesgo: no — commit: - — quién: Jarvis
+T4. Escritor de estado con un solo escritor por campo, que preserva lo que no le toca. — specs: S7 — test: required — riesgo: sí — commit: - — quién: Jarvis
+T5. El panel Todo pasa a derivarse del contrato activo, con el comportamiento de hoy intacto cuando no hay contrato. — specs: S3 — test: required — riesgo: no — commit: - — quién: Jarvis
+T6. Enganchar los eventos reales de asignación y fin de trabajador, con el id de tarea viajando como dato. — specs: S4 — test: required — riesgo: sí — commit: - — quién: Jarvis
+T7. Verificación automática: correr el `Check` de la tarea y marcarla según el resultado real. — specs: S5 — test: required — riesgo: sí — commit: - — quién: Jarvis
+T8. Pasar esa ejecución por el guard y apagarla en modo desatendido. — specs: S6 — test: required — riesgo: sí — commit: - — quién: Jarvis
+T9. Persistir cuál es el contrato activo para que sobreviva a `/compact`. — specs: S8 — test: required — riesgo: no — commit: - — quién: Jarvis
 
 ## Decisiones
 D1. La copia vive en `~/dev/pi-violeta-test` y se invoca con `violeta-test`, en rama propia. Es pedido del dueño: esta feature no puede pisar la herramienta con la que trabaja todos los días.
@@ -61,6 +61,7 @@ D2. El archivo del contrato es la única fuente de verdad del estado. El panel y
 D3. Una tarea se da por hecha solo con su `Check` en verde, corrido por el harness. Es lo que hoy sostiene únicamente la frase "Never take a handoff on trust" de la §4.
 D4. El id de la tarea viaja como dato en el despacho, no se deduce del texto. Deducirlo de prosa es la clase de acople que vuelve a romperse cuando cambia una palabra.
 D5. La §4 de `modes/jarvis.md` no se recorta en esta entrega, aunque quede prosa repetida. Sacarla antes de ver el código andando dejaría la garantía sin nadie que la sostenga.
+D6. T2–T9 las ejecuta Jarvis en la sesión principal, no subagentes. Motivo comprobado: los subagentes corren con el guard fijado a `/home/tachii/dev/pi-violeta` y sin UI para pedir permiso sobre `pi-violeta-test` (el builder quedó bloqueado en el primer paso y no tocó nada).
 
 ## Log
 L1. "Y que te parece si en vez de dejar todo al agente, hacemos que el agente tenga menos trabajo y hacemos todo por codigo. Haciendo que el harness dispare eventos cuando ciertas cosas (tareas, asignacion de tareas, cambios) se disparan o se completan y que el propio harness modifique el estado segun el resultado ?"
