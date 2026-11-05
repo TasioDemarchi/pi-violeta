@@ -14,7 +14,9 @@
  *                                                   fails  → `fallada` + clipped
  *                                                            output (D8)
  *                                                   manual / absent → `por verificar`
- *   `subagent_run` tool_result  `mode: background` → nothing: no result yet (D9)
+ *   `subagent_run` tool_result  `mode: background` → nothing: no result yet (D9);
+ *                                                   the row is closed when the
+ *                                                   child settles (below)
  *   anything else                                 → the file is not touched
  *
  * "The model says it is done" is worth exactly the Check, and this file never
@@ -29,11 +31,32 @@
  * Writing goes through `setTaskStatus` and `setTaskCheckOutput`
  * (src/contract/state.ts), the one writer of the row and of the one line under
  * it, so `commit:` and every other byte the model owns survive untouched (S7).
+ * Both writes here are also careful about WHEN they read: read, transform,
+ * write — and never a snapshot held across an `await`. A Check can run for ten
+ * minutes and the guard's dialog can sit waiting for the owner, so
+ * `verifyDispatch` re-reads the file after the Check and applies the transforms
+ * to THAT text; the model's edits made in the window survive (S7) instead of
+ * being overwritten by the text that was true before the wait. The write itself
+ * goes through a temp file and `renameSync` in the same directory, so a reader
+ * (the panel's tick, another check) never catches half a contract.
  * The active contract is the session's answer (src/contract/active.ts): what
  * `contract_check` adopted after a clean lint, or the `tasks/<name>.md`
  * the Todo panel reads. The panel is not told about the write: it re-reads the
  * file on its own tick, because the file is the single source of truth (D2) and
  * there is no second copy to notify.
+ *
+ * A background dispatch is the one case where the `tool_result` is not the end
+ * of the work (D9): the tool returns the runner's task id while the child keeps
+ * running. This file writes nothing on that event, and it is not told when the
+ * child ends either — so D9's "the row stays `en curso`" needed a second half,
+ * or the row would have stayed `en curso` forever and only the model's own
+ * `commit:` would have closed it (skipping D3/S5 entirely). The half lives here:
+ * `armBackgroundVerification` is called from `subagent_run`'s `execute` — the
+ * parent's process, which does have a real context, and which is the only place
+ * that knows the `contractTask` of this dispatch (D4: it travels as data, never
+ * as a guess) — and the runner's `onSettled` calls
+ * `settleBackgroundVerification`, which runs the same Check through the same
+ * guard. A dispatch with no `contractTask` arms nothing.
  *
  * Two guards worth naming:
  *
@@ -59,12 +82,14 @@
  * handler. It runs in this (the parent's) process, which is why
  * `VIOLETA_AGENTS_CHILD` is not set here and the guard does raise its dialog.
  * `verifyDispatch` takes the executor as a parameter so it can be handed over
- * without changing anything else in this file's wiring.
+ * without changing anything else in this file's wiring — and for the same
+ * reason, so can the background path: `armBackgroundVerification` builds it
+ * from the context the dispatch ran in.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { setTaskCheckOutput, setTaskStatus } from "../src/contract/state.ts";
 import { runCheckCommand, verifyTask, type CheckExecutor } from "../src/contract/verify.ts";
 import { guardedCheckExecutor } from "../src/guard/check-executor.ts";
@@ -97,16 +122,37 @@ function isBackground(input: unknown): boolean {
 	return (input as { mode?: unknown } | undefined)?.mode === "background";
 }
 
+/** Write `text` to `file` through a sibling temp file and `renameSync`, so a
+ * reader sees the contract before or after the write, never half of it. The
+ * temp file has to be in the same directory: `rename(2)` is atomic within a
+ * filesystem, and this file lives in the project the owner is working in. */
+function writeAtomic(file: string, text: string): void {
+	const tmp = `${file}.${process.pid}-${Math.random().toString(36).slice(2)}.tmp`;
+	try {
+		writeFileSync(tmp, text);
+		renameSync(tmp, file);
+	} catch (error) {
+		try {
+			rmSync(tmp, { force: true });
+		} catch {
+			/* nothing to clean up */
+		}
+		throw error;
+	}
+}
+
 /** Read the active contract, and write the result back only when a byte
  * changed. A missing contract, a broken file or a failed write never reach the
- * tool call: the model's work is not worth losing over the harness's bookkeeping. */
+ * tool call: the model's work is not worth losing over the harness's bookkeeping.
+ * The read and the write are one turn of the event loop apart at most, and the
+ * write is atomic, so nothing the model wrote gets clobbered here. */
 function editContract(cwd: string, path: string, edit: (md: string) => string): void {
 	try {
 		const file = resolve(cwd, path);
 		if (!existsSync(file)) return;
 		const md = readFileSync(file, "utf8");
 		const next = edit(md);
-		if (next !== md) writeFileSync(file, next);
+		if (next !== md) writeAtomic(file, next);
 	} catch {
 		/* a broken write must never break the tool call */
 	}
@@ -115,27 +161,71 @@ function editContract(cwd: string, path: string, edit: (md: string) => string): 
 /** Run the task's Check and record the real outcome on the row (S5). `run` is
  * the executor; the default is the shell, and the extension hands over the
  * guarded one (S6). A refused Check carries its motive, which goes on the D8
- * line under a `por verificar` row; a failed one carries its output. */
+ * line under a `por verificar` row; a failed one carries its output.
+ *
+ * The Check is read from the text the dispatch saw, but the row is written onto
+ * a FRESH read taken after the await: the Check can take ten minutes and the
+ * guard can wait for the owner, and everything the model wrote in that window
+ * has to survive (S7). Applying the pure transforms to the fresh text is what
+ * makes that possible — they edit one line and one note, never the file. */
 export async function verifyDispatch(cwd: string, path: string, taskId: number | undefined, run: CheckExecutor = runCheckCommand): Promise<void> {
 	if (taskId === undefined) return;
 	try {
 		const file = resolve(cwd, path);
 		if (!existsSync(file)) return;
-		const md = readFileSync(file, "utf8");
-		const outcome = await verifyTask(md, taskId, cwd, run);
+		const outcome = await verifyTask(readFileSync(file, "utf8"), taskId, cwd, run);
+		const fresh = readFileSync(file, "utf8");
 		// A green or manual row carries no note, so a Check that now passes
 		// removes the one a previous failure (or refusal) left behind (D8).
 		const next = setTaskCheckOutput(
-			setTaskStatus(md, taskId, outcome.status),
+			setTaskStatus(fresh, taskId, outcome.status),
 			taskId,
 			outcome.output,
 			outcome.status === "fallada" ? "failed" : "notRun",
 		);
-		if (next !== md) writeFileSync(file, next);
+		if (next !== fresh) writeAtomic(file, next);
 	} catch {
 		/* a broken Check must never break the tool call */
 	}
 }
+
+/** The context a background verification is built from: where the project is,
+ * which contract the session adopted, and who the guard may ask (S6). An
+ * `ExtensionToolContext` satisfies it, and so does a test's fake. */
+export interface BackgroundVerificationContext extends Pick<ExtensionContext, "cwd" | "hasUI" | "ui"> {
+	sessionManager?: unknown;
+}
+
+/** Verifications a background dispatch still owes, keyed by the runner's task
+ * id (D9). It is filled by `subagent_run` and emptied by the runner's
+ * `onSettled`, which is why it is keyed by the thing both of them know. */
+const owedVerifications = new Map<string, () => Promise<void>>();
+
+/** Remember the verification `runnerTaskId` owes: called by `violeta-agents`
+ * when the dispatch carried a `contractTask`, because a background
+ * `tool_result` arrives before the work is done (D9) and this process will not
+ * hear about it again until the runner settles the task. No `contractTask`, no
+ * entry: nothing is deduced from the label or the prompt (D4). */
+export function armBackgroundVerification(runnerTaskId: string, contractTask: number | undefined, ctx: BackgroundVerificationContext): void {
+	if (contractTask === undefined) return;
+	owedVerifications.set(runnerTaskId, () => verifyDispatch(ctx.cwd, activeContractFrom(ctx.sessionManager), contractTask, guardedCheckExecutor(ctx)));
+}
+
+/** Run the verification a settled background task owes, and forget it. Called
+ * by the runner's `onSettled` through `violeta-agents`: this is what stops a
+ * background row from staying `en curso` forever, and it is the same Check, the
+ * same guard and the same writer as the foreground path (S5/S6/D3). */
+export async function settleBackgroundVerification(runnerTaskId: string): Promise<void> {
+	const verify = owedVerifications.get(runnerTaskId);
+	if (!verify) return;
+	owedVerifications.delete(runnerTaskId);
+	try {
+		await verify();
+	} catch {
+		/* a broken Check must never break the runner's settlement */
+	}
+}
+
 
 export default function (pi: ExtensionAPI) {
 	// Children spawned by the subagent runner load this package too: no state
@@ -159,7 +249,9 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		// D9: in background the row stays `en curso`; verification happens when the
-		// work actually ends, not when the tool call returns.
+		// work actually ends, not when the tool call returns. That end is not this
+		// event: `subagent_run` armed the verification and the runner's `onSettled`
+		// settles it (armBackgroundVerification / settleBackgroundVerification).
 		if (isBackground(event.input)) return;
 		// S6: the Check goes through the guard, and unattended mode runs none.
 		await verifyDispatch(ctx.cwd, path, taskId, guardedCheckExecutor(ctx));

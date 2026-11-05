@@ -29,6 +29,7 @@ import { displayTitle } from "../src/agents/summary.ts";
 import { isFinished, getAgentStore, type AgentTask } from "../src/agents/store.ts";
 import { DispatchBreaker, breakerConfigFromEnv } from "../src/agents/breaker.ts";
 import { compactRenderers } from "../src/tools-view/compact.ts";
+import { armBackgroundVerification, settleBackgroundVerification } from "./violeta-task-state.ts";
 import { getShared } from "../src/shared-hub.ts";
 import { agents as t } from "../src/i18n.ts";
 import {
@@ -87,6 +88,12 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function deliverBackgroundResult(task: AgentTask, mode: "task" | "background"): void {
+		// D9 (estado-de-tareas): a background dispatch's `tool_result` arrives before
+		// its work ends, so the contract row is closed HERE, when the child really
+		// settled. The verification was armed by `subagent_run`'s execute (the only
+		// place that knows this dispatch's `contractTask`) under the runner task id;
+		// with nothing armed this is a no-op, so a plain dispatch costs nothing.
+		void settleBackgroundVerification(task.id);
 		// Keep it simple: one custom message that starts a turn when idle. The
 		// model then sees the result on its next turn without polling.
 		if (mode !== "background" || task.status === "aborted") return;
@@ -248,6 +255,10 @@ export default function (pi: ExtensionAPI) {
 			});
 			breaker.record({ id: started.id, agent: params.agent, label: params.label });
 			if ((params.mode ?? "task") === "background") {
+				// D9: this tool returns now, the child keeps going. Hand the state writer
+				// the verification this dispatch owes, keyed by the runner's task id: the
+				// `contractTask` is dispatch data (D4) and this is the spot that has it.
+				armBackgroundVerification(started.id, params.contractTask, ctx);
 				return {
 					content: [{ type: "text" as const, text: t.backgroundStarted(params.agent, started.id) }],
 					details: { taskId: started.id, mode: "background" },

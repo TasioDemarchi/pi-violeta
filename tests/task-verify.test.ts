@@ -8,9 +8,11 @@
 //                         continuation line under the row (D8)
 //   `manual: ...`, or no Check at all → `por verificar`
 //
-// D9: a `background` dispatch returns immediately, so nothing is verified and
-// the row stays `en curso`. A dispatch that failed is `fallada` without any
-// Check (there is no delivery to verify).
+// D9: a `background` dispatch returns immediately, so the `tool_result` verifies
+// nothing and the row stays `en curso`; it is closed when the child settles, by
+// the agents extension's `onSettled` (tests/task-verify-race.test.ts drives that
+// half). A dispatch that failed is `fallada` without any Check (there is no
+// delivery to verify).
 //
 // The Check commands here are real shell commands run in the temp project, so
 // "did the harness run it?" is a file on disk, not an internal call. Every
