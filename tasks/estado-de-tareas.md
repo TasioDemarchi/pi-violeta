@@ -51,7 +51,7 @@ T3. Lector puro de `## Tasks` en `src/contract/`, reusando lo que ya hace el lin
 T4. Escritor de estado con un solo escritor por campo, que preserva lo que no le toca. — specs: S7 — test: required — riesgo: sí — commit: e3a2621 (Check S7: 8/8; suite 610 en verde)
 T5. El panel Todo pasa a derivarse del contrato activo, con el comportamiento de hoy intacto cuando no hay contrato. — specs: S3 — test: required — riesgo: no — commit: 22e55df (Check S3: 6/6; suite 616 en verde; handoff de builder por presupuesto, cerrado por Jarvis)
 T6. Enganchar los eventos reales de asignación y fin de trabajador, con el id de tarea viajando como dato. — specs: S4 — test: required — riesgo: sí — commit: a209e1e (Check S4: 10/10; suite 626 en verde; handoff de builder por presupuesto, test del spike migrado por Jarvis)
-T7. Verificación automática: correr el `Check` de la tarea y marcarla según el resultado real. — specs: S5 — test: required — riesgo: sí — commit: -
+T7. Verificación automática: correr el `Check` de la tarea y marcarla según el resultado real. — specs: S5 — test: required — riesgo: sí — commit: 4ace5ec (Check S5: 9/9; suite 638 en verde; handoff de builder por presupuesto, cerrado por Jarvis)
 T8. Pasar esa ejecución por el guard y apagarla en modo desatendido. — specs: S6 — test: required — riesgo: sí — commit: -
 T9. Persistir cuál es el contrato activo para que sobreviva a `/compact`. — specs: S8 — test: required — riesgo: no — commit: -
 
