@@ -86,7 +86,10 @@ export function items(section: Section | undefined, letter: string): Array<{ id:
 	return found;
 }
 
-function field(body: string, name: string): string | undefined {
+/** A `name:` field on its own (indented) line of an item's body, as `Accept:`
+ * and `Check:` are in a spec. Exported because the verification reads the same
+ * `Check:` the lint validates, and two regexes would disagree about it. */
+export function field(body: string, name: string): string | undefined {
 	const m = body.match(new RegExp(`(?:^|\\n)\\s*${name}:\\s*(.*)`, "i"));
 	return m ? m[1]!.trim() : undefined;
 }

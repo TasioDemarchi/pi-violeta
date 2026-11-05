@@ -4,7 +4,7 @@
 // contract file, hands the text over, and writes the result back.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readTaskStatus, setTaskStatus, todoFromContract } from "../src/contract/state.ts";
+import { readTaskStatus, setTaskCheckOutput, setTaskStatus, todoFromContract } from "../src/contract/state.ts";
 
 const CONTRACT = `# estado-de-tareas
 Runner: node --test tests/contract-write.test.ts
@@ -31,9 +31,14 @@ L1. Pedido del dueño, con prosa suelta adentro.
 
 const ROW_T1 = "T1. Escribir el estado — specs: S7 — test: required — riesgo: sí — commit: -";
 
-/** The T1 row, verbatim; every other line of the file, joined. */
+/** The T1 row, verbatim; every other line of the file, joined. Harness-owned
+ * Check-output lines are dropped too, so their presence never skews the diff. */
 const rowOf = (md: string): string => md.split("\n").find((line) => line.startsWith("T1. "))!;
-const restOf = (md: string): string => md.split("\n").filter((line) => !line.startsWith("T1. ")).join("\n");
+const restOf = (md: string): string =>
+	md
+		.split("\n")
+		.filter((line) => !line.startsWith("T1. ") && !/^ {4}Check falló: /.test(line))
+		.join("\n");
 
 test("writing estado touches only that row: title, commit and the model's own text survive", () => {
 	const next = setTaskStatus(CONTRACT, 1, "en curso");
@@ -100,4 +105,37 @@ test("the panel projection keeps its previous behaviour: commit is done, en curs
 			{ id: 2, status: "done" },
 		],
 	);
+});
+
+test("D7: the harness's own verdict `verificada` reads as done without touching commit", () => {
+	assert.deepEqual(
+		todoFromContract(setTaskStatus(CONTRACT, 1, "verificada")).map((task) => ({ id: task.id, status: task.status })),
+		[
+			{ id: 1, status: "done" },
+			{ id: 2, status: "done" },
+		],
+	);
+	// and a red or un-runnable Check stays open on the panel
+	assert.equal(todoFromContract(setTaskStatus(CONTRACT, 1, "fallada"))[0]?.status, "pending");
+	assert.equal(todoFromContract(setTaskStatus(CONTRACT, 1, "por verificar"))[0]?.status, "pending");
+});
+
+test("a failed Check's output lives in one harness line under the row, clipped (D8)", () => {
+	const output = "boom: 1 failed\nsecond line\nthird line\nfourth line";
+	const next = setTaskCheckOutput(setTaskStatus(CONTRACT, 1, "fallada"), 1, output);
+	assert.match(next, /^ {4}Check falló: boom: 1 failed \/ second line \/ third line$/m);
+	// the model's own continuation prose survives byte for byte
+	assert.match(next, /^ {4}Texto que el modelo agregó debajo de su tarea\.$/m);
+	assert.equal(restOf(next).replace(/^ {4}Check falló: .*$/m, ""), restOf(CONTRACT));
+
+	// a later green Check removes the line instead of duplicating it
+	const green = setTaskCheckOutput(setTaskStatus(next, 1, "verificada"), 1, undefined);
+	assert.doesNotMatch(green, /Check falló:/m);
+	assert.equal(green.match(/Check falló:/g)?.length, undefined);
+});
+
+test("setTaskCheckOutput without a failure is a no-op on files without one", () => {
+	assert.equal(setTaskCheckOutput(CONTRACT, 1, undefined), CONTRACT);
+	// an unknown id leaves the text alone
+	assert.equal(setTaskCheckOutput(CONTRACT, 9, "boom"), CONTRACT);
 });

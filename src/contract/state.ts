@@ -11,8 +11,10 @@
  * One writer per field (S7). The field split is:
  *
  *   `— estado:`  the harness, and only the harness. `setTaskStatus` writes it
- *                when a task is dispatched (`en curso`), clears it when the
- *                worker finishes well, and writes `fallada` when it fails.
+ *                when a task is dispatched (`en curso`), and `verify` replaces
+ *                it with the real outcome: `verificada` when the task's Check
+ *                passed, `fallada` when it failed, `por verificar` when the
+ *                Check is `manual:` or missing (S5, D7).
  *   everything   the model: its title, its own prose and `commit:` — the done
  *   else         marker (S2/D3). This module never reads a row back from memory
  *                and rewrites it, so a model edit (`commit: -` → `commit: 9f8e7d6`)
@@ -26,6 +28,12 @@
  * freshly written row gives back the original text. The row must live in the
  * `## Tasks` section: a `T1.` in `## Log` is prose, and an unknown id or a
  * contract without the section returns the text unchanged.
+ *
+ * `setTaskCheckOutput` owns the ONE zone outside a row that the harness touches
+ * (D8): an indented continuation line under the task holding the clipped output
+ * of a failed Check. It is recognised by its own prefix, so the model's prose
+ * under the same task — also indented — is never mistaken for it, and writing a
+ * Check that now passes removes the line instead of leaving a stale failure.
  *
  * A field's value runs to the next ` — ` separator or to the end of the line,
  * the same rule `inlineField` uses (lint.ts), so `estado:` and `commit:` parse
@@ -78,8 +86,8 @@ function headLineOf(md: string, taskId: number): string | undefined {
 	return index === -1 ? undefined : md.split("\n")[index];
 }
 
-/** The harness-written state of task `taskId`: `en curso`, `fallada`, or —
- * for a task nobody marked — undefined. */
+/** The harness-written state of task `taskId`: `en curso`, `fallada`,
+ * `verificada`, `por verificar`, or — for a task nobody marked — undefined. */
 export function readTaskStatus(md: string, taskId: number): string | undefined {
 	const head = headLineOf(md, taskId);
 	if (head === undefined) return undefined;
@@ -109,13 +117,69 @@ export function setTaskStatus(md: string, taskId: number, status: string | undef
 }
 
 /** The panel's view of the contract: `done` comes from `commit:` (S2, via the
- * T3 reader), the harness's `estado: en curso` means in progress, everything
- * else pending. */
+ * T3 reader) or from the harness's `estado: verificada` (D7: a task whose Check
+ * passed is done even before the model writes its commit); `en curso` means in
+ * progress; everything else — `fallada`, `por verificar`, nothing — is pending,
+ * because a task the harness could not clear is a task still open. */
 export function todoFromContract(md: string): TodoTask[] {
 	return readContractTasks(md).map((task) => {
+		const estado = readTaskStatus(md, task.id);
 		let status: TodoStatus = "pending";
-		if (task.done) status = "done";
-		else if (readTaskStatus(md, task.id) === "en curso") status = "in_progress";
+		if (task.done || estado === "verificada") status = "done";
+		else if (estado === "en curso") status = "in_progress";
 		return { id: task.id, title: task.title, status };
 	});
+}
+
+/** Prefix that marks the continuation line as the harness's own (D8). Only a
+ * line starting with exactly this is ever replaced or removed. */
+const CHECK_NOTE_PREFIX = "    Check falló: ";
+/** How much of a failed Check's output lands in the file: the first lines, on
+ * one line, so a red row stays one row plus one line. */
+const NOTE_MAX_LINES = 3;
+const NOTE_MAX_CHARS = 300;
+
+/** The clipped form of a failed Check's output (D8). */
+export function clipCheckOutput(output: string): string {
+	const lines = output
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line !== "")
+		.slice(0, NOTE_MAX_LINES);
+	const text = lines.join(" / ");
+	return text.length > NOTE_MAX_CHARS ? `${text.slice(0, NOTE_MAX_CHARS)}...` : text;
+}
+
+/** Index of the harness's own continuation line under the row at `rowIndex`, or
+ * -1. The scan stops at a blank line or at column 0 (the next row or section),
+ * so a note always belongs to the row above it and never to a neighbour. */
+function noteIndexOf(lines: readonly string[], rowIndex: number): number {
+	for (let i = rowIndex + 1; i < lines.length; i++) {
+		const line = lines[i]!;
+		if (line.trim() === "") break;
+		if (!/^\s/.test(line)) break;
+		if (line.startsWith(CHECK_NOTE_PREFIX)) return i;
+	}
+	return -1;
+}
+
+/** Write (`output` given) or remove (`output` undefined) the harness's line of
+ * failed-Check output under task `taskId` (D8). The line goes directly under the
+ * row; the model's own indented prose is left where it is, byte for byte, and an
+ * unknown id or a contract without `## Tasks` returns the text unchanged. */
+export function setTaskCheckOutput(md: string, taskId: number, output: string | undefined): string {
+	const lines = md.split("\n");
+	const row = rowIndexOf(md, taskId);
+	if (row === -1) return md;
+	const existing = noteIndexOf(lines, row);
+	const text = output === undefined ? "" : clipCheckOutput(output);
+	if (text === "") {
+		if (existing === -1) return md;
+		lines.splice(existing, 1);
+		return lines.join("\n");
+	}
+	const note = `${CHECK_NOTE_PREFIX}${text}`;
+	if (existing === -1) lines.splice(row + 1, 0, note);
+	else lines[existing] = note;
+	return lines.join("\n");
 }

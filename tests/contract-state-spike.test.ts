@@ -76,11 +76,11 @@ test("the loop: a subagent_run dispatch writes the estado into the contract file
 		await fn({ type: "tool_call", toolName: "subagent_run", toolCallId: "x", input: { contractTask: 1 } }, { cwd: dir });
 	assert.match(readFileSync(file, "utf8"), /T1\..*— estado: en curso/m);
 
-	// dispatch end → the row reads back as it started
+	// dispatch end → verified, not taken on its word: S1 here has no `Check:`,
+	// so the harness leaves the row for manual verification (S5/D7)
 	for (const fn of handlers.get("tool_result") ?? [])
 		await fn({ type: "tool_result", toolName: "subagent_run", toolCallId: "x", input: { contractTask: 1 }, isError: false }, { cwd: dir });
-	assert.doesNotMatch(readFileSync(file, "utf8"), /— estado:/m);
-	assert.equal(readFileSync(file, "utf8"), CONTRACT);
+	assert.match(readFileSync(file, "utf8"), /^T1\..*— estado: por verificar$/m);
 });
 
 test("the loop ignores dispatches with no contractTask", async () => {

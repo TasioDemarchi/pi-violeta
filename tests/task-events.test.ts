@@ -5,8 +5,9 @@
 //     `subagent_run` call), never deduced from prose (D4). A label that spells
 //     "T1" must do nothing; the parameter is what writes.
 //   - the writer turns the events into the file: `estado: en curso` when the
-//     worker is dispatched, cleared when it finishes well, `fallada` when it
-//     fails — and `commit:` (the model's field, S7) is never touched.
+//     worker is dispatched, verified (or `fallada` / `por verificar`) when it
+//     finishes — never taken on its word (S5/D7) — and `commit:` (the model's
+//     field, S7) is never touched.
 //
 // The extension is driven against a fake Pi, the same shape
 // contract-state-spike.test.ts and agents-breaker-extension.test.ts use, and
@@ -100,13 +101,15 @@ test("a dispatch without contractTask does not touch the file", async () => {
 	assert.equal(read(h), CONTRACT);
 });
 
-test("a worker that finishes well clears the estado field", async () => {
+test("a worker that finishes well gets verified, not taken on its word", async () => {
 	const h = project();
 	const input = dispatch({ contractTask: 1 });
 	await call(h, input);
 	assert.match(read(h), /— estado: en curso/m);
 	await result(h, input, false);
-	assert.equal(read(h), CONTRACT);
+	// S5/D7: finishing is not being done. S4 in this fixture has no `Check:`,
+	// so the harness asks for manual verification instead of clearing the row.
+	assert.match(read(h), /^T1\..*— estado: por verificar$/m);
 });
 
 test("a worker that fails leaves estado: fallada on the row", async () => {
@@ -128,12 +131,14 @@ test("the harness never writes the model's commit: field", async () => {
 	assert.match(read(h), /— test: required — riesgo: sí — commit: - — estado: fallada/m);
 
 	// the model then marks the task done with its own tool; the next dispatch
-	// and its clear must preserve that edit byte for byte
+	// and the verification that follows it must preserve that edit byte for byte
 	const edited = CONTRACT.replace("riesgo: sí — commit: -", "riesgo: sí — commit: 9f8e7d6");
 	writeFileSync(h.file, edited);
 	await call(h, dispatch({ contractTask: 1 }));
 	await result(h, dispatch({ contractTask: 1 }), false);
-	assert.equal(read(h), edited);
+	// S5/D7: the harness answers in its own field only. S4 has no `Check:` here,
+	// so the row is left for manual verification and `commit:` is untouched.
+	assert.match(read(h), /riesgo: sí — commit: 9f8e7d6 — estado: por verificar/m);
 });
 
 test("a nested call (parentToolCallId) is ignored", async () => {
