@@ -20,10 +20,10 @@ costo y riesgo. Pide explicaciones en lenguaje natural, prefiere una recomendaci
 que un menú de opciones, y detesta la ceremonia: si un pedido de una línea tarda más en
 planearse que en hacerse, el proceso está mal.
 
-## 2. Estado real (al 1 de noviembre de 2026)
+## 2. Estado real (al 5 de noviembre de 2026)
 
 - Rama de trabajo: **`feat/jarvis`**, mergeada a `main` para el traspaso.
-- **525 tests, todos en verde** (`npm test`).
+- **609 tests, todos en verde** (`npm test`).
 - 113 archivos TypeScript, ~9.700 líneas, 39 commits.
 - Node 24 requerido (corre TypeScript sin compilar). `jq` es obligatorio.
 
@@ -61,12 +61,22 @@ de una filosofía va a TypeScript. Lo que deba cumplirse siempre lo impone el ar
 
 ## 5. Qué está a medias
 
-**El modo desatendido está a la mitad.** El plan completo vive en
-`tasks/unattended-mode.md` (11 specs, 7 tareas, dos rondas de revisión).
-Lo que existe: el guard ya bloquea en lugar de preguntar y deniega escrituras fuera del
-proyecto. Lo que **falta**: el comando `/unattended` y el módulo de estado
-(`src/unattended/state.ts`) — hoy nadie prende `getShared().unattended`, así que esa
-mitad está inerte. Tampoco está la propagación al proceso hijo (`VIOLETA_UNATTENDED`).
+**El modo desatendido está construido y en verde; no como lo pedía el plan viejo.**
+El comando `/unattended` vive en `extensions/violeta-guard.ts` (junto al
+`session_start` que lee `VIOLETA_UNATTENDED`), el estado va en el hub compartido,
+el guard niega en lugar de preguntar, permite leer fuera del proyecto con
+`read`/`grep`/`find`/`ls` y lo prueba `tests/guard-unattended.test.ts`. Lo único
+pendiente: propagar el flag al proceso hijo para que un subagente también niegue
+(el plan viejo lo llamaba S10/S11). **`tasks/unattended-mode.md` es historia, no
+plan ejecutable**: escrito antes de la limpieza del 3/11, nombra agentes
+(`architect`, `fixer`, `planner`, `verifier`, `judge-a/b`) y el modo `odd` que ya
+no existen. Sus decisiones siguen valiendo; sus nombres de archivo, no.
+
+**Regla para planes y contratos viejos de `tasks/`:** no se ejecutan ni se
+"convierten al formato nuevo" sin relevar antes. Primero mirá el código: si la
+feature ya existe y la suite está en verde, el plan se archiva y solo lo que falte
+de verdad entra en un contrato nuevo. Recontratar lo ya construido es volver a
+cometer el error de rehacer trabajo commiteado.
 
 **La filosofía está en discusión.** `odd`, `scout` y `vault` se borraron: estaban a
 medio hacer y el modo decide cómo se ejecuta cada tarea, así que uno incompleto es un
@@ -137,7 +147,7 @@ líder.
 
 ## 9. Lo que falta ahora
 
-1. Terminar el modo desatendido (comando + estado + propagación al hijo).
+1. Propagar `VIOLETA_UNATTENDED` al proceso hijo (lo único que queda del modo desatendido; ver §5).
 2. Corregir los límites de salida del catálogo (una línea por modelo).
 3. Definir la filosofía nueva junto al dueño y escribirla como `modes/<nombre>.md`.
 4. Proyecto hermano: `github.com/TasioDemarchi/violet-android` (app Android), con su
@@ -172,6 +182,10 @@ Reglas para vos:
   Nunca me digas que algo pasó si no lo viste.
 - No me preguntes por lo que ya está decidido en CONTINUAR.md. Si algo no está,
   preguntame una cosa por vez, en lenguaje de resultado, no de código.
+- Los planes y contratos viejos de `tasks/` pueden nombrar archivos que ya no
+  existen. Antes de ejecutarlos o convertirlos, verificá contra el código: si la
+  feature ya anda y los tests están en verde, informá y archivá el plan; no lo
+  reconstruyas.
 
 Arrancá contándome en cinco líneas dónde está parado el proyecto y qué ves como
 próximo paso, y esperá mi confirmación antes de tocar archivos.
