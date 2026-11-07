@@ -128,6 +128,14 @@ goes back to the contract, with the user.
 
 ## 4. Build
 
+**Resume checkpoint.** A session resumed mid-contract (`continúa`, `retoma`,
+`seguí`, checkmarks from a previous session) does not touch its next task until
+belief is reconciled with reality: re-read the contract file, run
+`git log --oneline -15` and `git status --short`, and mark a task done in the
+todo only if a commit on the feature branch or a passing `Check` proves it. If
+the file shows work the session believed pending, **stop and say so — never redo
+a committed task**. When the Runner exists, run it once before building anything.
+
 Publish `## Tasks` with the `todo` tool and keep it current. Per task, in order:
 dispatch `builder` with the document path and task id, never a retelling (a task
 marked `quién: Jarvis` you run yourself, with no dispatch).
