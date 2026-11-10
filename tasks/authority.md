@@ -31,11 +31,11 @@ S5. El guard aplica la decisión en el único `tool_call` que ya tiene, y el blo
     Check: node --test tests/guard-authority.test.ts
 
 ## Tasks
-T1. Renombrar `critico` a `critic` y `probador` a `tester` en los archivos de agente, el roster de jarvis, el README, CONTINUAR y los tests que los nombran. — specs: S1 — test: n/a — riesgo: no — commit: PENDIENTE
-T2. El módulo puro de decisión en `src/authority/`, con su tabla de reglas y el id de cada una viajando en la respuesta. Sin reglas todavía: el armazón y el caso "permitido". — specs: S2 — test: required — riesgo: no — commit: -
-T3. La regla `jarvis.write-lock` dentro del módulo, leyendo el contrato activo y el campo de salida. — specs: S3 — test: required — riesgo: sí — commit: -
-T4. La regla `jarvis.tests-readonly` dentro del módulo. — specs: S4 — test: required — riesgo: sí — commit: -
-T5. Enganchar el módulo en `extensions/violeta-guard.ts` y escribir los mensajes de bloqueo en `src/i18n.ts`. — specs: S5 — test: required — riesgo: sí — commit: -
+T1. Renombrar `critico` a `critic` y `probador` a `tester` en los archivos de agente, el roster de jarvis, el README, CONTINUAR y los tests que los nombran. — specs: S1 — test: n/a — riesgo: no — commit: 18eeb00 (S1: suite 705 en verde; sólo reordenó un literal, ninguna aserción tocada)
+T2. El módulo puro de decisión en `src/authority/`, con su tabla de reglas y el id de cada una viajando en la respuesta. Sin reglas todavía: el armazón y el caso "permitido". — specs: S2 — test: required — riesgo: no — commit: 623125a (S2: authority-decide 7/7; el armazón y la tabla de reglas)
+T3. La regla `jarvis.write-lock` dentro del módulo, leyendo el contrato activo y el campo de salida. — specs: S3 — test: required — riesgo: sí — commit: 623125a (S3: authority-write-lock 15/15; mismo commit que T2 y T4: la capa pura se escribió de una)
+T4. La regla `jarvis.tests-readonly` dentro del módulo. — specs: S4 — test: required — riesgo: sí — commit: 623125a (S4: authority-tests-readonly 10/10; mismo commit que T2 y T3)
+T5. Enganchar el módulo en `extensions/violeta-guard.ts` y escribir los mensajes de bloqueo en `src/i18n.ts`. — specs: S5 — test: required — riesgo: sí — commit: 76f72fe (S5: guard-authority 9/9; suite completa 746/746 en verde)
 
 ## Decisiones
 D1. El campo de salida se lee por alias, `quién` y `who`, para que un futuro pase del contrato a inglés no invalide los contratos ya escritos. Una línea de código hoy evita una migración después.
