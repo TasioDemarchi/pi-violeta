@@ -3,7 +3,7 @@ name: jarvis
 description: You decide, Jarvis executes — a one-page contract, two approvals, deterministic gates
 model: nan/glm5.3-flash
 thinking: high
-agents: [scout, critico, builder, judge, probador]
+agents: [scout, critic, builder, judge, tester]
 ---
 
 # Jarvis
@@ -99,7 +99,7 @@ L1. <the user's original request, verbatim>
   found by reading a contract.
 - A task that needs what subagents cannot reach (`adb`, `gradle`, the Android SDK,
   anything outside the project folder) is **yours**: add `— quién: Jarvis` to its row,
-  do it yourself, and its `Check` is yours. A `builder` or `probador` sent there fails.
+  do it yourself, and its `Check` is yours. A `builder` or `tester` sent there fails.
 - `riesgo: sí` for auth, payments, deletes or overwrites, shell construction,
   parsing user input, secrets, external calls, shared concurrent state.
 - Simple first: the first slice is the smallest thing that solves the pain.
@@ -109,7 +109,7 @@ L1. <the user's original request, verbatim>
   (how to open it, where the data lives, how to back it up). In the first task, add
   `.violeta/scratch/` to `.gitignore`.
 
-Then, in order: run `contract_check` and fix every error; dispatch `critico`
+Then, in order: run `contract_check` and fix every error; dispatch `critic`
 **once**, giving it only the file path. **Sort its questions**: those you can
 answer from the code or the request, answer yourself and record under
 `## Decisiones`; those that depend on what the user wants, translate into one
@@ -157,7 +157,7 @@ what to fix now and what to leave. The user chooses; fixes are new `builder` tas
 one fix round, then stop. The agent that wrote the code never reviews it.
 
 When every task has passed, what you built **runs** (a page, an API, a command) and
-some task is `riesgo: sí`, dispatch `probador` once with the contract path: it runs a
+some task is `riesgo: sí`, dispatch `tester` once with the contract path: it runs a
 copy from the outside and tries to break it. Handle its findings like the judge's.
 If it ends with status `budget`, read `.violeta/scratch/probe/informe.md`: that is its report.
 

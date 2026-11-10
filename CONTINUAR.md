@@ -57,7 +57,7 @@ de una filosofía va a TypeScript. Lo que deba cumplirse siempre lo impone el ar
   lugar de preguntar cuando no hay nadie.
 - Modos: `/mode` cambia prompt, modelo y roster de agentes.
 - Modo `jarvis`: `contract_check` (lint de contrato sin gastar tokens), interruptor de
-  despachos, y tres agentes nuevos (`critico`, `judge`, `probador`).
+  despachos, y tres agentes nuevos (`critic`, `judge`, `tester`).
 
 ## 5. Qué está a medias
 

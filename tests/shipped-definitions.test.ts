@@ -56,7 +56,7 @@ test("read-only agents carry no writing tools", () => {
 	// scout, the judge and the critic are read-only by contract. A stray
 	// `edit` in the frontmatter would quietly grant what the prompt forbids,
 	// and the prompt is not what the engine enforces.
-	const readOnly = new Set(["scout", "judge", "critico"]);
+	const readOnly = new Set(["scout", "judge", "critic"]);
 	for (const def of agents().definitions) {
 		if (!readOnly.has(def.name)) continue;
 		for (const forbidden of ["edit", "write"]) {
@@ -231,7 +231,7 @@ test("no shipped prompt sends an agent to a path outside the project", () => {
 test("jarvis exposes exactly its five agents and every one of them exists", () => {
 	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
 	assert.ok(jarvis, "the jarvis mode ships");
-	assert.deepEqual([...jarvis.agents!].sort(), ["builder", "critico", "judge", "probador", "scout"]);
+	assert.deepEqual([...jarvis.agents!].sort(), ["builder", "critic", "judge", "scout", "tester"]);
 	const names = new Set(agents().definitions.map((d) => d.name));
 	for (const name of jarvis.agents!) assert.ok(names.has(name), `jarvis lists "${name}" but no such agent ships`);
 });
@@ -247,21 +247,21 @@ test("jarvis keeps its two approvals, one critic round and the lint gate", () =>
 });
 
 test("the critic only reads the contract, and its model is not the orchestrator's", () => {
-	const critico = agents().definitions.find((d) => d.name === "critico")!;
-	assert.deepEqual(critico.tools, ["read"]);
-	assert.ok(critico.maxTurns! <= 10, "one pass, not a conversation");
-	assert.match(critico.prompt, /At most \*\*seven\*\* questions/);
-	assert.match(critico.prompt, /Never rewrite the contract/);
+	const critic = agents().definitions.find((d) => d.name === "critic")!;
+	assert.deepEqual(critic.tools, ["read"]);
+	assert.ok(critic.maxTurns! <= 10, "one pass, not a conversation");
+	assert.match(critic.prompt, /At most \*\*seven\*\* questions/);
+	assert.match(critic.prompt, /Never rewrite the contract/);
 	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
-	assert.notEqual(critico.model, jarvis.model, "a critic on the same model shares the author's blind spots");
+	assert.notEqual(critic.model, jarvis.model, "a critic on the same model shares the author's blind spots");
 
 	// Added 2026-11-05. A real session spent 72 turns and 326k tokens on three
 	// builders for one "round of five fixes" and delivered one fix and a broken
 	// suite. The critic is the only reader that sees the contract before any
 	// builder runs, and it costs 2 turns and ~8k tokens on a free model, so it
 	// is where a row that is really two tasks has to be caught.
-	assert.match(critico.prompt, /Two tasks in one row/, "the critic must judge whether a row is one piece");
-	assert.match(critico.prompt, /two-tasks/, "and have a kind to report it as");
+	assert.match(critic.prompt, /Two tasks in one row/, "the critic must judge whether a row is one piece");
+	assert.match(critic.prompt, /two-tasks/, "and have a kind to report it as");
 });
 
 test("the jarvis judge is a different model than the builder that wrote the code", () => {
@@ -301,12 +301,12 @@ test("jarvis tells the user how to open it and what to try, never adds unrequest
 test("jarvis runs the black-box tester only for runnable work with risk, and recovers its report on a budget stop", () => {
 	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
 	assert.match(jarvis.prompt, /what you built \*\*runs\*\*/);
-	assert.match(jarvis.prompt, /some task is `riesgo: sí`, dispatch `probador` once/);
+	assert.match(jarvis.prompt, /some task is `riesgo: sí`, dispatch `tester` once/);
 	assert.match(jarvis.prompt, /status `budget`, read `\.violeta\/scratch\/probe\/informe\.md`/);
-	const probador = agents().definitions.find((d) => d.name === "probador")!;
-	assert.match(probador.prompt, /never redirect to `\/dev\/null`/);
-	assert.match(probador.prompt, /Never `pkill` by name/);
-	assert.match(probador.prompt, /informe\.md/);
+	const tester = agents().definitions.find((d) => d.name === "tester")!;
+	assert.match(tester.prompt, /never redirect to `\/dev\/null`/);
+	assert.match(tester.prompt, /Never `pkill` by name/);
+	assert.match(tester.prompt, /informe\.md/);
 });
 
 test("jarvis keeps for itself the tasks the subagents' sandbox cannot run", () => {

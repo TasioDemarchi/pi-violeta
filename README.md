@@ -81,9 +81,9 @@ The repo ships one: **`jarvis`** (the default — contract first, two approvals,
 | Orchestrator (`jarvis`) | `glm5.3-flash`, thinking `high` | on a vague request it stops and asks instead of digging (see Bake-off); the one job that is mostly vague requests |
 | `scout` | `deepseek-v4-flash` | general workhorse, 1M context, and the better researcher of the two: it finds the authoritative source instead of the first one |
 | `builder` | `deepseek-v4-flash` | best of four in a replay of three real tasks (see Bake-off): fastest, fewest tokens, no false "completed" |
-| `critico` | `qwen3.8-flash` | not the orchestrator's model, so it questions the contract instead of agreeing with its author |
+| `critic` | `qwen3.8-flash` | not the orchestrator's model, so it questions the contract instead of agreeing with its author |
 | `judge` | `qwen3.8-flash` | never the model that wrote the change |
-| `probador` | `deepseek-v4-flash` | it drives a running program over many turns, so speed is what it spends |
+| `tester` | `deepseek-v4-flash` | it drives a running program over many turns, so speed is what it spends |
 
 ### Bake-off of 2026-11-04: who orchestrates, who works
 
@@ -107,8 +107,8 @@ One caveat kept on purpose: the bench had none of the ceilings the real harness 
 
 `/mode jarvis` is the philosophy for work where the user decides and the agents execute. It is deliberately short (166 lines) because everything that must always hold is code, not prose.
 
-- **Flow:** understand (at most five questions, each with a recommended answer) -> one-page contract (`tasks/<name>.md`) -> `contract_check` -> `critico` once -> **approval 1** -> `builder` per task, each `Check` re-run by the orchestrator -> `judge` only on `riesgo: sí` tasks -> **approval 2** (the user reads the result; commit is theirs).
-- **Roster:** `scout` (optional), `critico` (reads only the contract, at most seven closed questions, never rewrites; one of its lenses is whether a `T#` row is really two tasks — it costs 2 turns and ~8k tokens on a free model, so it is the cheapest place to catch a split that would otherwise cost two builds), `builder`, `judge` (one independent reviewer; findings go to the user, who chooses what to fix) and `probador` (runs a copy of the finished program from the outside and tries to break it; only when the work runs something and a task is `riesgo: sí`; if it is cut at its ceiling, its progress file `.violeta/scratch/probe/informe.md` is the report).
+- **Flow:** understand (at most five questions, each with a recommended answer) -> one-page contract (`tasks/<name>.md`) -> `contract_check` -> `critic` once -> **approval 1** -> `builder` per task, each `Check` re-run by the orchestrator -> `judge` only on `riesgo: sí` tasks -> **approval 2** (the user reads the result; commit is theirs).
+- **Roster:** `scout` (optional), `critic` (reads only the contract, at most seven closed questions, never rewrites; one of its lenses is whether a `T#` row is really two tasks — it costs 2 turns and ~8k tokens on a free model, so it is the cheapest place to catch a split that would otherwise cost two builds), `builder`, `judge` (one independent reviewer; findings go to the user, who chooses what to fix) and `tester` (runs a copy of the finished program from the outside and tries to break it; only when the work runs something and a task is `riesgo: sí`; if it is cut at its ceiling, its progress file `.violeta/scratch/probe/informe.md` is the report).
 - **Contract:** `No-objetivos`, `Specs` (each with `Accept` and `Check`), `Tasks` (each with `specs`, `test`, `riesgo`), `Decisiones`, `Log` (`L1` is the user's request, verbatim). An external system implies an `S0`/`T0` spike unless the contract says `Externo: no`.
 - **`contract_check`** runs before any model reads the contract: missing sections, a spec without a runnable `Check`, a task citing no spec, an uncovered spec, a missing `L1`, a missing spike.
 

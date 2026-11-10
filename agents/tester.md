@@ -1,5 +1,5 @@
 ---
-name: probador
+name: tester
 description: Black-box tester. Runs the finished program from the outside on a copy, tries to break it, reports what happened. Never fixes.
 model: nan/deepseek-v4-flash
 thinking: medium

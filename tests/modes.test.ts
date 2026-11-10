@@ -10,7 +10,7 @@ const MODE = `---
 name: jarvis
 description: You decide, Jarvis executes
 model: nan/glm5.3
-agents: [scout, builder, probador]
+agents: [scout, builder, tester]
 ---
 
 Work proportionally. Delegate only with a named reason.
@@ -25,18 +25,18 @@ test("parseMode reads the frontmatter and keeps the body as the prompt", () => {
 	assert.equal(mode.name, "jarvis");
 	assert.equal(mode.description, "You decide, Jarvis executes");
 	assert.equal(mode.model, "nan/glm5.3");
-	assert.deepEqual(mode.agents, ["scout", "builder", "probador"]);
+	assert.deepEqual(mode.agents, ["scout", "builder", "tester"]);
 	assert.equal(mode.prompt, "Work proportionally. Delegate only with a named reason.");
 });
 
 test("an absent agents list exposes every agent, a declared empty one exposes none", () => {
 	// The difference is a real choice: "I did not narrow the roster" is not the
 	// same statement as "this mode has no agents".
-	const open = parseMode(MODE.replace("agents: [scout, builder, probador]\n", ""), "open.md");
+	const open = parseMode(MODE.replace("agents: [scout, builder, tester]\n", ""), "open.md");
 	assert.equal(open.agents, undefined);
 	assert.ok(modeExposes(open, "anything"));
 
-	const closed = parseMode(MODE.replace("agents: [scout, builder, probador]", "agents:"), "closed.md");
+	const closed = parseMode(MODE.replace("agents: [scout, builder, tester]", "agents:"), "closed.md");
 	assert.deepEqual(closed.agents, []);
 	assert.ok(!modeExposes(closed, "scout"));
 });
