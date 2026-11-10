@@ -103,14 +103,15 @@ import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "nod
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { setTaskCheckOutput, setTaskStatus } from "../src/contract/state.ts";
+import { parseContractTasks, setTaskCheckOutput, setTaskStatus } from "../src/contract/state.ts";
+import { inspectHandoff } from "../src/authority/handoff.ts";
 import { verifyTask, type CheckExecutor } from "../src/contract/verify.ts";
 import { guardedCheckExecutor } from "../src/guard/check-executor.ts";
 import { activeContractFrom } from "../src/contract/active.ts";
 import { parseGitLog, priorWork, type CommitSubject, type ResumeProof } from "../src/contract/resume.ts";
 import { canAsk } from "../src/guard/outside.ts";
 import { setShared } from "../src/shared-hub.ts";
-import { contract as t, guard } from "../src/i18n.ts";
+import { contract as t, guard, handoff as handoffText } from "../src/i18n.ts";
 
 /** The tool whose dispatch carries a contract task. */
 const DISPATCH_TOOL = "subagent_run";
@@ -312,6 +313,41 @@ export async function settleBackgroundVerification(runnerTaskId: string): Promis
 }
 
 
+/** El veredicto del harness sobre la FORMA de una entrega, o nada si cumple.
+ *
+ * Vuelve como error para que una entrega mal formada no se pueda leer como un
+ * éxito —`jarvis.md` §4: *"a worker whose answer has no `status:` line did not
+ * finish"*— y el texto del trabajador va entero y primero (D1): el orquestador
+ * lo necesita para continuar, y borrárselo convertiría un problema de forma en
+ * pérdida de trabajo. */
+function handoffVerdict(
+	event: { input: Record<string, unknown>; content?: ReadonlyArray<{ type: string; text?: string }> },
+	cwd: string,
+	path: string,
+	taskId: number | undefined,
+): { isError: true; content: Array<{ type: string; text?: string }> } | undefined {
+	const content = event.content ?? [];
+	const said = content
+		.filter((block) => block.type === "text")
+		.map((block) => block.text ?? "")
+		.join("\n");
+	const agent = typeof event.input?.agent === "string" ? event.input.agent : "";
+
+	let row: string | undefined;
+	if (taskId !== undefined) {
+		try {
+			const md = readFileSync(resolve(cwd, path), "utf8");
+			row = parseContractTasks(md).find((task) => task.id === taskId)?.line;
+		} catch {
+			row = undefined;
+		}
+	}
+
+	const problem = inspectHandoff(agent, said, row);
+	if (!problem) return undefined;
+	return { isError: true, content: [...content, { type: "text", text: handoffText[problem.kind] }] };
+}
+
 export default function (pi: ExtensionAPI) {
 	// Children spawned by the subagent runner load this package too: no state
 	// writes there (same guard as the agents and todo extensions).
@@ -345,5 +381,11 @@ export default function (pi: ExtensionAPI) {
 		if (isBackground(event.input)) return;
 		// S6: the Check goes through the guard, and unattended mode runs none.
 		await verifyDispatch(ctx.cwd, path, taskId, guardedCheckExecutor(ctx));
+
+		// S5 (authority-handoff): and THEN the form of the delivery. The order
+		// matters: the row's state is decided by the Check the harness observed,
+		// never by what the worker says about itself (D2), so the verification
+		// runs first and this only annotates the answer the model will read.
+		return handoffVerdict(event, ctx.cwd, path, taskId);
 	});
 }

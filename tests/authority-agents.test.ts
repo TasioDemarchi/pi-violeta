@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { decide } from "../src/authority/decide.ts";
-import { agentReadOnly, agentScratchOnly, criticContractOnly } from "../src/authority/agent-scope.ts";
+import { agentNoDelivery, agentNoSecrets, agentReadOnly, agentScratchOnly, criticContractOnly } from "../src/authority/agent-scope.ts";
 import { readPaths, writePaths } from "../src/authority/request.ts";
 import type { AuthorityRequest } from "../src/authority/rules.ts";
 
@@ -133,4 +133,89 @@ test("readPaths resuelve las herramientas que leen y ninguna otra", () => {
 	assert.deepEqual(readPaths("grep", { path: "src/" }, ROOT, HOME), [`${ROOT}/src`]);
 	assert.deepEqual(readPaths("write", { path: "src/x.ts" }, ROOT, HOME), []);
 	assert.deepEqual(readPaths("bash", { command: "cat src/x.ts" }, ROOT, HOME), []);
+});
+
+// --- S6 (authority-handoff): agent.no-secrets --------------------------------
+// builder.md:91 dice "Never read secrets, credentials, tokens, private keys or
+// .env files". Valía para todos y no la imponía nadie. Ata a cualquier
+// subagente (D4), no a una lista de nombres: un agente nuevo debería nacer con
+// ella puesta. No ata a la sesión: el dueño lee sus propios secretos (D5).
+
+const toca = (over: Partial<AuthorityRequest>) =>
+	decide(request({ agent: "builder", tool: "read", ...over }), [agentNoSecrets, agentNoDelivery]);
+
+test("ningún subagente toca un secreto, lo lea o lo escriba", () => {
+	for (const nombre of [".env", ".env.local", "id_rsa", "id_ed25519", "server.pem", "tls.key", "credentials", "auth.json", ".npmrc", ".netrc", ".git-credentials"]) {
+		const decision = toca({ touches: [`${ROOT}/${nombre}`] });
+		assert.equal(decision.allowed, false, nombre);
+		assert.equal(decision.allowed === false && decision.rule, "agent.no-secrets");
+	}
+});
+
+test("un secreto fuera del proyecto tampoco", () => {
+	assert.equal(toca({ touches: [`${HOME}/.ssh/id_rsa`] }).allowed, false);
+	assert.equal(toca({ touches: [`${HOME}/.violeta/agent/auth.json`] }).allowed, false);
+});
+
+test("lo que sólo se parece a un secreto pasa", () => {
+	for (const nombre of [".env.example", "env.d.ts", "src/keys.ts", "docs/credentials.md", "README.md"]) {
+		assert.deepEqual(toca({ touches: [`${ROOT}/${nombre}`] }), { allowed: true }, nombre);
+	}
+});
+
+test("un comando que abre un secreto también se frena", () => {
+	assert.equal(toca({ tool: "bash", command: "cat .env", touches: [`${ROOT}/.env`] }).allowed, false);
+});
+
+test("la sesión lee lo suyo: la regla es para lo que corre sin que el dueño mire (D5)", () => {
+	assert.deepEqual(decide(request({ caller: "session", tool: "read", touches: [`${ROOT}/.env`] }), [agentNoSecrets]), { allowed: true });
+});
+
+// --- S7 (authority-handoff): agent.no-delivery -------------------------------
+// builder.md:96 dice "Never git add, commit, push, publish or release. Delivery
+// is the user's." Y jarvis.md §5 cierra con lo mismo para la aprobación 2.
+
+const corre = (command: string, over: Partial<AuthorityRequest> = {}) =>
+	decide(request({ agent: "builder", tool: "bash", command, ...over }), [agentNoDelivery]);
+
+test("ningún subagente entrega: la entrega es del dueño", () => {
+	for (const command of ["git add -A", "git commit -m x", "git push origin main", "git tag v1", "npm publish", "gh pr create --fill"]) {
+		const decision = corre(command);
+		assert.equal(decision.allowed, false, command);
+		assert.equal(decision.allowed === false && decision.rule, "agent.no-delivery");
+	}
+});
+
+test("mirar el repositorio es su trabajo y no se toca", () => {
+	for (const command of ["git status --short", "git diff HEAD~1", "git log --oneline -5", "git show HEAD", "npm test", "npm run build"]) {
+		assert.deepEqual(corre(command), { allowed: true }, command);
+	}
+});
+
+test("la entrega escondida detrás de un `&&` o un envoltorio tampoco pasa", () => {
+	assert.equal(corre("npm test && git commit -am ok").allowed, false);
+	assert.equal(corre("sudo git push").allowed, false);
+});
+
+test("la sesión commitea cuando el dueño quiere", () => {
+	assert.deepEqual(decide(request({ caller: "session", tool: "bash", command: "git commit -m x" }), [agentNoDelivery]), { allowed: true });
+});
+
+// Encontrado por la prueba por prompt: un `builder` leyó un `.env` con
+// `cat .env` y el valor salió en su respuesta. La regla miraba
+// `bashPathTargets`, que sólo busca rutas que necesitan permiso FUERA del
+// proyecto y devuelve [] para `.env`. Un comando que NOMBRA un secreto se
+// frena por su propio texto.
+test("un comando que nombra un secreto se frena, tenga barras o no", () => {
+	for (const command of ["cat .env", "cat ./.env", "cat /otro/proj/.env", "grep API_KEY .env", "head -5 config/credentials", "cat ~/.ssh/id_rsa"]) {
+		const decision = decide(request({ agent: "builder", tool: "bash", command }), [agentNoSecrets]);
+		assert.equal(decision.allowed, false, command);
+		assert.equal(decision.allowed === false && decision.rule, "agent.no-secrets");
+	}
+});
+
+test("un comando que sólo nombra algo parecido pasa", () => {
+	for (const command of ["cat .env.example", "cat src/keys.ts", "ls -la", "grep -rn env src/", "npm test"]) {
+		assert.deepEqual(decide(request({ agent: "builder", tool: "bash", command }), [agentNoSecrets]), { allowed: true }, command);
+	}
 });

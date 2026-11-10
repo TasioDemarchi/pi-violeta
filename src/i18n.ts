@@ -78,6 +78,17 @@ const es = {
 		sqlDeleteWithoutWhere: "DELETE sin WHERE",
 		inlinePayload: "código inline en un intérprete (no se puede revisar qué hace)",
 	},
+	handoff: {
+		"missing-status": "El harness rechaza esta entrega: no trae una línea `status:` de las de su contrato de retorno " +
+			"(completed, partial, blocked, interaction_required), así que no terminó. Lo que está arriba es lo que dijo el " +
+			"trabajador; no lo tomes como una entrega. Despachá uno fresco con lo que ya quedó en el árbol.",
+		"partial-without-remaining": "El harness rechaza esta entrega: dice `status: partial` y no trae `remaining:`, " +
+			"así que nadie puede continuarla. Despachá uno fresco y pedile que diga explícitamente qué queda.",
+		"missing-extras": "El harness rechaza esta entrega: un builder nunca omite `extras:`, y \"none\" es la respuesta " +
+			"esperada. Existe para que rechaces trabajo no pedido en un turno en vez de descubrirlo en revisión.",
+		"required-test-skipped": "El harness rechaza esta entrega: la fila de la tarea dice `test: required` y el `RED:` " +
+			"viene en `n/a` o no viene. Un test que nunca se vio fallar no prueba nada. Despachá uno fresco pidiendo el RED observado.",
+	},
 	guard: {
 		/** The only option that approves the destructive command. */
 		yes: "Sí",
@@ -126,6 +137,12 @@ const es = {
 		criticContractOnly: (path: string) =>
 			`Bloqueado por critic.contract-only: leés el contrato que te dieron, no el repositorio — ${path}. ` +
 			"Lo que no se puede saber mirando la página es justamente el hallazgo.",
+		agentNoSecrets: (path: string) =>
+			`Bloqueado por agent.no-secrets: ${path} es un secreto y su contenido no pasa por ningún modelo. ` +
+			"Si la tarea lo necesita, decilo en `risks` y que lo resuelva el dueño.",
+		agentNoDelivery: (what: string) =>
+			`Bloqueado por agent.no-delivery: \`${what}\` entrega, y la entrega es del dueño. ` +
+			"Dejá el trabajo hecho en el árbol y reportalo; el commit, el push y el PR los hace él.",
 		outsideTitle: "Acceso fuera del proyecto",
 		outsideBody: (dir: string) =>
 			`¿Permitir acceso fuera del proyecto: ${dir}? El permiso dura solo esta sesión.`,
@@ -512,6 +529,17 @@ const en: typeof es = {
 		sqlDeleteWithoutWhere: "DELETE without WHERE",
 		inlinePayload: "inline code in an interpreter (there is no way to read what it does)",
 	},
+	handoff: {
+		"missing-status": "The harness rejects this delivery: it carries no `status:` line from its return contract " +
+			"(completed, partial, blocked, interaction_required), so it did not finish. What is above is what the worker " +
+			"said; do not take it as a delivery. Dispatch a fresh one with whatever is already in the tree.",
+		"partial-without-remaining": "The harness rejects this delivery: it says `status: partial` and carries no " +
+			"`remaining:`, so nobody can continue it. Dispatch a fresh one and ask it to state what is left.",
+		"missing-extras": "The harness rejects this delivery: a builder never omits `extras:`, and \"none\" is the " +
+			"expected answer. It exists so you can reject unasked work in one turn instead of finding it in review.",
+		"required-test-skipped": "The harness rejects this delivery: the task row says `test: required` and `RED:` is " +
+			"`n/a` or missing. A test nobody saw fail proves nothing. Dispatch a fresh one and ask for the observed RED.",
+	},
 	guard: {
 		yes: "Yes",
 		no: "No",
@@ -555,6 +583,12 @@ const en: typeof es = {
 		criticContractOnly: (path: string) =>
 			`Blocked by critic.contract-only: you read the contract you were given, not the repository — ${path}. ` +
 			"What you cannot tell from the page alone is exactly the finding.",
+		agentNoSecrets: (path: string) =>
+			`Blocked by agent.no-secrets: ${path} is a secret and its contents reach no model. ` +
+			"If the task needs it, say so in `risks` and let the owner resolve it.",
+		agentNoDelivery: (what: string) =>
+			`Blocked by agent.no-delivery: \`${what}\` delivers, and delivery is the owner's. ` +
+			"Leave the work in the tree and report it; the commit, the push and the PR are theirs.",
 		outsideTitle: "Outside-project access",
 		outsideBody: (dir: string) =>
 			`Allow access outside the project: ${dir}? The grant lasts only for this session.`,
@@ -913,6 +947,8 @@ function localized<K extends keyof typeof es>(key: K): (typeof es)[K] {
 
 export const guardReasons = localized("guardReasons");
 export const guard = localized("guard");
+/** El veredicto del harness sobre la forma de una entrega de subagente. */
+export const handoff = localized("handoff");
 export const agents = localized("agents");
 export const contract = localized("contract");
 export const changes = localized("changes");

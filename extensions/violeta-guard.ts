@@ -32,7 +32,7 @@ import { OutsideGrants } from "../src/guard/grants.ts";
 import { authorizePaths, canAsk, home, unattended } from "../src/guard/outside.ts";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { bashPathTargets, toolCallPaths } from "../src/guard/paths.ts";
+import { bashPathTargets, resolvePath, toolCallPaths } from "../src/guard/paths.ts";
 import { activeContractFrom } from "../src/contract/active.ts";
 import { decide } from "../src/authority/decide.ts";
 import { PROJECT_SCRATCH } from "../src/authority/rules.ts";
@@ -88,7 +88,14 @@ function authorityRefusal(
 	// scope reading look at. A call that does neither never reaches a rule.
 	const paths = writePaths(toolName, input, root, home());
 	const reads = readPaths(toolName, input, root, home());
-	if (paths.length === 0 && reads.length === 0) return undefined;
+	// Everything the call MENTIONS, for the deny-lists: a secret is a secret
+	// whether it is opened or overwritten, and a shell command names its files
+	// inside the command instead of in an argument.
+	const command = SHELL_COMMAND_TOOLS.has(toolName) && typeof input?.command === "string" ? input.command : undefined;
+	const touches = command
+		? bashPathTargets(command, root, home())
+		: toolCallPaths(toolName, input).map((path) => resolvePath(path, root, home()));
+	if (paths.length === 0 && reads.length === 0 && touches.length === 0 && command === undefined) return undefined;
 
 	const contractPath = resolve(root, activeContractFrom(ctx.sessionManager));
 	let contract: { path: string; text: string } | undefined;
@@ -106,6 +113,8 @@ function authorityRefusal(
 		caller: process.env.VIOLETA_AGENTS_CHILD === "1" ? "subagent" : "session",
 		paths,
 		reads,
+		touches,
+		...(command !== undefined ? { command } : {}),
 		root,
 		scratch: join(root, PROJECT_SCRATCH),
 		...(agent ? { agent } : {}),
@@ -114,6 +123,8 @@ function authorityRefusal(
 	if (decision.allowed) return undefined;
 	const scratch = join(root, PROJECT_SCRATCH);
 	const reasons: Record<string, () => string> = {
+		"agent.no-secrets": () => t.agentNoSecrets(decision.path),
+		"agent.no-delivery": () => t.agentNoDelivery(decision.path),
 		"agent.read-only": () => t.agentReadOnly(agent ?? "", decision.path),
 		"agent.scratch-only": () => t.agentScratchOnly(decision.path, scratch),
 		"critic.contract-only": () => t.criticContractOnly(decision.path),

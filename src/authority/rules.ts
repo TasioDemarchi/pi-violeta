@@ -18,7 +18,9 @@ export type RuleId =
 	| "jarvis.bash-write"
 	| "agent.read-only"
 	| "agent.scratch-only"
-	| "critic.contract-only";
+	| "critic.contract-only"
+	| "agent.no-secrets"
+	| "agent.no-delivery";
 
 /** Who is asking. A subagent runs with `VIOLETA_AGENTS_CHILD=1`; everything
  * else is the session the owner is talking to. Rules bind callers explicitly,
@@ -39,6 +41,13 @@ export interface AuthorityRequest {
 	/** Absolute paths the call would READ. Only the rules that scope reading
 	 * look at it, so it is optional: absent reads as "nothing to scope". */
 	reads?: readonly string[];
+	/** Every path the call MENTIONS, read or written, including the ones a shell
+	 * command names. A deny-list does not care which it is: a secret is a secret
+	 * whether it is opened or overwritten. */
+	touches?: readonly string[];
+	/** The shell command itself, for the rules that judge its shape rather than
+	 * its paths. Absent for everything that is not a shell tool. */
+	command?: string;
 	/** Absolute project root. */
 	root: string;
 	/** Absolute scratch directory the harness owns and the model may use. */

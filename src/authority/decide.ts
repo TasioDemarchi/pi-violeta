@@ -12,7 +12,7 @@
 
 import { type AuthorityRequest, type Decision, type Rule } from "./rules.ts";
 import { testsReadonly } from "./tests-readonly.ts";
-import { agentReadOnly, agentScratchOnly, criticContractOnly } from "./agent-scope.ts";
+import { agentNoDelivery, agentNoSecrets, agentReadOnly, agentScratchOnly, criticContractOnly } from "./agent-scope.ts";
 import { bashWrite, writeLock } from "./write-lock.ts";
 
 /** The rules this harness ships, most specific first: a test write should be
@@ -22,6 +22,8 @@ import { bashWrite, writeLock } from "./write-lock.ts";
  * that writes is refused as a scout, not as a generic session lock that does
  * not even apply to it. */
 export const RULES: readonly Rule[] = [
+	agentNoSecrets,
+	agentNoDelivery,
 	agentReadOnly,
 	agentScratchOnly,
 	criticContractOnly,

@@ -22,6 +22,7 @@
  * reportarlo como hallazgo, o escribir en scratch. */
 
 import { join } from "node:path";
+import { type Token, executable, headCursor, segments } from "../guard/command-guard.ts";
 import { isInside } from "../guard/paths.ts";
 import type { AuthorityRequest, Rule, RuleId } from "./rules.ts";
 
@@ -63,5 +64,91 @@ export const criticContractOnly: Rule = {
 		if (!boundTo(["critic"], request)) return undefined;
 		const contracts = join(request.root, "tasks");
 		return (request.reads ?? []).find((path) => !isInside(path, contracts));
+	},
+};
+
+/** Secretos: archivos cuyo contenido no debería pasar por ningún modelo.
+ * `builder.md:91` lo pide para sí —*"Never read secrets, credentials, tokens,
+ * private keys or `.env` files"*— y vale para todos. Se compara el nombre del
+ * archivo, no la ruta entera, para que `docs/credentials.md` no se confunda con
+ * un `credentials`. */
+const SECRETS: readonly RegExp[] = [
+	/^\.env(\.[^.]*)?$/i, // .env, .env.local — pero no .env.example
+	/^id_(rsa|dsa|ecdsa|ed25519)$/i,
+	/\.(pem|key|p12|pfx)$/i,
+	/^credentials$/i,
+	/^auth\.json$/i,
+	/^\.(npmrc|netrc|git-credentials|pgpass)$/i,
+];
+
+const EXAMPLE = /\.(example|sample|template|dist)$/i;
+
+function isSecret(path: string): boolean {
+	const name = path.split("/").at(-1) ?? path;
+	if (EXAMPLE.test(name)) return false;
+	return SECRETS.some((pattern) => pattern.test(name));
+}
+
+/** Las palabras de un comando que podrían ser un archivo: todo lo que no es una
+ * opción. Hace falta mirarlas directamente porque `bashPathTargets` sólo busca
+ * rutas que necesitan permiso FUERA del proyecto y devuelve vacío para `.env`.
+ * Lo encontró la prueba por prompt, con un `cat .env` que pasó limpio. */
+function commandWords(command: string): string[] {
+	const words: string[] = [];
+	for (const tokens of segments(command)) {
+		for (const token of tokens) {
+			if (!token.operator && !token.value.startsWith("-")) words.push(token.value);
+		}
+	}
+	return words;
+}
+
+/** Ningún subagente toca un secreto, lo lea o lo escriba, adentro o afuera del
+ * proyecto. No ata a la sesión: el dueño lee lo suyo (D5).
+ *
+ * Un comando se juzga por lo que NOMBRA. Que mencione un secreto dentro de una
+ * cadena y no vaya a abrirlo es posible; frenarlo igual cuesta una vuelta, y
+ * dejarlo pasar cuesta la clave. */
+export const agentNoSecrets: Rule = {
+	id: "agent.no-secrets" satisfies RuleId,
+	check(request) {
+		if (request.caller !== "subagent") return undefined;
+		const named = request.command ? commandWords(request.command) : [];
+		return [...(request.touches ?? []), ...(request.reads ?? []), ...request.paths, ...named].find(isSecret);
+	},
+};
+
+/** Las formas de entregar. `builder.md:96`: *"Never `git add`, `commit`,
+ * `push`, publish or release. Delivery is the user's."* Y jarvis.md §5 cierra
+ * con lo mismo: la aprobación 2 es el dueño probando el resultado. */
+const DELIVERY: Record<string, readonly string[]> = {
+	git: ["add", "commit", "push", "tag", "am", "cherry-pick", "revert"],
+	npm: ["publish"],
+	pnpm: ["publish"],
+	yarn: ["publish"],
+	gh: ["pr", "release"],
+};
+
+/** La primera palabra que no es una opción: el subcomando. */
+function subcommand(args: readonly Token[]): string | undefined {
+	return args.find((token) => !token.operator && !token.value.startsWith("-"))?.value.toLowerCase();
+}
+
+export const agentNoDelivery: Rule = {
+	id: "agent.no-delivery" satisfies RuleId,
+	check(request) {
+		if (request.caller !== "subagent") return undefined;
+		const command = request.command;
+		if (!command) return undefined;
+		for (const tokens of segments(command)) {
+			const cursor = headCursor(tokens);
+			const head = tokens[cursor];
+			if (!head || head.operator) continue;
+			const verbs = DELIVERY[executable(head.value)];
+			if (!verbs) continue;
+			const verb = subcommand(tokens.slice(cursor + 1));
+			if (verb !== undefined && verbs.includes(verb)) return `${executable(head.value)} ${verb}`;
+		}
+		return undefined;
 	},
 };
