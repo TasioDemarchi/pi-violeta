@@ -106,6 +106,13 @@ const es = {
 		blocked: (reasons: readonly string[]) =>
 			`Bloqueado: ${reasons.join("; ")}. No hay un usuario interactivo que pueda aprobarlo.`,
 		catastrophic: (reason: string) => `Objetivo catastrófico denegado sin preguntar: ${reason}.`,
+		writeLocked: (path: string, contract: string) =>
+			`Bloqueado por jarvis.write-lock: no escribas ${path} mientras ${contract} tenga tareas sin terminar. ` +
+			`Si es trabajo de campo que ningún subagente puede hacer, agregá "— quién: Jarvis" a la fila de esa tarea, ` +
+			"decíselo al usuario y volvé a intentar. Si no, despachá un builder con la tarea.",
+		testsLocked: (path: string) =>
+			`Bloqueado por jarvis.tests-readonly: no escribas ${path}. ` +
+			"Los tests los escribe un builder, nunca la sesión que escribió el código. Despachá un builder con esa tarea.",
 		outsideTitle: "Acceso fuera del proyecto",
 		outsideBody: (dir: string) =>
 			`¿Permitir acceso fuera del proyecto: ${dir}? El permiso dura solo esta sesión.`,
@@ -515,6 +522,13 @@ const en: typeof es = {
 		blocked: (reasons: readonly string[]) =>
 			`Blocked: ${reasons.join("; ")}. No interactive user is available to approve it.`,
 		catastrophic: (reason: string) => `Catastrophic target denied without a prompt: ${reason}.`,
+		writeLocked: (path: string, contract: string) =>
+			`Blocked by jarvis.write-lock: do not write ${path} while ${contract} has unfinished tasks. ` +
+			'If this is field work no subagent can reach, add "— quién: Jarvis" to that task\'s row, ' +
+			"tell the user and try again. Otherwise dispatch a builder for the task.",
+		testsLocked: (path: string) =>
+			`Blocked by jarvis.tests-readonly: do not write ${path}. ` +
+			"Tests are written by a builder, never by the session that wrote the code. Dispatch a builder for that task.",
 		outsideTitle: "Outside-project access",
 		outsideBody: (dir: string) =>
 			`Allow access outside the project: ${dir}? The grant lasts only for this session.`,

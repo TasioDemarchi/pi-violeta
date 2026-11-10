@@ -30,7 +30,12 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { SHELL_COMMAND_TOOLS, guardDecision } from "../src/guard/command-guard.ts";
 import { OutsideGrants } from "../src/guard/grants.ts";
 import { authorizePaths, canAsk, home, unattended } from "../src/guard/outside.ts";
-import { bashPathTargets, toolCallPaths } from "../src/guard/paths.ts";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { bashPathTargets, resolvePath, toolCallPaths } from "../src/guard/paths.ts";
+import { activeContractFrom } from "../src/contract/active.ts";
+import { decide } from "../src/authority/decide.ts";
+import { PROJECT_SCRATCH, WRITE_TOOLS } from "../src/authority/rules.ts";
 import { type Explanation, explainedBody, parseExplanation } from "../src/guard/explain.ts";
 import { blocksText } from "../src/btw/request.ts";
 import { setShared } from "../src/shared-hub.ts";
@@ -58,6 +63,54 @@ const explainTimeoutMs = (): number => {
 	return Number.isFinite(raw) && raw > 0 ? raw : 9000;
 };
 const GRANTABLE_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls", ...SHELL_COMMAND_TOOLS]);
+
+/** The harness's own authority: who may write what, decided by `src/authority`.
+ *
+ * It runs before the grant dialog because it is the more specific question —
+ * a grant is about reaching OUTSIDE the project, this is about what the session
+ * may touch INSIDE it — and because a refusal here must never open a dialog:
+ * the exit is a line the model writes in the contract, not an answer the owner
+ * has to give at the keyboard (D5, tasks/authority.md).
+ *
+ * Everything that judges is pure and lives in `src/authority`; this function is
+ * only the wiring: resolve the paths, read the active contract off disk, ask,
+ * and translate the answer. A contract that cannot be read is no contract, and
+ * the request goes on to the permission path of always. */
+function authorityRefusal(
+	toolName: string,
+	input: Record<string, unknown>,
+	ctx: ExtensionContext,
+): { block: true; reason: string } | undefined {
+	if (!WRITE_TOOLS.has(toolName)) return undefined;
+	const root = ctx.cwd;
+	const paths = toolCallPaths(toolName, input).map((path) => resolvePath(path, root, home()));
+	if (paths.length === 0) return undefined;
+
+	const contractPath = resolve(root, activeContractFrom(ctx.sessionManager));
+	let contract: { path: string; text: string } | undefined;
+	try {
+		contract = { path: contractPath, text: readFileSync(contractPath, "utf8") };
+	} catch {
+		contract = undefined;
+	}
+
+	const decision = decide({
+		tool: toolName,
+		caller: process.env.VIOLETA_AGENTS_CHILD === "1" ? "subagent" : "session",
+		paths,
+		root,
+		scratch: join(root, PROJECT_SCRATCH),
+		...(contract ? { contract } : {}),
+	});
+	if (decision.allowed) return undefined;
+	return {
+		block: true,
+		reason:
+			decision.rule === "jarvis.tests-readonly"
+				? t.testsLocked(decision.path)
+				: t.writeLocked(decision.path, contractPath),
+	};
+}
 
 export default function (pi: ExtensionAPI) {
 	// NOTE: unlike violeta-agents, this deliberately does NOT return early for
@@ -101,6 +154,10 @@ export default function (pi: ExtensionAPI) {
 	/** Ask once per target directory per session; without a UI it blocks. */
 	pi.on("tool_call", async (event, ctx) => {
 		if (!GRANTABLE_TOOLS.has(event.toolName)) return;
+
+		const refused = authorityRefusal(event.toolName, event.input as Record<string, unknown>, ctx);
+		if (refused) return refused;
+
 		grants.sync(ctx.sessionManager.getSessionId());
 
 		if (SHELL_COMMAND_TOOLS.has(event.toolName)) {
