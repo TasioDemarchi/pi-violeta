@@ -35,11 +35,11 @@ S6. El guard aplica las tres reglas y el bloqueo dice la regla y qué hacer en s
     Check: node --test tests/guard-authority.test.ts
 
 ## Tasks
-T1. El runner le pasa el nombre del agente al hijo. — specs: S1 — test: required — riesgo: no — commit: -
-T2. La petición lleva el agente, y la fábrica de reglas sabe atarse a una lista de agentes. — specs: S2 — test: required — riesgo: no — commit: -
-T3. Las reglas `agent.read-only` y `agent.scratch-only`. — specs: S3, S4 — test: required — riesgo: sí — commit: -
-T4. La regla `critic.contract-only`, que mira lecturas y no escrituras. — specs: S5 — test: required — riesgo: sí — commit: -
-T5. Enganche en el guard y mensajes en `src/i18n.ts`. — specs: S6 — test: required — riesgo: sí — commit: -
+T1. El runner le pasa el nombre del agente al hijo. — specs: S1 — test: required — riesgo: no — commit: a02df1f (S1: agents-runner 36/36; VIOLETA_AGENT_NAME junto al CHILD)
+T2. La petición lleva el agente, y la fábrica de reglas sabe atarse a una lista de agentes. — specs: S2 — test: required — riesgo: no — commit: a02df1f (S2: authority-agents 18/18; `agent` y `reads` en la petición)
+T3. Las reglas `agent.read-only` y `agent.scratch-only`. — specs: S3, S4 — test: required — riesgo: sí — commit: a02df1f (S3+S4: agent.read-only y agent.scratch-only)
+T4. La regla `critic.contract-only`, que mira lecturas y no escrituras. — specs: S5 — test: required — riesgo: sí — commit: a02df1f (S5: critic.contract-only, la primera regla sobre lecturas)
+T5. Enganche en el guard y mensajes en `src/i18n.ts`. — specs: S6 — test: required — riesgo: sí — commit: a02df1f (S6: guard-authority 22/22; suite 809 en verde). Corregido después en el e2e: `2>/dev/null` no es una escritura, y la prueba corre con las `--tools` reales del agente
 
 ## Decisiones
 D1. El nombre viaja por el entorno, como `VIOLETA_AGENTS_CHILD`. Es el único canal que ya llega al hijo y que el guard puede leer sin pedirle nada al modelo. Un dato que el modelo pudiera escribir no serviría: sería prosa otra vez.

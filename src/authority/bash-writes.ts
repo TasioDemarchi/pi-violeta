@@ -25,6 +25,12 @@ import { resolvePath } from "../guard/paths.ts";
 /** `>`, `>>`, `2>`, `>f`, `2>>f` — but never `>&`, so `2>&1` is not a write. */
 const REDIRECT = /^\d*>>?(?!&)(.*)$/;
 
+/** Sumideros del sistema: escribirles no escribe nada. Lo encontró la prueba
+ * por prompt — un `scout` frenado por `cat archivo 2>/dev/null`, que es una
+ * lectura. Tratarlos como escritura haría insoportable al agente que sólo
+ * mira, y no protege de nada. */
+const SINKS: ReadonlySet<string> = new Set(["/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty", "/dev/fd/1", "/dev/fd/2"]);
+
 /** In-place editors: the flag that turns a filter into a writer. */
 const IN_PLACE: Record<string, RegExp> = {
 	sed: /^-[^-]*i/,
@@ -149,7 +155,9 @@ export function bashWrites(command: string, cwd: string, home: string): string[]
 	for (const segment of segments(command)) {
 		for (const target of segmentWrites(segment, cwd)) {
 			if (target === "") continue;
-			found.push(resolvePath(target, cwd, home));
+			const resolved = resolvePath(target, cwd, home);
+			if (SINKS.has(resolved)) continue;
+			found.push(resolved);
 		}
 	}
 	return found;

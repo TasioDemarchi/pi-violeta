@@ -74,6 +74,27 @@ test("`2>&1` is not a write", () => {
 	assert.deepEqual(writes("npm test 2>&1 | tail -9"), []);
 });
 
+// Encontrado por la prueba por prompt: un `scout` fue frenado por
+// `agent.read-only` al correr `cat -A archivo 2>/dev/null`. Frenó por el
+// motivo equivocado. Escribir a /dev/null no escribe nada, y tratarlo como
+// escritura haría insoportable al único agente que sólo mira.
+test("los sumideros del sistema no son escrituras", () => {
+	for (const command of [
+		"cat src/x.ts 2>/dev/null",
+		"ls faltante 2> /dev/null",
+		"comando >/dev/null 2>&1",
+		"ruidoso > /dev/stdout",
+		"ruidoso 2> /dev/stderr",
+	]) {
+		assert.deepEqual(writes(command), [], command);
+	}
+});
+
+test("un archivo que apenas se parece a un sumidero sí es una escritura", () => {
+	assert.deepEqual(writes("echo x > /dev/null.bak"), ["/dev/null.bak"]);
+	assert.deepEqual(writes("echo x > devnull"), [`${CWD}/devnull`]);
+});
+
 test("the commands the orchestrator must keep running write nothing", () => {
 	for (const command of [
 		"git status --short",
