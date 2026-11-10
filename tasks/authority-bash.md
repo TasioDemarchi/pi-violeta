@@ -31,11 +31,11 @@ S5. Probado contra una instancia real de violeta, no sólo contra la suite.
     Check: manual: `bash tests/e2e/authority.sh` y leer su salida
 
 ## Tasks
-T1. Exportar `tokenize` y `segments` desde el guard, sin cambiar su comportamiento. — specs: S1 — test: required — riesgo: no — commit: -
-T2. El detector puro de escrituras de shell en `src/authority/bash-writes.ts`. — specs: S2 — test: required — riesgo: sí — commit: -
-T3. La regla `jarvis.bash-write` y su entrada en la tabla. — specs: S3 — test: required — riesgo: sí — commit: -
-T4. Enganchar la autoridad para las herramientas de shell en el guard, antes del diálogo destructivo. — specs: S4 — test: required — riesgo: sí — commit: -
-T5. La prueba por prompt contra una instancia real, guionada y repetible. — specs: S5 — test: required — riesgo: sí — quién: Jarvis — commit: -
+T1. Exportar `tokenize` y `segments` desde el guard, sin cambiar su comportamiento. — specs: S1 — test: required — riesgo: no — commit: 3c3742f (S1: guard-command 13/13 sin cambios; tokenize/segments/headCursor exportados)
+T2. El detector puro de escrituras de shell en `src/authority/bash-writes.ts`. — specs: S2 — test: required — riesgo: sí — commit: 3c3742f (S2: bash-writes 17/17)
+T3. La regla `jarvis.bash-write` y su entrada en la tabla. — specs: S3 — test: required — riesgo: sí — commit: 3c3742f (S3: authority-bash 13/13; regla por fábrica, compartida con write-lock)
+T4. Enganchar la autoridad para las herramientas de shell en el guard, antes del diálogo destructivo. — specs: S4 — test: required — riesgo: sí — commit: 3c3742f (S4: guard-authority 14/14; suite 782 en verde)
+T5. La prueba por prompt contra una instancia real, guionada y repetible. — specs: S5 — test: required — riesgo: sí — quién: Jarvis — commit: 2c37787 (S5: las tres fases en verde contra violeta-test real; encontró 3 errores en la propia prueba y ninguno en el candado)
 
 ## Decisiones
 D1. Se exportan `tokenize` y `segments` en vez de escribir un segundo parser. Dos definiciones de "qué es un segmento de shell" terminarían discrepando, y el guard ya resuelve comillas, heredocs, envoltorios y subshells.
