@@ -122,13 +122,21 @@ test("every orchestrating mode pins its model, even when it shares a pool with t
 
 test("no shipped file asks for a model outside this plan's catalogue", () => {
 	// config/models.json is the plan's catalogue. A model that is real but sits
-	// behind a higher tier (glm5.3 is premium-only) fails at request time, not
-	// at startup, so it has to be caught here.
+	// behind a higher tier fails at request time, not at startup, so it has to be
+	// caught here.
+	//
+	// glm5.3 used to be premium-only and was excluded by that rule. On 2026-11-05
+	// NaN opened it to this tier, and a live call against
+	// https://api.nan.builders/v1/chat/completions with this key answered
+	// correctly from max_tokens 65536 up to 393216, so it stays in the catalogue
+	// and the owner's decision is to rely on it. If this pin is ever removed
+	// again, it is because a request started failing with "does not have
+	// access" -- restore the exclusion then, not before.
 	const catalog = JSON.parse(readFileSync(join(ROOT, "config", "models.json"), "utf8")) as {
 		providers: Record<string, { models: Array<{ id: string }> }>;
 	};
 	const nan = new Set(catalog.providers.nan!.models.map((m) => m.id));
-	assert.ok(!nan.has("glm5.3"), "glm5.3 is the 200 EUR premium tier, not nan_member");
+	assert.ok(nan.has("glm5.3"), "glm5.3 is in the catalogue and this tier has live access to it");
 	const referenced = [
 		...agents().definitions.map((d) => d.model),
 		...modes().modes.map((m) => m.model).filter((m): m is string => !!m),

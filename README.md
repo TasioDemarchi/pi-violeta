@@ -101,7 +101,7 @@ They tie on writing code and on reading it; deepseek is the more precise researc
 
 One caveat kept on purpose: the bench had none of the ceilings the real harness has (the dispatch breaker, the turn limit), so part of that 184k is the bench's fault, not the model's.
 
-`config/models.json` is the catalogue for the **nan_member** plan. `glm5.3` (as opposed to `glm5.3-flash`) belongs to the 200 EUR premium tier and is deliberately absent: a model that is real but out of plan fails at request time rather than at startup, so a test pins its absence.
+`config/models.json` is the catalogue for the **nan_member** plan. `glm5.3` (as opposed to `glm5.3-flash`) used to be premium-only and was deliberately absent for that reason; on 2026-11-05 NaN opened it to this plan (verified live against `chat/completions`), so it is now in the catalogue and a test pins its presence. If the key ever starts failing with "does not have access", restore the exclusion.
 
 ## Jarvis
 

@@ -31,6 +31,31 @@
 					}
 				},
 				{
+					"id": "deepseek-v4-pro",
+					"name": "DeepSeek V4 Pro",
+					"reasoning": true,
+					"input": [
+						"text",
+						"image"
+					],
+					"contextWindow": 1000000,
+					"maxTokens": 393216,
+					"cost": {
+						"input": 0,
+						"output": 0,
+						"cacheRead": 0,
+						"cacheWrite": 0
+					},
+					"thinkingLevelMap": {
+						"off": "none",
+						"xhigh": null,
+						"max": "max"
+					},
+					"compat": {
+						"maxTokensField": "max_tokens"
+					}
+				},
+				{
 					"id": "glm5.3-flash",
 					"name": "GLM 5.3 Flash",
 					"reasoning": true,
@@ -54,6 +79,72 @@
 					}
 				},
 				{
+					"id": "glm5.3",
+					"name": "GLM 5.3",
+					"reasoning": true,
+					"input": [
+						"text",
+						"image"
+					],
+					"contextWindow": 1000000,
+					"maxTokens": 393216,
+					"cost": {
+						"input": 0,
+						"output": 0,
+						"cacheRead": 0,
+						"cacheWrite": 0
+					},
+					"thinkingLevelMap": {
+						"off": "none",
+						"xhigh": null,
+						"max": "max"
+					}
+				},
+				{
+					"id": "hy4",
+					"name": "Hy 4",
+					"reasoning": true,
+					"input": [
+						"text",
+						"image"
+					],
+					"contextWindow": 262000,
+					"maxTokens": 131072,
+					"cost": {
+						"input": 0,
+						"output": 0,
+						"cacheRead": 0,
+						"cacheWrite": 0
+					},
+					"thinkingLevelMap": {
+						"off": "none",
+						"xhigh": null,
+						"max": "max"
+					}
+				},
+				{
+					"id": "kimi-k3.1-pro",
+					"name": "Kimi K3.1 Pro",
+					"reasoning": true,
+					"input": [
+						"text",
+						"image"
+					],
+					"contextWindow": 262000,
+					"maxTokens": 131072,
+					"cost": {
+						"input": 0,
+						"output": 0,
+						"cacheRead": 0,
+						"cacheWrite": 0
+					},
+					"thinkingLevelMap": {
+						"off": "none",
+						"xhigh": null,
+						"max": "max"
+					}
+				},
+				{
 					"id": "qwen3.8-flash",
 					"name": "Qwen 3.8 Flash",
 					"reasoning": true,
@@ -63,6 +154,28 @@
 					],
 					"contextWindow": 1048576,
 					"maxTokens": 131000,
+					"cost": {
+						"input": 0,
+						"output": 0,
+						"cacheRead": 0,
+						"cacheWrite": 0
+					},
+					"thinkingLevelMap": {
+						"off": "none",
+						"xhigh": null,
+						"max": "max"
+					}
+				},
+				{
+					"id": "qwen3.8-max",
+					"name": "Qwen 3.8 Max",
+					"reasoning": true,
+					"input": [
+						"text",
+						"image"
+					],
+					"contextWindow": 1048576,
+					"maxTokens": 393216,
 					"cost": {
 						"input": 0,
 						"output": 0,
