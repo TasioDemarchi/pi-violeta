@@ -99,16 +99,58 @@ interface LiveTask {
 	/** The ceiling this run has already reached, acted on when it tries to do
 	 * more. Settlement arriving first means the work finished on budget. */
 	overBudget: BudgetLimit | undefined;
-	/** The wrap-up notice goes out at most once per run. */
-	wrapUpSent: boolean;
+	/** How far the wrap-up has gone: the warning, then the order. Each stage
+	 * goes out at most once per run. */
+	wrapUpStage: "none" | "warned" | "ordered";
 	promptDir: string | undefined;
 	stderrTail: string;
 	responseWaiters: Map<string, (response: { success?: boolean; error?: unknown }) => void>;
 }
 
 const DEFAULT_MAX_CONCURRENCY = 3;
-/** Share of a ceiling after which the run is told to write its report. */
+/**
+ * Share of a ceiling after which the run is WARNED that the end is near, and
+ * the later share at which it is ORDERED to send its report.
+ *
+ * Measured on a real session (2026-11-04): with one notice at 0.75 phrased as
+ * "stop starting new work now", ten of eighteen builders answered it with their
+ * final report on the very next turn and walked away from a fifth of their
+ * budget — sixty turns thrown away, while the token ceiling sat at 4% used. One
+ * of them reported `status: blocked — paré por techo de turnos` with six turns
+ * left. The notice was read as a stop sign, so it is now two: a warning that
+ * says keep going, and an order that says stop.
+ */
 export const WRAP_UP_RATIO = 0.75;
+/** Share of a ceiling after which the report is no longer optional. */
+export const WRAP_UP_FINAL_RATIO = 0.9;
+
+/**
+ * What a run is told when it nears its ceiling. Two texts, on purpose.
+ *
+ * The warning must not read as an order: a child that stops the moment it hears
+ * "budget" leaves a fifth of its turns unused and hands back work it could have
+ * finished. So it names what is left, says to keep going, and asks only that
+ * the report be kept cheap enough to fit in the turns that remain.
+ *
+ * The order is the old text, and it belongs at the very end, where it is true.
+ */
+export function budgetNotice(stage: "warned" | "ordered", left: string): string {
+	if (stage === "warned") {
+		return [
+			`Budget notice: ${left}.`,
+			"KEEP WORKING — this is a heads-up, not a stop order, and stopping now wastes the turns you have left.",
+			"Do not send your final report yet. Finish the step you are on, then the next one.",
+			"What changes from here: prefer the shortest path to the task's Check, batch independent tool calls into one turn, and do not start any exploration you could do without.",
+			"You will get a second notice when it really is time to report.",
+		].join(" ");
+	}
+	return [
+		`Budget notice: ${left}. This is the last one.`,
+		"Stop starting new work now. In this next message send your complete final report in the format you were given.",
+		"Put what you did not finish under the field meant for it (remaining / not_checked).",
+		"After the ceiling you are cut off mid-sentence and everything you did is lost if it is not in a report.",
+	].join(" ");
+}
 /** A ceiling this small ends on its own; a notice would only cost a turn. */
 const WRAP_UP_MIN_TURNS = 10;
 const DEFAULT_STALL_MS = 4 * 60_000;
@@ -324,7 +366,7 @@ export class SubagentRunner {
 			escalation: undefined,
 			terminal: false,
 			overBudget: undefined,
-			wrapUpSent: false,
+			wrapUpStage: "none",
 			promptDir,
 			stderrTail: "",
 			responseWaiters: new Map(),
@@ -433,23 +475,48 @@ export class SubagentRunner {
 		if (!live.overBudget) this.maybeWrapUp(id, live, task);
 	}
 
-	/** Tell a run that is 75% through its budget to stop starting work and send
-	 * its final report now. Delivered as a `steer` message, which Pi queues for
-	 * before the next model call. Sent once, and never to a run that has settled. */
-	private maybeWrapUp(id: string, live: LiveTask, task: AgentTask): void {
-		if (live.wrapUpSent) return;
+	/** Which stage of the wrap-up a run's usage has reached, or none. Pure, so
+	 * the thresholds can be checked without a child process. */
+	private wrapUpStageFor(id: string, task: AgentTask): "none" | "warned" | "ordered" {
 		const definition = this.definitions.get(id);
 		const maxTurns = this.options.maxTurns ?? definition?.maxTurns;
 		const maxTokens = this.options.maxTokens ?? definition?.maxTokens;
-		const byTurns = maxTurns !== undefined && maxTurns >= WRAP_UP_MIN_TURNS && task.turns >= Math.ceil(maxTurns * WRAP_UP_RATIO);
-		const byTokens = maxTokens !== undefined && task.tokens >= maxTokens * WRAP_UP_RATIO;
-		if (!byTurns && !byTokens) return;
-		live.wrapUpSent = true;
-		const left = byTurns ? `${maxTurns! - task.turns} turns left of ${maxTurns}` : `${Math.round(100 - (task.tokens / maxTokens!) * 100)}% of the token budget left`;
-		this.write(live, {
-			type: "steer",
-			message: `Budget notice: ${left}. Stop starting new work now. In this next message send your complete final report in the format you were given. Put what you did not finish under the field meant for it (remaining / not_checked). After the ceiling you are cut off mid-sentence and everything you did is lost if it is not in a report.`,
-		});
+		const turnsCount = maxTurns !== undefined && maxTurns >= WRAP_UP_MIN_TURNS;
+		const share = (ratio: number) =>
+			(turnsCount && task.turns >= Math.ceil(maxTurns! * ratio)) ||
+			(maxTokens !== undefined && task.tokens >= maxTokens * ratio);
+		if (share(WRAP_UP_FINAL_RATIO)) return "ordered";
+		if (share(WRAP_UP_RATIO)) return "warned";
+		return "none";
+	}
+
+	/** What is left of the ceiling that is closest to being spent. */
+	private budgetLeft(id: string, task: AgentTask): string {
+		const definition = this.definitions.get(id);
+		const maxTurns = this.options.maxTurns ?? definition?.maxTurns;
+		const maxTokens = this.options.maxTokens ?? definition?.maxTokens;
+		if (maxTurns !== undefined && maxTurns >= WRAP_UP_MIN_TURNS) {
+			return `${maxTurns - task.turns} turns left of ${maxTurns}`;
+		}
+		if (maxTokens !== undefined) {
+			return `${Math.round(100 - (task.tokens / maxTokens) * 100)}% of the token budget left`;
+		}
+		return "budget nearly spent";
+	}
+
+	/** Two notices, because one was read as a stop sign. At 75% the run is told
+	 * the end is near and to KEEP WORKING; at 90% it is told to report now.
+	 * Delivered as `steer` messages, which Pi queues before the next model call.
+	 * Each stage goes out at most once, and never to a run that has settled. */
+	private maybeWrapUp(id: string, live: LiveTask, task: AgentTask): void {
+		const stage = this.wrapUpStageFor(id, task);
+		if (stage === "none") return;
+		// Never go backwards, and never repeat a stage. A run that jumps straight
+		// past 90% (a single expensive turn) gets the order and skips the warning.
+		if (live.wrapUpStage === "ordered") return;
+		if (live.wrapUpStage === "warned" && stage === "warned") return;
+		live.wrapUpStage = stage;
+		this.write(live, { type: "steer", message: budgetNotice(stage, this.budgetLeft(id, task)) });
 	}
 
 	/** The ceiling this run has reached, if any. An explicit runner option wins

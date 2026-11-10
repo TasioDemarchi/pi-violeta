@@ -254,6 +254,14 @@ test("the critic only reads the contract, and its model is not the orchestrator'
 	assert.match(critico.prompt, /Never rewrite the contract/);
 	const jarvis = modes().modes.find((m) => m.name === "jarvis")!;
 	assert.notEqual(critico.model, jarvis.model, "a critic on the same model shares the author's blind spots");
+
+	// Added 2026-11-05. A real session spent 72 turns and 326k tokens on three
+	// builders for one "round of five fixes" and delivered one fix and a broken
+	// suite. The critic is the only reader that sees the contract before any
+	// builder runs, and it costs 2 turns and ~8k tokens on a free model, so it
+	// is where a row that is really two tasks has to be caught.
+	assert.match(critico.prompt, /Two tasks in one row/, "the critic must judge whether a row is one piece");
+	assert.match(critico.prompt, /two-tasks/, "and have a kind to report it as");
 });
 
 test("the jarvis judge is a different model than the builder that wrote the code", () => {

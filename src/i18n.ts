@@ -61,6 +61,11 @@ const es = {
 		shred: "shred",
 		ddDevice: "dd escribe en un dispositivo",
 		mkfs: "mkfs",
+		/** Added after a `kill -9 $H` built from a broken `ps` filter killed the
+		 * owner's whole graphical session. */
+		killEverything: "kill a un grupo entero de procesos",
+		killUnknownTarget: "kill a un objetivo que no es un PID literal",
+		killPattern: (name: string) => `${name} por patrón`,
 		recursiveBroadPath: (name: string) => `${name} recursivo en una ruta amplia`,
 		gitForcePush: "force push de git",
 		gitResetHard: "git reset --hard",
@@ -427,6 +432,11 @@ const es = {
 		cleared: "Chat al margen: conversación borrada.",
 		noModel: "No hay modelo activo: el chat al margen no puede preguntar.",
 		busy: "El chat al margen ya está esperando una respuesta.",
+		overlayNeedsTui: "El lector al margen requiere modo interactivo.",
+		viewDescription: "Abre el chat al margen en pantalla completa, con desplazamiento",
+		viewShortcut: "Abre el lector del chat al margen",
+		viewHint: "j/k desplazar  ctrl+j/k página  g/G inicio/fin  esc cerrar",
+		viewPosition: (from: number, to: number, total: number) => `${from}-${to}/${total}`,
 		failed: (message: string) => `No pude preguntar: ${message}`,
 		/** Model-facing, and in the dictionary on purpose: it decides what
 		 * language the answer comes back in. */
@@ -467,6 +477,9 @@ const en: typeof es = {
 		shred: "shred",
 		ddDevice: "dd writes to a device",
 		mkfs: "mkfs",
+		killEverything: "kill of a whole process group",
+		killUnknownTarget: "kill of a target that is not a literal PID",
+		killPattern: (name: string) => `${name} by pattern`,
 		recursiveBroadPath: (name: string) => `recursive ${name} on a broad path`,
 		gitForcePush: "git force push",
 		gitResetHard: "git reset --hard",
@@ -800,6 +813,11 @@ const en: typeof es = {
 		cleared: "Side chat: conversation cleared.",
 		noModel: "No active model: the side chat cannot ask.",
 		busy: "The side chat is already waiting for an answer.",
+		overlayNeedsTui: "The side chat reader requires interactive mode.",
+		viewDescription: "Open the side chat full screen, with scrolling",
+		viewShortcut: "Open the side chat reader",
+		viewHint: "j/k scroll  ctrl+j/k page  g/G top/bottom  esc close",
+		viewPosition: (from: number, to: number, total: number) => `${from}-${to}/${total}`,
 		failed: (message: string) => `I could not ask: ${message}`,
 		systemPrompt:
 			"You are an aside inside a working session. The user is asking you something while another agent works on their project. Answer in English, direct and short, in prose, with no headings or lists unless the question asks for them. You have no tools: you cannot read or write files or run anything, so do not say you will. If you are given the main conversation, it is context to understand the question only: do not continue it and do not opine on what the other agent should do unless asked. If you do not know something, say so in one line.",
