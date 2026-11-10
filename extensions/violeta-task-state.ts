@@ -68,6 +68,18 @@
  *     extension installs nothing when `VIOLETA_AGENTS_CHILD=1` (same guard as
  *     the agents and todo extensions).
  *
+ * Before any of that, the RESUME BRAKE (S9) runs: a resumed session once redid a
+ * spike that was already committed because it believed the panel over the
+ * repository, so a dispatch for a task git already shows as built is refused
+ * instead of written. `priorWork` (src/contract/resume.ts) is the decision — a
+ * commit subject naming the task, or a row the harness wrote as `verificada` —
+ * and the commits it is given are only those from the commit that first added
+ * the contract, so an older contract's `T2` cannot freeze a new one. With an
+ * owner to ask (`canAsk`: UI, not a child, not unattended) the dialog offers to
+ * redo it; with nobody there the answer is no. A blocked call never reaches the
+ * tool, so nothing is written and the row keeps its bytes — the agent loop skips
+ * `afterToolCall` for a blocked call, so it does not land as `fallada` either.
+ *
  * Running the Check is `guardedCheckExecutor` (src/guard/check-executor.ts), the
  * single place this feature spawns a process: S6 puts the guard in front of it,
  * so a destructive `Check` asks the owner first (same dialog, same `Sí`), a
@@ -88,12 +100,17 @@
  */
 
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { setTaskCheckOutput, setTaskStatus } from "../src/contract/state.ts";
 import { verifyTask, type CheckExecutor } from "../src/contract/verify.ts";
 import { guardedCheckExecutor } from "../src/guard/check-executor.ts";
 import { activeContractFrom } from "../src/contract/active.ts";
+import { parseGitLog, priorWork, type CommitSubject, type ResumeProof } from "../src/contract/resume.ts";
+import { canAsk } from "../src/guard/outside.ts";
+import { setShared } from "../src/shared-hub.ts";
+import { contract as t, guard } from "../src/i18n.ts";
 
 /** The tool whose dispatch carries a contract task. */
 const DISPATCH_TOOL = "subagent_run";
@@ -156,6 +173,74 @@ function editContract(cwd: string, path: string, edit: (md: string) => string): 
 	} catch {
 		/* a broken write must never break the tool call */
 	}
+}
+
+/** The context the resume brake needs, so a test's fake can satisfy it. */
+export type ResumeBrakeContext = Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
+
+/** `git` in `cwd`, or an empty answer when there is no git (or no repository):
+ * a project without version control keeps working exactly as before. */
+function git(cwd: string, args: string[]): string {
+	try {
+		return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+	} catch {
+		return "";
+	}
+}
+
+/** The commits that can speak about THIS contract's tasks: the ones after the
+ * commit that first added the contract. A subject naming `T2` from an older
+ * contract is a different `T2`, and a long history full of them must not freeze
+ * every new T1. A contract git never saw has no birth, so nothing is dated
+ * against it and only the contract's own `verificada` can brake. */
+export function contractCommits(cwd: string, path: string): CommitSubject[] {
+	const birth = git(cwd, ["log", "--diff-filter=A", "--format=%h", "-n", "1", "--", path]).split("\n")[0]?.trim() ?? "";
+	if (birth === "") return [];
+	return parseGitLog(git(cwd, ["log", "--format=%h%x09%s", `${birth}..HEAD`]));
+}
+
+/** The proof that task `taskId` is already built, or undefined. Never throws: a
+ * missing contract, a broken file or a git that is not there means "no proof",
+ * which is exactly the behaviour before this brake existed. */
+export function proofOfPriorWork(cwd: string, path: string, taskId: number): ResumeProof | undefined {
+	try {
+		const file = resolve(cwd, path);
+		const md = existsSync(file) ? readFileSync(file, "utf8") : "";
+		return priorWork(md, taskId, contractCommits(cwd, path));
+	} catch {
+		return undefined;
+	}
+}
+
+/** The proof in one line, for the refusal text: what the model can go check. */
+function describeProof(proof: ResumeProof): string {
+	return proof.kind === "commit" ? `${proof.commit.hash} «${proof.commit.subject}»` : "su Check ya pasó";
+}
+
+/** Ask the owner whether to redo a task that is already built, with the guard's
+ * Spanish options. While it waits, the shared hub tells the notify extension (if
+ * loaded) to ping the owner. */
+async function askRedo(ctx: ResumeBrakeContext, title: string, body: string): Promise<boolean> {
+	setShared({ notifyNeedsAnswer: true });
+	try {
+		return (await ctx.ui.select(`${title}\n${body}`, [guard.yes, guard.no])) === guard.yes;
+	} finally {
+		setShared({ notifyNeedsAnswer: false });
+	}
+}
+
+/** The resume brake (S9): undefined when the dispatch may proceed, or the block
+ * verdict for it. With nobody to ask, a redo is refused — the same rule the
+ * guard and the breaker follow. */
+async function resumeBrake(ctx: ResumeBrakeContext, path: string, taskId: number): Promise<{ block: true; reason: string } | undefined> {
+	const proof = proofOfPriorWork(ctx.cwd, path, taskId);
+	if (proof === undefined) return undefined;
+	if (canAsk(ctx)) {
+		const body = proof.kind === "commit" ? t.resumeCommitBody(taskId, proof.commit.hash, proof.commit.subject) : t.resumeEstadoBody(taskId);
+		if (await askRedo(ctx, t.resumeTitle, body)) return undefined;
+		return { block: true, reason: t.resumeDeclinedByOwner(taskId) };
+	}
+	return { block: true, reason: t.resumeDeclined(taskId, describeProof(proof)) };
 }
 
 /** Run the task's Check and record the real outcome on the row (S5). `run` is
@@ -232,10 +317,15 @@ export default function (pi: ExtensionAPI) {
 	// writes there (same guard as the agents and todo extensions).
 	if (process.env.VIOLETA_AGENTS_CHILD === "1") return;
 
-	pi.on("tool_call", (event, ctx) => {
+	pi.on("tool_call", async (event, ctx) => {
 		if (isNested(event) || event.toolName !== DISPATCH_TOOL) return;
 		const taskId = dispatchTaskId(event.input);
 		const path = activeContractFrom((ctx as { sessionManager?: unknown } | undefined)?.sessionManager);
+		// S9: a task the repository already shows as built is not built twice.
+		if (taskId !== undefined) {
+			const brake = await resumeBrake(ctx, path, taskId);
+			if (brake !== undefined) return brake;
+		}
 		editContract(ctx.cwd, path, (md) => setTaskStatus(md, taskId ?? 0, taskId === undefined ? undefined : IN_PROGRESS));
 	});
 

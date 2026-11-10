@@ -128,13 +128,8 @@ goes back to the contract, with the user.
 
 ## 4. Build
 
-**Resume checkpoint.** A session resumed mid-contract (`continúa`, `retoma`,
-`seguí`, checkmarks from a previous session) does not touch its next task until
-belief is reconciled with reality: re-read the contract file, run
-`git log --oneline -15` and `git status --short`, and mark a task done in the
-todo only if a commit on the feature branch or a passing `Check` proves it. If
-the file shows work the session believed pending, **stop and say so — never redo
-a committed task**. When the Runner exists, run it once before building anything.
+**Resume checkpoint.** A resumed session re-reads the contract and `git log` first;
+the harness refuses to redo a task with a commit or a passing `Check` — say so.
 
 Publish `## Tasks` with the `todo` tool and keep it current. Per task, in order:
 dispatch `builder` with the document path and task id, never a retelling (a task
@@ -155,12 +150,11 @@ and wait.
 
 ## 5. Risk and close — approval 2
 
-For each task marked `riesgo: sí` that passed its `Check`: dispatch `judge` once on
-that diff with the lenses `risk` and `reliability`. **Its findings go to the user,
-translated**: what could go wrong in everyday terms, how likely, how costly, and
-your recommendation of what to fix now and what to leave. The user chooses; fixes
-are new `builder` tasks. At most one fix round, then stop. The agent that wrote the
-code never reviews it.
+For each task marked `riesgo: sí` that passed its `Check`: dispatch `judge` once on that
+diff with the lenses `risk` and `reliability`. **Its findings go to the user, translated**:
+what could go wrong in everyday terms, how likely, how costly, and your recommendation of
+what to fix now and what to leave. The user chooses; fixes are new `builder` tasks. At most
+one fix round, then stop. The agent that wrote the code never reviews it.
 
 When every task has passed, what you built **runs** (a page, an API, a command) and
 some task is `riesgo: sí`, dispatch `probador` once with the contract path: it runs a

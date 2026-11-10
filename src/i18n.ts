@@ -4,8 +4,8 @@
  *
  * Each dictionary is grouped by area, with plain functions for plurals and
  * interpolation. `setLanguage(lang)` switches the ACTIVE dictionary; the
- * exported namespaces (`guard`, `agents`, `todo`, `jobs`, `sidebar`, `ui`,
- * `activity`, `guardReasons`) are proxies that resolve every property from
+ * exported namespaces (`guard`, `agents`, `contract`, `todo`, `jobs`, `sidebar`,
+ * `ui`, `activity`, `guardReasons`) are proxies that resolve every property from
  * the active dictionary at ACCESS time, so switching applies immediately to
  * everything rendered dynamically — cards, sidebar, footer, overlays, the
  * activity line, dialogs, notices and tool-result texts. Text registered
@@ -193,6 +193,18 @@ const es = {
 		taskStatusWord: (status: string) => `tarea ${agents.statuses[status] ?? status}`,
 		cancelled: (id: string) => `Tarea ${id} cancelada.`,
 		notCancellable: (id: string) => `La tarea ${id} no se puede cancelar (id desconocido o ya terminada).`,
+	},
+	contract: {
+		/** El freno de reanudacion (S9): la tarea ya construida no se construye de nuevo. */
+		resumeTitle: "¿Rehacer una tarea ya hecha?",
+		resumeCommitBody: (task: number, commit: string, subject: string) =>
+			`T${task} ya está commiteada: ${commit} «${subject}». Volver a construirla puede pisar lo que ya anda.\n\n¿Rehacerla igual?`,
+		resumeEstadoBody: (task: number) => `T${task} ya quedó verificada por el harness: su Check pasó.\n\n¿Rehacerla igual?`,
+		/** Lo que lee el modelo cuando el freno lo para: qué lo prueba y qué hacer. */
+		resumeDeclined: (task: number, proof: string) =>
+			`La tarea T${task} ya está construida (${proof}). No la rehagas: leé el contrato y git log, y seguí con la tarea siguiente. Si de verdad hay que rehacerla, decile al dueño por qué y esperá su sí.`,
+		resumeDeclinedByOwner: (task: number) =>
+			`El dueño no autorizó rehacer T${task}. No la rehagas: contale qué está hecho, qué falta y esperá su respuesta.`,
 	},
 	changes: {
 		/** `N` rows for the group headers of the /changes list (glyph added by the view). */
@@ -576,6 +588,16 @@ const en: typeof es = {
 		cancelled: (id: string) => `Cancelled task ${id}.`,
 		notCancellable: (id: string) => `Task ${id} cannot be cancelled (unknown id or already finished).`,
 	},
+	contract: {
+		resumeTitle: "Rebuild a task that is already built?",
+		resumeCommitBody: (task: number, commit: string, subject: string) =>
+			`T${task} is already committed: ${commit} "${subject}". Building it again can overwrite what works.\n\nRebuild it anyway?`,
+		resumeEstadoBody: (task: number) => `T${task} was already verified by the harness: its Check passed.\n\nRebuild it anyway?`,
+		resumeDeclined: (task: number, proof: string) =>
+			`Task T${task} is already built (${proof}). Do not rebuild it: read the contract and git log, and carry on with the next task. If it really has to be redone, tell the owner why and wait for their yes.`,
+		resumeDeclinedByOwner: (task: number) =>
+			`The owner did not authorize rebuilding T${task}. Do not rebuild it: tell them what is done, what is left, and wait for their reply.`,
+	},
 	changes: {
 		created: (n: number) => `${n} created`,
 		updated: (n: number) => `${n} updated`,
@@ -834,6 +856,7 @@ function localized<K extends keyof typeof es>(key: K): (typeof es)[K] {
 export const guardReasons = localized("guardReasons");
 export const guard = localized("guard");
 export const agents = localized("agents");
+export const contract = localized("contract");
 export const changes = localized("changes");
 export const todo = localized("todo");
 export const jobs = localized("jobs");
