@@ -32,10 +32,11 @@ import { OutsideGrants } from "../src/guard/grants.ts";
 import { authorizePaths, canAsk, home, unattended } from "../src/guard/outside.ts";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { bashPathTargets, resolvePath, toolCallPaths } from "../src/guard/paths.ts";
+import { bashPathTargets, toolCallPaths } from "../src/guard/paths.ts";
 import { activeContractFrom } from "../src/contract/active.ts";
 import { decide } from "../src/authority/decide.ts";
-import { PROJECT_SCRATCH, WRITE_TOOLS } from "../src/authority/rules.ts";
+import { PROJECT_SCRATCH } from "../src/authority/rules.ts";
+import { writePaths } from "../src/authority/request.ts";
 import { type Explanation, explainedBody, parseExplanation } from "../src/guard/explain.ts";
 import { blocksText } from "../src/btw/request.ts";
 import { setShared } from "../src/shared-hub.ts";
@@ -81,9 +82,11 @@ function authorityRefusal(
 	input: Record<string, unknown>,
 	ctx: ExtensionContext,
 ): { block: true; reason: string } | undefined {
-	if (!WRITE_TOOLS.has(toolName)) return undefined;
 	const root = ctx.cwd;
-	const paths = toolCallPaths(toolName, input).map((path) => resolvePath(path, root, home()));
+	// What this call would WRITE: an argument for the file tools, a parsed
+	// command for the shell. A call that writes nothing yields no path and
+	// never reaches a rule.
+	const paths = writePaths(toolName, input, root, home());
 	if (paths.length === 0) return undefined;
 
 	const contractPath = resolve(root, activeContractFrom(ctx.sessionManager));
@@ -103,13 +106,13 @@ function authorityRefusal(
 		...(contract ? { contract } : {}),
 	});
 	if (decision.allowed) return undefined;
-	return {
-		block: true,
-		reason:
-			decision.rule === "jarvis.tests-readonly"
-				? t.testsLocked(decision.path)
-				: t.writeLocked(decision.path, contractPath),
-	};
+	const reason =
+		decision.rule === "jarvis.tests-readonly"
+			? t.testsLocked(decision.path)
+			: decision.rule === "jarvis.bash-write"
+				? t.bashLocked(decision.path, contractPath)
+				: t.writeLocked(decision.path, contractPath);
+	return { block: true, reason };
 }
 
 export default function (pi: ExtensionAPI) {

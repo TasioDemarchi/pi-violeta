@@ -12,7 +12,7 @@
  * which is the point: the set of things the harness enforces is enumerable. */
 
 /** Every rule this harness can enforce. Adding one is a deliberate edit here. */
-export type RuleId = "jarvis.write-lock" | "jarvis.tests-readonly";
+export type RuleId = "jarvis.write-lock" | "jarvis.tests-readonly" | "jarvis.bash-write";
 
 /** Who is asking. A subagent runs with `VIOLETA_AGENTS_CHILD=1`; everything
  * else is the session the owner is talking to. Rules bind callers explicitly,

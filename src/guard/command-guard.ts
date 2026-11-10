@@ -32,7 +32,7 @@ export type DestructiveDecision =
 	| { action: "block"; reasons: string[] }
 	| { action: "deny"; reason: string };
 
-interface Token {
+export interface Token {
 	value: string;
 	raw: string;
 	operator: boolean;
@@ -53,8 +53,13 @@ function blankHeredocs(command: string): string {
 /**
  * Split into tokens; quoted arguments stay whole so their contents can never
  * become a command head or an operator, and quoted/escaped operators are words.
+ *
+ * Exported because the authority's shell rule reads the very same command: two
+ * definitions of what a token is would eventually disagree about a quote, a
+ * heredoc or a subshell, and the owner would get two different answers for one
+ * command (S1/D1, tasks/authority-bash.md).
  */
-function tokenize(command: string): Token[] {
+export function tokenize(command: string): Token[] {
 	const tokens: Token[] = [];
 	const pattern = /(?:"(?:\\.|[^"\\])*"|'[^']*'|\\.|[^\s;&|()'"\\])+|&&|\|\||[;&|()\n]/g;
 	for (const match of command.matchAll(pattern)) {
@@ -71,7 +76,7 @@ function tokenize(command: string): Token[] {
 	return tokens;
 }
 
-const executable = (value: string) => value.split("/").at(-1) ?? value;
+export const executable = (value: string) => value.split("/").at(-1) ?? value;
 
 /** Flags of familiar wrappers whose next token is a value, not a command argument. */
 const WRAPPER_VALUE_FLAGS: Record<string, readonly string[]> = {
@@ -84,8 +89,10 @@ const WRAPPERS = ["env", "sudo", "command", "exec", "nohup", "timeout", "xargs"]
 // Unquoted reserved words that open a compound body are followed by a command.
 const RESERVED = new Set(["then", "else", "elif", "do", "{", "!", "if", "while", "until"]);
 
-/** Index of the executable token after reserved words, assignments and familiar wrappers. */
-function headCursor(segment: readonly Token[]): number {
+/** Index of the executable token after reserved words, assignments and familiar
+ * wrappers. Exported with `tokenize` and `segments` so the authority's shell
+ * rule finds the same head this guard does, `sudo sed -i` included (D1). */
+export function headCursor(segment: readonly Token[]): number {
 	let cursor = 0;
 	while (cursor < segment.length && segment[cursor].raw === segment[cursor].value && RESERVED.has(segment[cursor].value)) cursor++;
 	while (cursor < segment.length) {
@@ -306,12 +313,14 @@ function matchSegment(command: string, segment: readonly Token[], depth: number)
 export function recognizeDestructiveCommands(command: string, depth = 0): DestructiveMatch[] {
 	if (depth > 4) return [];
 	const matches: DestructiveMatch[] = [];
-	for (const segment of segments(blankHeredocs(command))) matches.push(...matchSegment(command, segment, depth));
+	for (const segment of segments(command)) matches.push(...matchSegment(command, segment, depth));
 	return matches;
 }
 
-/** The shell segments of a command, in order (quoted tokens stay whole). */
-function segments(command: string): Token[][] {
+/** The shell segments of a command, in order (quoted tokens stay whole).
+ * Heredoc bodies are blanked first, so their contents are data, never code. */
+export function segments(command: string): Token[][] {
+	command = blankHeredocs(command);
 	const tokens = tokenize(command);
 	const out: Token[][] = [];
 	let start = 0;

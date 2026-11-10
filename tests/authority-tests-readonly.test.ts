@@ -50,10 +50,20 @@ test("a builder writes its own tests: a subagent is not bound", () => {
 	assert.deepEqual(run({ caller: "subagent" }), { allowed: true });
 });
 
-test("reading a test is always fine", () => {
-	for (const tool of ["read", "grep", "find", "ls", "bash"]) {
+test("a tool that reads is never bound: it produces no written path", () => {
+	for (const tool of ["read", "grep", "find", "ls"]) {
 		assert.deepEqual(run({ tool }), { allowed: true }, tool);
 	}
+});
+
+// `paths` means "what this call would WRITE", so a shell tool only arrives here
+// carrying a test file when the command actually writes it (`writePaths` works
+// that out from the command). Reading a test with `cat` yields no path at all
+// and never reaches a rule; writing one with `sed -i` is the same act as `edit`.
+test("the shell is bound too: a test written by command is still a test write", () => {
+	const decision = run({ tool: "bash" });
+	assert.equal(decision.allowed, false);
+	assert.equal(decision.allowed === false && decision.rule, "jarvis.tests-readonly");
 });
 
 test("a directory that merely starts with `tests` is not the test folder", () => {

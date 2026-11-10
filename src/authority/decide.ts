@@ -12,11 +12,11 @@
 
 import { type AuthorityRequest, type Decision, type Rule } from "./rules.ts";
 import { testsReadonly } from "./tests-readonly.ts";
-import { writeLock } from "./write-lock.ts";
+import { bashWrite, writeLock } from "./write-lock.ts";
 
 /** The rules this harness ships, most specific first: a test write should be
  * refused as a test write, not as the generic lock. */
-export const RULES: readonly Rule[] = [testsReadonly, writeLock];
+export const RULES: readonly Rule[] = [testsReadonly, writeLock, bashWrite];
 
 export function decide(request: AuthorityRequest, rules: readonly Rule[] = RULES): Decision {
 	for (const rule of rules) {

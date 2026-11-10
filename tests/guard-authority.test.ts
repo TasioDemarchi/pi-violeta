@@ -137,3 +137,56 @@ test("a subagent is not bound by either rule (D4)", async () => {
 		delete process.env.VIOLETA_AGENTS_CHILD;
 	}
 });
+
+// --- S4 (authority-bash): the same door over the shell -----------------------
+// The authority answers before the destructive dialog, so a refused command
+// never opens one: the owner is not woken up for something the model can fix
+// by writing one line in the contract.
+
+test("a redirection into the project is blocked, and no dialog is opened", async () => {
+	const root = project(PENDING);
+	const ctx = ctxFor(root);
+	let asked = 0;
+	ctx.ui.select = async () => {
+		asked++;
+		return "Sí";
+	};
+	const result = await loadGuard()({ toolName: "bash", input: { command: `echo hola > ${join(root, "src", "x.ts")}` } }, ctx);
+	assert.equal(result?.block, true);
+	assert.match(result!.reason!, /jarvis\.bash-write/);
+	assert.match(result!.reason!, /quién: Jarvis/);
+	assert.equal(asked, 0, "the authority must refuse before the destructive dialog");
+});
+
+test("`sed -i` over a source file is blocked", async () => {
+	const root = project(PENDING);
+	const result = await loadGuard()({ toolName: "bash", input: { command: `sed -i 's/a/b/' ${join(root, "src", "x.ts")}` } }, ctxFor(root));
+	assert.equal(result?.block, true);
+	assert.match(result!.reason!, /jarvis\.bash-write/);
+});
+
+test("a test weakened by shell is refused as a test write, with no contract", async () => {
+	const root = project(undefined);
+	const result = await loadGuard()({ toolName: "bash", input: { command: `sed -i 's/assert//' ${join(root, "tests", "x.test.ts")}` } }, ctxFor(root));
+	assert.equal(result?.block, true);
+	assert.match(result!.reason!, /jarvis\.tests-readonly/);
+});
+
+test("the verification commands still run with the contract open", async () => {
+	const root = project(PENDING);
+	const guard = loadGuard();
+	for (const command of ["npm test 2>&1 | tail -9", "git status --short", "node --test tests/x.test.ts", "cat src/x.ts"]) {
+		assert.equal(await guard({ toolName: "bash", input: { command } }, ctxFor(root)), undefined, command);
+	}
+});
+
+test("a subagent's shell is not bound either", async () => {
+	const root = project(PENDING);
+	process.env.VIOLETA_AGENTS_CHILD = "1";
+	try {
+		const result = await loadGuard()({ toolName: "bash", input: { command: `echo x > ${join(root, "src", "x.ts")}` } }, ctxFor(root));
+		assert.equal(result, undefined);
+	} finally {
+		delete process.env.VIOLETA_AGENTS_CHILD;
+	}
+});

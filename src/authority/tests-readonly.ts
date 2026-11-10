@@ -17,13 +17,16 @@
 
 import { join } from "node:path";
 import { isInside } from "../guard/paths.ts";
+import { SHELL_COMMAND_TOOLS } from "../guard/command-guard.ts";
 import { type Rule, WRITE_TOOLS } from "./rules.ts";
 
 export const testsReadonly: Rule = {
 	id: "jarvis.tests-readonly",
 	check(request) {
 		if (request.caller !== "session") return undefined;
-		if (!WRITE_TOOLS.has(request.tool)) return undefined;
+		// Both doors: weakening a test with `sed -i` is the same act as
+		// weakening it with `edit`.
+		if (!WRITE_TOOLS.has(request.tool) && !SHELL_COMMAND_TOOLS.has(request.tool)) return undefined;
 		// `isInside` demands a separator, so `testsuite/` and `tests-helper.ts`
 		// are not the test folder.
 		const tests = join(request.root, "tests");

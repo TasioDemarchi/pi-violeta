@@ -26,7 +26,8 @@ import { parseContractTasks } from "../contract/state.ts";
 import { readContractTasks } from "../contract/tasks.ts";
 import { inlineField } from "../contract/lint.ts";
 import { isInside } from "../guard/paths.ts";
-import { type AuthorityRequest, type Rule, WRITE_TOOLS } from "./rules.ts";
+import { SHELL_COMMAND_TOOLS } from "../guard/command-guard.ts";
+import { type AuthorityRequest, type Rule, type RuleId, WRITE_TOOLS } from "./rules.ts";
 
 /** The owner of a task row, read through both spellings so a later move of the
  * contract's vocabulary to English does not invalidate the contracts already
@@ -45,27 +46,39 @@ function alwaysWritable(path: string, request: AuthorityRequest): boolean {
 	return path === request.contract?.path || isInside(path, request.scratch);
 }
 
-export const writeLock: Rule = {
-	id: "jarvis.write-lock",
-	check(request) {
-		if (request.caller !== "session") return undefined;
-		if (!WRITE_TOOLS.has(request.tool)) return undefined;
-		const contract = request.contract;
-		if (!contract) return undefined;
+/** The lock itself, once. The two doors differ only in which tool opened them
+ * and which id the owner reads back: the question —"may this session put bytes
+ * in this project right now?"— is the same, and `request.paths` already holds
+ * the paths the call would write, whoever worked them out. */
+function projectWriteRule(id: RuleId, tools: ReadonlySet<string>): Rule {
+	return {
+		id,
+		check(request) {
+			if (request.caller !== "session") return undefined;
+			if (!tools.has(request.tool)) return undefined;
+			const contract = request.contract;
+			if (!contract) return undefined;
 
-		// `done` is defined once, by the task reader, so this rule cannot drift
-		// from the panel's idea of what is finished.
-		const pending = readContractTasks(contract.text).filter((task) => !task.done);
-		if (pending.length === 0) return undefined;
+			// `done` is defined once, by the task reader, so this rule cannot
+			// drift from the panel's idea of what is finished.
+			const pending = readContractTasks(contract.text).filter((task) => !task.done);
+			if (pending.length === 0) return undefined;
 
-		const rows = new Map(parseContractTasks(contract.text).map((row) => [row.id, row.line]));
-		if (pending.some((task) => isJarvis(rows.get(task.id) ?? ""))) return undefined;
+			const rows = new Map(parseContractTasks(contract.text).map((row) => [row.id, row.line]));
+			if (pending.some((task) => isJarvis(rows.get(task.id) ?? ""))) return undefined;
 
-		for (const path of request.paths) {
-			if (alwaysWritable(path, request)) continue;
-			if (!isInside(path, request.root)) continue;
-			return path;
-		}
-		return undefined;
-	},
-};
+			for (const path of request.paths) {
+				if (alwaysWritable(path, request)) continue;
+				if (!isInside(path, request.root)) continue;
+				return path;
+			}
+			return undefined;
+		},
+	};
+}
+
+/** `edit` and `write`. */
+export const writeLock = projectWriteRule("jarvis.write-lock", WRITE_TOOLS);
+/** The shell: `bash`, `bash_background`, `monitor`. The paths come from
+ * `bash-writes.ts`, which reads the command with the guard's own tokenizer. */
+export const bashWrite = projectWriteRule("jarvis.bash-write", SHELL_COMMAND_TOOLS);

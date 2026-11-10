@@ -113,6 +113,10 @@ const es = {
 		testsLocked: (path: string) =>
 			`Bloqueado por jarvis.tests-readonly: no escribas ${path}. ` +
 			"Los tests los escribe un builder, nunca la sesión que escribió el código. Despachá un builder con esa tarea.",
+		bashLocked: (path: string, contract: string) =>
+			`Bloqueado por jarvis.bash-write: este comando escribe ${path}, y ${contract} tiene tareas sin terminar. ` +
+			`Si es trabajo de campo que ningún subagente puede hacer, agregá "— quién: Jarvis" a la fila de esa tarea, ` +
+			"decíselo al usuario y volvé a intentar. Si no, despachá un builder con la tarea.",
 		outsideTitle: "Acceso fuera del proyecto",
 		outsideBody: (dir: string) =>
 			`¿Permitir acceso fuera del proyecto: ${dir}? El permiso dura solo esta sesión.`,
@@ -529,6 +533,10 @@ const en: typeof es = {
 		testsLocked: (path: string) =>
 			`Blocked by jarvis.tests-readonly: do not write ${path}. ` +
 			"Tests are written by a builder, never by the session that wrote the code. Dispatch a builder for that task.",
+		bashLocked: (path: string, contract: string) =>
+			`Blocked by jarvis.bash-write: this command writes ${path}, and ${contract} has unfinished tasks. ` +
+			'If this is field work no subagent can reach, add "— quién: Jarvis" to that task\'s row, ' +
+			"tell the user and try again. Otherwise dispatch a builder for the task.",
 		outsideTitle: "Outside-project access",
 		outsideBody: (dir: string) =>
 			`Allow access outside the project: ${dir}? The grant lasts only for this session.`,
