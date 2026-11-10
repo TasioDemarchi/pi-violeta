@@ -24,17 +24,30 @@ fi
 # The key itself is never copied: models.json resolves it at request time from
 # violeta's own agent dir first, falling back to gentle-shell's, so violeta runs
 # with or without gentle-shell installed.
-cp "$ROOT/config/models.json" "$PI_CODING_AGENT_DIR/models.json"
+# Atomic: a plain `cp` truncates first, so a violeta starting at the same
+# moment could read a half-written catalogue and come up with no models at all.
+cp "$ROOT/config/models.json" "$PI_CODING_AGENT_DIR/models.json.$$.tmp" \
+	&& mv "$PI_CODING_AGENT_DIR/models.json.$$.tmp" "$PI_CODING_AGENT_DIR/models.json"
 
 # Agents and modes are repo-owned too, and synced the same way: the philosophy
 # lives in git with the harness instead of only in ~/.violeta, where a reinstall
 # would take it with it. Files you add there yourself are left alone.
+# Same atomicity: each file lands through its own PID-named temp, so a
+# concurrent start never reads a definition that is half on disk.
 for set in agents modes; do
 	[ -d "$ROOT/$set" ] || continue
 	mkdir -p "$PI_CODING_AGENT_DIR/$set"
-	cp "$ROOT/$set"/*.md "$PI_CODING_AGENT_DIR/$set/" 2>/dev/null || true
+	for f in "$ROOT/$set"/*.md; do
+		[ -f "$f" ] || continue
+		dest="$PI_CODING_AGENT_DIR/$set/$(basename "$f")"
+		cp "$f" "$dest.$$.tmp" && mv "$dest.$$.tmp" "$dest"
+	done
 done
 
+# The temp file carries the PID: two violetas starting at the same moment
+# used the same name, so one moved it and the other died with
+# "cannot move ...settings.json.tmp: No such file or directory". Found while
+# running nine models of a model bench in parallel.
 # Repo-owned settings fragment (config/settings.json) merged into the agent
 # settings on every start, idempotently: object keys are overlaid (jq `*`),
 # but `packages` arrays are UNIONED and deduplicated, so user-added packages
@@ -47,7 +60,7 @@ if [ -f "$FRAG" ] && [ -f "$SETTINGS" ] && command -v jq >/dev/null 2>&1; then
 		(.[0].packages // []) as $old |
 		(.[1].packages // []) as $new |
 		(.[0] * .[1]) | .packages = (($old + $new) | unique)
-	' "$SETTINGS" "$FRAG" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+	' "$SETTINGS" "$FRAG" > "$SETTINGS.$$.tmp" && mv "$SETTINGS.$$.tmp" "$SETTINGS"
 fi
 
 NODE="$(command -v node || true)"
