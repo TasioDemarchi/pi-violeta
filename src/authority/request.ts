@@ -11,6 +11,18 @@ import { resolvePath, toolCallPaths } from "../guard/paths.ts";
 import { bashWrites } from "./bash-writes.ts";
 import { WRITE_TOOLS } from "./rules.ts";
 
+/** The tools that only look. `bash` is absent on purpose: a command reads far
+ * more than its arguments name, and pretending otherwise would scope reading on
+ * a guess. The one agent whose reading is scoped (`critic`) has no shell. */
+const READ_TOOLS: ReadonlySet<string> = new Set(["read", "grep", "find", "ls"]);
+
+/** The paths a call would READ, resolved. Empty for anything that is not one of
+ * the looking tools. */
+export function readPaths(toolName: string, input: Record<string, unknown>, cwd: string, home: string): string[] {
+	if (!READ_TOOLS.has(toolName)) return [];
+	return toolCallPaths(toolName, input).map((path) => resolvePath(path, cwd, home));
+}
+
 export function writePaths(toolName: string, input: Record<string, unknown>, cwd: string, home: string): string[] {
 	if (SHELL_COMMAND_TOOLS.has(toolName)) {
 		const command = input?.command;

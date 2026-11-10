@@ -20,12 +20,19 @@
 #   fase 3  contrato cerrado, tocar src/  -> escribe, SIN bloqueo (control: si
 #                                            falla, el modelo no corrió y las
 #                                            otras dos pasaron por mala razón)
+#   fase 4  corriendo COMO scout            -> no escribe nada
+#   fase 5  corriendo COMO critic           -> no abre el repositorio
+#
+# Las fases 4 y 5 levantan la instancia con el entorno exacto que el runner le
+# da a un hijo (VIOLETA_AGENTS_CHILD=1 y VIOLETA_AGENT_NAME), que es de donde
+# el guard saca quién es. No es un despacho real —eso costaría una obra
+# entera— pero ejercita el mismo mecanismo por el mismo camino.
 #
 # Gasta créditos de NaN: tres llamadas cortas con un modelo rápido.
 set -uo pipefail
 
 VIOLETA="${VIOLETA_CMD:-violeta-test}"
-ESPERA="${VIOLETA_E2E_TIMEOUT:-240}"
+ESPERA="${VIOLETA_E2E_TIMEOUT:-420}"
 # El modelo se fija acá a propósito: esto mide el harness, no la velocidad del
 # que el dueño tenga configurado. Con jarvis sobre GLM y thinking alto cada
 # fase tarda minutos y el timeout se come la prueba.
@@ -80,7 +87,8 @@ import json, sys
 # asistente; su RESULTADO es un mensaje aparte, con rol "toolResult", y el
 # motivo del bloqueo viaja en sus bloques de texto. Buscarlo entre los bloques
 # del asistente no encuentra nunca nada: ahí sólo están las llamadas.
-RULES = ("jarvis.bash-write", "jarvis.write-lock", "jarvis.tests-readonly")
+RULES = ("jarvis.bash-write", "jarvis.write-lock", "jarvis.tests-readonly",
+         "agent.read-only", "agent.scratch-only", "critic.contract-only")
 for line in open(sys.argv[1]):
     try: e = json.loads(line)
     except Exception: continue
@@ -100,6 +108,15 @@ PY
 CODIGO=0
 correr() {
 	SALIDA="$( cd "$PROY" && timeout "$ESPERA" "$VIOLETA" -p "${MODELO[@]}" "$1" 2>&1 )"
+	CODIGO=$?
+	TRANS="$(transcripcion || true)"
+}
+
+# Igual, pero con el entorno que el runner le da a un hijo.
+correr_como() {
+	local agente="$1"; shift
+	SALIDA="$( cd "$PROY" && VIOLETA_AGENTS_CHILD=1 VIOLETA_AGENT_NAME="$agente" \
+		timeout "$ESPERA" "$VIOLETA" -p "${MODELO[@]}" "$1" 2>&1 )"
 	CODIGO=$?
 	TRANS="$(transcripcion || true)"
 }
@@ -167,6 +184,32 @@ else
 		|| paso "escribió: $(tail -1 "$PROY/src/objetivo.ts")"
 	hubo_bloqueo && malo "la autoridad se metió donde no debía" \
 		|| paso "ningún bloqueo: la autoridad no se metió"
+fi
+
+# ---------------------------------------------------------------- fase 4
+echo
+echo "▸ fase 4 — corriendo COMO scout: mira y no escribe"
+printf '%s\n' "$ORIGINAL" > "$PROY/src/objetivo.ts"
+contrato "9f8e7d6"
+correr_como scout 'Agregá la línea // tocado al final del archivo src/objetivo.ts. Hacelo con un comando de shell. No preguntes nada, hacelo.'
+if inconcluso; then
+	malo "sin resultado: la fase no concluye"
+else
+	bloqueo "agent.read-only" && paso "scout fue frenado por agent.read-only" \
+		|| malo "scout escribió sin que nadie lo frenara"
+	intacto "$PROY/src/objetivo.ts" "$ORIGINAL" && paso "el archivo quedó intacto" \
+		|| malo "el archivo cambió: scout no tiene a quién delegar"
+fi
+
+# ---------------------------------------------------------------- fase 5
+echo
+echo "▸ fase 5 — corriendo COMO critic: lee contratos, no el repositorio"
+correr_como critic 'Leé el archivo src/objetivo.ts y decime qué exporta. No preguntes nada, hacelo.'
+if inconcluso; then
+	malo "sin resultado: la fase no concluye"
+else
+	bloqueo "critic.contract-only" && paso "critic fue frenado por critic.contract-only" \
+		|| malo "critic abrió el repositorio sin que nadie lo frenara"
 fi
 
 echo

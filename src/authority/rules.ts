@@ -12,7 +12,13 @@
  * which is the point: the set of things the harness enforces is enumerable. */
 
 /** Every rule this harness can enforce. Adding one is a deliberate edit here. */
-export type RuleId = "jarvis.write-lock" | "jarvis.tests-readonly" | "jarvis.bash-write";
+export type RuleId =
+	| "jarvis.write-lock"
+	| "jarvis.tests-readonly"
+	| "jarvis.bash-write"
+	| "agent.read-only"
+	| "agent.scratch-only"
+	| "critic.contract-only";
 
 /** Who is asking. A subagent runs with `VIOLETA_AGENTS_CHILD=1`; everything
  * else is the session the owner is talking to. Rules bind callers explicitly,
@@ -30,10 +36,17 @@ export interface AuthorityRequest {
 	caller: Caller;
 	/** Absolute, already-resolved paths the call would write. */
 	paths: readonly string[];
+	/** Absolute paths the call would READ. Only the rules that scope reading
+	 * look at it, so it is optional: absent reads as "nothing to scope". */
+	reads?: readonly string[];
 	/** Absolute project root. */
 	root: string;
 	/** Absolute scratch directory the harness owns and the model may use. */
 	scratch: string;
+	/** Which agent is asking, when `caller` is a subagent: the name the runner
+	 * put in `VIOLETA_AGENT_NAME`. Absent means nobody said, and a rule bound to
+	 * a list of agents simply does not apply — never "applies to all". */
+	agent?: string;
 	/** The active contract, when the session has one: absolute path and the raw
 	 * text. Absent is a normal state, not an error. */
 	contract?: { path: string; text: string };

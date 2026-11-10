@@ -348,7 +348,15 @@ export class SubagentRunner {
 				// Recursion guard: the violeta package is loaded in spawned children
 				// too, so every child announces itself and its own extension
 				// registers no subagent tools (no grandchildren).
-				env: { ...process.env, VIOLETA_AGENTS_CHILD: "1", ...this.options.env },
+				//
+				// VIOLETA_AGENT_NAME says WHICH agent it is. The guard runs inside
+				// the child and enforces rules written per agent — `scout` and
+				// `judge` never write, `tester` writes only in scratch — so it has
+				// to know who it is guarding. The environment is the only channel
+				// that already reaches the child and that the guard can read
+				// without asking the model: a value the model could write would be
+				// prose again (S1/D1, tasks/authority-agents.md).
+				env: { ...process.env, VIOLETA_AGENTS_CHILD: "1", VIOLETA_AGENT_NAME: definition.name, ...this.options.env },
 				detached: process.platform !== "win32",
 				windowsHide: true,
 				stdio: ["pipe", "pipe", "pipe"],

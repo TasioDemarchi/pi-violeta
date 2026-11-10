@@ -117,6 +117,15 @@ const es = {
 			`Bloqueado por jarvis.bash-write: este comando escribe ${path}, y ${contract} tiene tareas sin terminar. ` +
 			`Si es trabajo de campo que ningún subagente puede hacer, agregá "— quién: Jarvis" a la fila de esa tarea, ` +
 			"decíselo al usuario y volvé a intentar. Si no, despachá un builder con la tarea.",
+		agentReadOnly: (agent: string, path: string) =>
+			`Bloqueado por agent.read-only: sos ${agent} y no escribís nada — ${path}. ` +
+			"Mirá y reportá: lo que encontraste va en tu informe, no en el disco.",
+		agentScratchOnly: (path: string, scratch: string) =>
+			`Bloqueado por agent.scratch-only: sólo escribís bajo ${scratch}, y ${path} está afuera. ` +
+			"Copiá ahí lo que necesites y corré todo desde esa copia.",
+		criticContractOnly: (path: string) =>
+			`Bloqueado por critic.contract-only: leés el contrato que te dieron, no el repositorio — ${path}. ` +
+			"Lo que no se puede saber mirando la página es justamente el hallazgo.",
 		outsideTitle: "Acceso fuera del proyecto",
 		outsideBody: (dir: string) =>
 			`¿Permitir acceso fuera del proyecto: ${dir}? El permiso dura solo esta sesión.`,
@@ -537,6 +546,15 @@ const en: typeof es = {
 			`Blocked by jarvis.bash-write: this command writes ${path}, and ${contract} has unfinished tasks. ` +
 			'If this is field work no subagent can reach, add "— quién: Jarvis" to that task\'s row, ' +
 			"tell the user and try again. Otherwise dispatch a builder for the task.",
+		agentReadOnly: (agent: string, path: string) =>
+			`Blocked by agent.read-only: you are ${agent} and you write nothing — ${path}. ` +
+			"Look and report: what you found goes in your report, not on disk.",
+		agentScratchOnly: (path: string, scratch: string) =>
+			`Blocked by agent.scratch-only: you write only under ${scratch}, and ${path} is outside it. ` +
+			"Copy what you need there and run everything from that copy.",
+		criticContractOnly: (path: string) =>
+			`Blocked by critic.contract-only: you read the contract you were given, not the repository — ${path}. ` +
+			"What you cannot tell from the page alone is exactly the finding.",
 		outsideTitle: "Outside-project access",
 		outsideBody: (dir: string) =>
 			`Allow access outside the project: ${dir}? The grant lasts only for this session.`,

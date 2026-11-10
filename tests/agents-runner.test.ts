@@ -225,6 +225,22 @@ test("children get VIOLETA_AGENTS_CHILD=1 so the package never recurses", () => 
 	}
 });
 
+// S1 (authority-agents): a child must be able to say WHICH agent it is, because
+// the guard that runs inside it enforces rules written per agent — `scout` and
+// `judge` never write, `tester` writes only in scratch. The environment is the
+// only channel that already reaches the child and that the guard can read
+// without asking the model: a value the model could write would be prose again.
+test("children are told which agent they are, so per-agent rules can bind", () => {
+	const h = harness();
+	try {
+		h.start();
+		const env = h.spawned[0]!.options.env as NodeJS.ProcessEnv;
+		assert.equal(env.VIOLETA_AGENT_NAME, "probe");
+	} finally {
+		h.cleanup();
+	}
+});
+
 test("prompt includes the context block", () => {
 	const h = harness();
 	try {

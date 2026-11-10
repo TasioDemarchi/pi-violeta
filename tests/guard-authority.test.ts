@@ -190,3 +190,66 @@ test("a subagent's shell is not bound either", async () => {
 		delete process.env.VIOLETA_AGENTS_CHILD;
 	}
 });
+
+// --- S6 (authority-agents): el alcance de cada agente ------------------------
+// El guard corre DENTRO del hijo, así que lee del entorno quién es. Cada test
+// pone las dos variables y las saca, porque la suite entera depende de que
+// VIOLETA_AGENTS_CHILD no quede puesta (la trampa de AGENTS.md).
+
+async function comoAgente(agente: string, event: unknown, root: string) {
+	process.env.VIOLETA_AGENTS_CHILD = "1";
+	process.env.VIOLETA_AGENT_NAME = agente;
+	try {
+		return await loadGuard()(event, ctxFor(root));
+	} finally {
+		delete process.env.VIOLETA_AGENTS_CHILD;
+		delete process.env.VIOLETA_AGENT_NAME;
+	}
+}
+
+for (const agente of ["scout", "judge"]) {
+	test(`${agente} no escribe por shell: su prosa ya lo decía`, async () => {
+		const root = project(undefined);
+		const result = await comoAgente(agente, { toolName: "bash", input: { command: `echo roto > ${join(root, "src", "x.ts")}` } }, root);
+		assert.equal(result?.block, true);
+		assert.match(result!.reason!, /agent\.read-only/);
+	});
+
+	test(`${agente} mira sin trabas`, async () => {
+		const root = project(undefined);
+		assert.equal(await comoAgente(agente, { toolName: "bash", input: { command: "git log --oneline -5" } }, root), undefined);
+		assert.equal(await comoAgente(agente, { toolName: "read", input: { path: join(root, "src", "x.ts") } }, root), undefined);
+	});
+}
+
+test("tester escribe en scratch y en ningún otro lado", async () => {
+	const root = project(undefined);
+	assert.equal(await comoAgente("tester", { toolName: "write", input: { path: join(root, ".violeta", "scratch", "probe", "informe.md") } }, root), undefined);
+	const fuera = await comoAgente("tester", { toolName: "write", input: { path: join(root, "src", "x.ts") } }, root);
+	assert.equal(fuera?.block, true);
+	assert.match(fuera!.reason!, /agent\.scratch-only/);
+});
+
+test("critic lee el contrato, no el repositorio", async () => {
+	const root = project(PENDING);
+	assert.equal(await comoAgente("critic", { toolName: "read", input: { path: join(root, "tasks", "estado-de-tareas.md") } }, root), undefined);
+	const repo = await comoAgente("critic", { toolName: "read", input: { path: join(root, "src", "x.ts") } }, root);
+	assert.equal(repo?.block, true);
+	assert.match(repo!.reason!, /critic\.contract-only/);
+});
+
+test("builder sigue sin ataduras nuevas: su alcance es otra deuda (D2)", async () => {
+	const root = project(PENDING);
+	assert.equal(await comoAgente("builder", { toolName: "write", input: { path: join(root, "src", "x.ts") } }, root), undefined);
+	assert.equal(await comoAgente("builder", { toolName: "bash", input: { command: `echo x > ${join(root, "src", "x.ts")}` } }, root), undefined);
+});
+
+test("un subagente sin nombre no cae en ninguna regla de agente", async () => {
+	const root = project(undefined);
+	process.env.VIOLETA_AGENTS_CHILD = "1";
+	try {
+		assert.equal(await loadGuard()({ toolName: "write", input: { path: join(root, "src", "x.ts") } }, ctxFor(root)), undefined);
+	} finally {
+		delete process.env.VIOLETA_AGENTS_CHILD;
+	}
+});

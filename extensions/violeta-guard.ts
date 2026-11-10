@@ -36,7 +36,7 @@ import { bashPathTargets, toolCallPaths } from "../src/guard/paths.ts";
 import { activeContractFrom } from "../src/contract/active.ts";
 import { decide } from "../src/authority/decide.ts";
 import { PROJECT_SCRATCH } from "../src/authority/rules.ts";
-import { writePaths } from "../src/authority/request.ts";
+import { readPaths, writePaths } from "../src/authority/request.ts";
 import { type Explanation, explainedBody, parseExplanation } from "../src/guard/explain.ts";
 import { blocksText } from "../src/btw/request.ts";
 import { setShared } from "../src/shared-hub.ts";
@@ -84,10 +84,11 @@ function authorityRefusal(
 ): { block: true; reason: string } | undefined {
 	const root = ctx.cwd;
 	// What this call would WRITE: an argument for the file tools, a parsed
-	// command for the shell. A call that writes nothing yields no path and
-	// never reaches a rule.
+	// command for the shell. And what it would READ, which only the rules that
+	// scope reading look at. A call that does neither never reaches a rule.
 	const paths = writePaths(toolName, input, root, home());
-	if (paths.length === 0) return undefined;
+	const reads = readPaths(toolName, input, root, home());
+	if (paths.length === 0 && reads.length === 0) return undefined;
 
 	const contractPath = resolve(root, activeContractFrom(ctx.sessionManager));
 	let contract: { path: string; text: string } | undefined;
@@ -97,22 +98,30 @@ function authorityRefusal(
 		contract = undefined;
 	}
 
+	// Who is asking: the runner puts the agent's own name in the child's
+	// environment, so a rule can bind `scout` without asking the model.
+	const agent = process.env.VIOLETA_AGENT_NAME;
 	const decision = decide({
 		tool: toolName,
 		caller: process.env.VIOLETA_AGENTS_CHILD === "1" ? "subagent" : "session",
 		paths,
+		reads,
 		root,
 		scratch: join(root, PROJECT_SCRATCH),
+		...(agent ? { agent } : {}),
 		...(contract ? { contract } : {}),
 	});
 	if (decision.allowed) return undefined;
-	const reason =
-		decision.rule === "jarvis.tests-readonly"
-			? t.testsLocked(decision.path)
-			: decision.rule === "jarvis.bash-write"
-				? t.bashLocked(decision.path, contractPath)
-				: t.writeLocked(decision.path, contractPath);
-	return { block: true, reason };
+	const scratch = join(root, PROJECT_SCRATCH);
+	const reasons: Record<string, () => string> = {
+		"agent.read-only": () => t.agentReadOnly(agent ?? "", decision.path),
+		"agent.scratch-only": () => t.agentScratchOnly(decision.path, scratch),
+		"critic.contract-only": () => t.criticContractOnly(decision.path),
+		"jarvis.tests-readonly": () => t.testsLocked(decision.path),
+		"jarvis.bash-write": () => t.bashLocked(decision.path, contractPath),
+		"jarvis.write-lock": () => t.writeLocked(decision.path, contractPath),
+	};
+	return { block: true, reason: reasons[decision.rule]!() };
 }
 
 export default function (pi: ExtensionAPI) {
