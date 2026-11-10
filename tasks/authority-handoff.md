@@ -39,11 +39,11 @@ S7. Regla `agent.no-delivery`: la entrega es del dueño.
     Check: node --test tests/authority-agents.test.ts
 
 ## Tasks
-T1. El módulo puro `src/authority/handoff.ts` con la inspección de la entrega. — specs: S1, S2, S3, S4 — test: required — riesgo: no — commit: -
-T2. El harness agrega su veredicto al resultado del despacho, sin pisarlo. — specs: S5 — test: required — riesgo: sí — commit: -
-T3. La regla `agent.no-secrets`. — specs: S6 — test: required — riesgo: sí — commit: -
-T4. La regla `agent.no-delivery`. — specs: S7 — test: required — riesgo: sí — commit: -
-T5. Probar las cuatro contra una instancia real, con las herramientas del agente. — specs: S5, S6, S7 — test: required — riesgo: sí — quién: Jarvis — commit: -
+T1. El módulo puro `src/authority/handoff.ts` con la inspección de la entrega. — specs: S1, S2, S3, S4 — test: required — riesgo: no — commit: 0a799af (S1-S4: handoff 16/16)
+T2. El harness agrega su veredicto al resultado del despacho, sin pisarlo. — specs: S5 — test: required — riesgo: sí — commit: 0a799af (S5: task-handoff 7/7)
+T3. La regla `agent.no-secrets`. — specs: S6 — test: required — riesgo: sí — commit: 0a799af (S6: authority-agents; corregido después: un comando se juzga por lo que nombra)
+T4. La regla `agent.no-delivery`. — specs: S7 — test: required — riesgo: sí — commit: 0a799af (S7: authority-agents 29/29)
+T5. Probar las cuatro contra una instancia real, con las herramientas del agente. — specs: S5, S6, S7 — test: required — riesgo: sí — quién: Jarvis — commit: 0a799af (S5-S7: e2e, siete fases en verde; encontró el agujero de `cat .env`)
 
 ## Decisiones
 D1. El veredicto se **agrega** a la respuesta, nunca la reemplaza. El orquestador necesita leer lo que el trabajador dijo para poder continuar; borrárselo convertiría un problema de forma en una pérdida de trabajo.
