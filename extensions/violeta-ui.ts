@@ -10,11 +10,9 @@ import { modelWithThinking } from "../src/thinking.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "../src/format.ts";
 import { buildSidebarLines, type SidebarData } from "../src/sidebar-content.ts";
 import { readSidebarEnabled, writeSidebarEnabled } from "../src/sidebar-state.ts";
-import { readLanguage, writeLanguage } from "../src/language-state.ts";
 import { renderBtwPanel } from "../src/btw/panel.ts";
 import { getShared, setShared } from "../src/shared-hub.ts";
 import { activity as activityT, context as contextT, sidebar as t, ui as uiT, usage as usageT } from "../src/i18n.ts";
-import { getLanguage, setLanguage, type Language } from "../src/i18n.ts";
 
 const SEP = "  ";
 const SIDEBAR_WIDTH = 44;
@@ -292,35 +290,7 @@ export default function (pi: ExtensionAPI) {
 		ctx.ui.setTitle(`violeta · ${basename(ctx.cwd)}`);
 
 		const cfg = configFile();
-		// The persisted language is honored everywhere — including subagent
-		// children, which load this extension too — before any text is rendered
-		// or registered for the session (S3).
-		setLanguage(cfg ? readLanguage(cfg) : "es");
 		sidebarEnabled = cfg ? readSidebarEnabled(cfg) : false;
-
-		// /language: switch es|en, no argument toggles. Children
-		// have no UI of their own, so they honor the persisted language but do
-		// not register the command.
-		if (process.env.VIOLETA_AGENTS_CHILD !== "1") {
-			const language = async (args: string, commandCtx: ExtensionContext) => {
-				const arg = args.trim().toLowerCase();
-				let next: Language | undefined;
-				if (arg === "") next = getLanguage() === "es" ? "en" : "es";
-				else if (arg === "es" || arg === "en") next = arg;
-				if (!next) {
-					commandCtx.ui.notify(uiT.languageUsage, "warning");
-					return;
-				}
-				setLanguage(next);
-				const file = configFile();
-				if (file) writeLanguage(file, next);
-				// The notification is shown in the NEW language, and a render
-				// makes cards, sidebar, footer and overlays repaint at once.
-				commandCtx.ui.notify(uiT.languageSet, "info");
-				tuiRef?.requestRender();
-			};
-			pi.registerCommand("language", { description: uiT.languageDescription, handler: language });
-		}
 
 		pi.registerCommand("sidebar", {
 			description: uiT.sidebarDescription,

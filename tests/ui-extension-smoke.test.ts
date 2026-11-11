@@ -16,16 +16,19 @@ const NODE = Symbol.for("@earendil-works/pi-tui/layout-node");
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
-function setup(sidebar: boolean) {
+function setup(sidebar: boolean, config: Record<string, unknown> = { language: "es" }) {
 	const dir = mkdtempSync(join(tmpdir(), "violeta-ui-smoke-"));
-	writeFileSync(join(dir, "violeta.json"), JSON.stringify({ sidebar, language: "es" }));
+	writeFileSync(join(dir, "violeta.json"), JSON.stringify({ sidebar, ...config }));
 	process.env.PI_CODING_AGENT_DIR = dir;
 	delete process.env.VIOLETA_AGENTS_CHILD;
 
 	const handlers = new Map<string, Handler[]>();
+	const commands: string[] = [];
 	const pi = {
 		on: (name: string, fn: Handler) => handlers.set(name, [...(handlers.get(name) ?? []), fn]),
-		registerCommand: () => {},
+		registerCommand: (name: string) => {
+			commands.push(name);
+		},
 		registerShortcut: () => {},
 		registerTool: () => {},
 		getThinkingLevel: () => "medium",
@@ -68,7 +71,7 @@ function setup(sidebar: boolean) {
 	const footerData = { onBranchChange: () => () => {}, getGitBranch: () => "main" };
 
 	(extension as unknown as (pi: unknown) => void)(pi);
-	return { handlers, ctx, tui, theme, footerData, root, getFooter: () => footerFactory, getHeader: () => headerFactory };
+	return { handlers, commands, ctx, tui, theme, footerData, root, getFooter: () => footerFactory, getHeader: () => headerFactory };
 }
 
 async function start(env: ReturnType<typeof setup>) {
@@ -153,6 +156,36 @@ test("outside fullscreen the header stays where Pi draws it", async () => {
 		assert.equal((env.root[NODE] as () => { type: string })().type, "leaf");
 	} finally {
 		(footer as unknown as { dispose?(): void }).dispose?.();
+	}
+});
+
+// S3: the language feature is deleted. No command to switch it, and the
+// config key it used to read no longer reaches the screen.
+test("/language is no longer registered", async () => {
+	const env = setup(false);
+	const footer = await start(env);
+	try {
+		assert.deepEqual(
+			env.commands.filter((name) => name === "language"),
+			[],
+			`no /language command, registered: ${env.commands.join(", ")}`,
+		);
+		assert.ok(env.commands.includes("sidebar"), "the other commands are still registered");
+	} finally {
+		(footer as unknown as { dispose?(): void }).dispose?.();
+	}
+});
+
+test("the persisted language key no longer changes the interface", async () => {
+	const env = setup(true, { language: "en" });
+	const footer = await start(env);
+	try {
+		const node = (env.root[NODE] as () => { entries: Array<{ component: { render(w: number): string[] } }> })();
+		const text = node.entries[1]!.component.render(44).join("\n");
+		assert.match(text, /PROYECTO/, "the key is ignored: the dictionary default stands");
+	} finally {
+		(footer as unknown as { dispose?(): void }).dispose?.();
+		setLanguage("es");
 	}
 });
 
