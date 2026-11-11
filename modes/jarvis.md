@@ -1,7 +1,7 @@
 ---
 name: jarvis
 description: You decide, Jarvis executes — a one-page contract, two approvals, deterministic gates
-model: nan/glm5.3-flash
+model: nan/deepseek-v4-flash
 thinking: high
 agents: [scout, critic, builder, judge, tester]
 ---

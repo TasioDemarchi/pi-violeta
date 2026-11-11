@@ -1,7 +1,7 @@
 ---
 name: judge
 description: Single independent reviewer for risky changes. Read-only, one or two lenses, findings go to the user.
-model: nan/qwen3.8-flash
+model: nan/qwen3.8-max
 thinking: medium
 maxTurns: 25
 maxTokens: 2000000

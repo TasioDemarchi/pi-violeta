@@ -1,7 +1,7 @@
 ---
 name: tester
 description: Black-box tester. Runs the finished program from the outside on a copy, tries to break it, reports what happened. Never fixes.
-model: nan/deepseek-v4-flash
+model: nan/glm5.3-flash
 thinking: medium
 maxTurns: 70
 maxTokens: 3000000
