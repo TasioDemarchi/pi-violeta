@@ -64,7 +64,6 @@ test("the command palette speaks English", () => {
 test("the side chat speaks English", () => {
 	assert.equal(btw.title, "By the way");
 	assert.equal(btw.thinking, "thinking…");
-	assert.equal(btw.opened, "Side chat open.");
 	assert.equal(btw.noModel, "No active model: the side chat cannot ask.");
 });
 

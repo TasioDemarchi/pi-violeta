@@ -25,10 +25,10 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 
 ## What you see
 
-- Header: one line, `▍ violeta · pi <version>`.
-- Footer, left: project, git branch, working-tree changes — `+` created (green), `~` updated (yellow), `−` deleted (red).
+- Header: one line, `▍ violeta · pi <version> · <mode> · <project> · <branch>`. `<project>` is the name of the working directory and `<branch>` the git branch (dropped outside a git repository); `· unattended` closes the line while unattended mode is on. The project name lives here and nowhere else, so it is not repeated three times.
+- Footer, left: git branch and working-tree changes — `+` created (green), `~` updated (yellow), `−` deleted (red).
 - Footer, right: model, context usage, tokens in/out, session cost.
-- `/sidebar` (`on`, `off`, no argument toggles): hides the footer and shows the same information in more detail in a right-hand sidebar — project (name, path, branch), changes (at most 8 rows: the file names with `+`/`~`/`−`, or — when the list is full and the change types are mixed — one count per group: `+6 creados`, `~3 modificados`, `−1 eliminado`), tasks (the todo list, see below), , model (id, thinking level, context bar), usage (tokens, cost). Falls back to the footer below ~100 columns or outside fullscreen. The choice is remembered in `violeta.json` (default off).
+- `/sidebar` (`on`, `off`, no argument toggles): hides the footer and shows the same information in more detail in a right-hand sidebar — `CHANGES` (at most 8 rows: the file names with `+`/`~`/`−`, or — when the list is full and the change types are mixed — one count per group: `+6 created`, `~3 updated`, `−1 deleted`), `TASKS` (the todo list, see below) and one `MODEL · USAGE` section (model id and thinking level, context bar, tokens in/out, cost). No project section: the header owns that. Falls back to the footer below ~100 columns or outside fullscreen. The choice is remembered in `violeta.json` (default off).
 - Theme `violeta`: base `#7502c7` for borders and selection; a lighter tint of the same hue for accent text so it stays legible.
 - Activity line: while the agent works, one line above the editor shows the current phase — `▍ thinking` while the model writes, `exploring` for read-only tools (read, grep, find, ls), `implementing` for edit/write, `checking` for test-like bash commands, `running` for other bash — with three dots that appear and disappear in a loop so the line stays animated while the width never shifts. The line is removed entirely when the agent is idle, and Pi's native Working spinner is hidden while it is active.
 
@@ -51,7 +51,7 @@ violeta            # symlinked at ~/.local/bin/violeta -> bin/violeta
 | `src/agents/breaker.ts` | Dispatch breaker: reports and asks between subagent dispatches (tested) |
 | `extensions/violeta-contract.ts`, `src/contract/` | `contract_check`: zero-token lint of a Jarvis contract (tested) |
 | `extensions/violeta-mode.ts`, `src/modes/` | `/mode` philosophy switch (prompt, model and agent roster) |
-| `extensions/violeta-btw.ts`, `src/btw/` | `/btw` side chat: state, request, framed panel and scrollable reader (tested) |
+| `extensions/violeta-btw.ts`, `src/btw/` | `/btw` side chat: state, request and the fullscreen reader (tested) |
 | `src/frontmatter.ts` | The minimal YAML reader shared by agent and mode definitions |
 | `extensions/violeta-palette.ts`, `src/palette/` | `/palette` command palette |
 | `src/context-warning.ts` | Context color thresholds and `/compact` hint |
@@ -147,7 +147,7 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 - **Ceilings:** `maxTurns` and `maxTokens` are total limits, unlike the stall watchdog's renewable silence budgets — a talkative child renews the watchdog forever and still stops at its ceiling. Reaching one tears the child down with status `budget` (glyph `◼`, counted as finished, never as failed) and **keeps its last answer as the handoff**, because a context that keeps growing costs more per turn and is read worse at the far end; a fresh child continues from that handoff. The ceiling is acted on when the child reaches for more work, so a run that settles on its last allowed turn is `completed`. A definition without them has no ceiling. `VIOLETA_AGENT_MAX_TURNS` and `VIOLETA_AGENT_MAX_TOKENS` override every definition, to retune budgets without editing files.
 - **Tools for the model:** `subagent_list_agents`, `subagent_run` (`task` waits, `background` returns an id and delivers the result later), `subagent_status`, `subagent_result`, `subagent_cancel`. Each task is a `pi --mode rpc` child; at most 3 run at once (`VIOLETA_AGENTS_MAX_CONCURRENCY`), the rest are `queued`. Children cannot spawn children.
 - **Titles:** `label` is required in `subagent_run` (what the agent does, 3 to 6 words, phrased as an action), so you can tell tasks apart without reading their context. If it is missing, the first sentence of the task is used.
-- **Card above the editor:** `Agentes · N activos · M terminados`, one row per task: status glyph, **title**, the agent role dimmed, then tokens, cost (hidden while $0) and elapsed; `model · effort` shows when there is room. Finished rows stay one minute; extra rows fold into `… N más · alt+a para ver`.
+- **Card above the editor:** `Agents · N active · M done`, one row per task: status glyph, **title**, the agent role dimmed, then tokens, cost (hidden while $0) and elapsed; `model · effort` shows when there is room. Finished rows stay one minute; extra rows fold into `… N more · alt+a to view`.
 - **`alt+a` or `/agents`:** full-terminal view. Task list on the left (glyph + title, history after active tasks). On the right: title, `role · status · model · tokens · elapsed`, a **Result** section (the task's `summary:` line, else the first line of its answer, plus a few more lines), then the full **Thread**. Keys: `j`/`k` select, `ctrl+j`/`ctrl+k` scroll, `f` follow, `esc` back, `q` close (never cancels children), `alt+s` cancel all active tasks (asks first). Under 60 columns it shows the list only.
 - **History:** finished tasks are stored in `~/.violeta/agent/agents-history/` (last 200), with title and summary.
 
@@ -157,7 +157,7 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 
 - **Destructive commands** (recursive/forced removal, `find -delete`, `shred`, `dd` to devices, `mkfs`, recursive `chmod`/`chown`, force push including `+refspec`, hard reset, `clean -f`, whole-tree checkout/restore, `branch -D`, `stash drop|clear`, SQL `DROP`/`TRUNCATE`/`DELETE` without `WHERE`, and **killing processes** — see below) ask for confirmation. **The dialog shows what the command does, not the command**: a free NaN model (`mimo-v2.6-flash`, reasoning off, about a second, a 9 s ceiling) is asked to name the action, the files and the folders, and that is what you read. The command itself stays on one line underneath, because the summary is a model's reading and can be wrong — in testing it listed the parent folders of a `rm -rf` target as if it touched them. If there is no NaN model, the answer is late, or it does not come back in the three-line shape, the dialog is exactly what it was before: the command. Targets like `/`, `~`, `$HOME` and their globs are denied outright. Quoted text, heredoc data and look-alikes are not flagged. It recognises common forms; it is not a sandbox.
 - **Outside the project:** a path outside the working directory asks once per directory per session. **The system temp root is free and never asks**: it is scratch space the system itself wipes, and the harness writes there on every voice line, every dictation and every subagent, so the dialog was asking the one question whose answer is always yes. Anywhere else, a temp-style path still collapses to the root of its tree, so a `mktemp -d` directory does not ask again every run. Grants live in memory only. `/grants` lists them, `/grants revoke` clears them. The violeta agent dir is always allowed.
-- **Unattended mode** (`/unattended on|off`, or launch with `VIOLETA_UNATTENDED=1`) is for leaving a run going while you are away: **nothing is ever asked**. Destructive commands are refused with a message telling the model to skip them and carry on (catastrophic targets stay hard-denied). Outside the project, `read`, `grep`, `find` and `ls` pass without a prompt; `write`, `edit` and any shell command touching an outside path are refused (use the read tools to look outside). The dispatch breaker also refuses instead of asking, so a runaway stops by itself. The header shows `· sin supervisión` while it is on. It is never saved: every new session starts attended. It applies to the main session; subagents keep their own stricter rules. Approvals that Jarvis asks in the conversation (contract, final result) are still waiting for you.
+- **Unattended mode** (`/unattended on|off`, or launch with `VIOLETA_UNATTENDED=1`) is for leaving a run going while you are away: **nothing is ever asked**. Destructive commands are refused with a message telling the model to skip them and carry on (catastrophic targets stay hard-denied). Outside the project, `read`, `grep`, `find` and `ls` pass without a prompt; `write`, `edit` and any shell command touching an outside path are refused (use the read tools to look outside). The dispatch breaker also refuses instead of asking, so a runaway stops by itself. The header shows `· unattended` while it is on. It is never saved: every new session starts attended. It applies to the main session; subagents keep their own stricter rules. Approvals that Jarvis asks in the conversation (contract, final result) are still waiting for you.
 - **Killing processes.** A literal pid passes (`kill -9 61232`); a target the harness cannot count asks first (`kill -9 $H`, `$(pgrep …)`, a backtick); `pkill` and `killall` always ask, since their blast radius is whatever the pattern matches; and a whole process group (`kill -9 -1`, `-9 0`, `-9 1`, a negative pid) is **denied outright**, with no dialog to wave through. This rule exists because of an incident on 2026-11-05: `ps -eo pid,ppid --ppid "$D"` silently ignores the `--ppid` filter when `-e` is present, so `$H` held every pid on the machine, and `kill -9 $H` took down the owner's compositor, editor, terminals and the agent itself. The guard allowed it without a word, because it had no rule for kill at all.
 - **Subagent children** have no UI, so anything that would ask is blocked instead.
 
@@ -166,22 +166,21 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 
 `/btw` is an aside: a question answered **beside** the work instead of inside it. The main agent never sees the question, the session never takes a turn for it, and nothing you ask there ends up in the context the agent is working with.
 
-| Command | What it does |
-|---|---|
-| `/btw` | Opens and closes the window |
-| `/btw <message>` | Asks with the session's conversation as context (opens the window if it was closed) |
-| `/btwn` | Forgets the side conversation, keeps the window |
-| `/btwn <message>` | Asks as a new session: no session context and no previous aside |
-| `/btwv` (`alt+b`) | Opens the same conversation full screen, with scrolling |
+There is one command and one shortcut — `/btw` and `alt+b`:
 
-- **Where it is drawn.** While the sidebar is active (`/sidebar on`, fullscreen, 100 columns or more) **the sidebar becomes the chat**: the framed panel takes the whole column and project, changes and model come back the moment it closes. With no room for a sidebar the same panel is a framed box above the editor. Both are drawn by one function, so the two placements cannot drift, and the frame is the point: the aside must not read as part of the conversation.
-- **A long answer is read in the reader.** The panel always shows the END of the conversation and drops what does not fit, and it cannot scroll: a widget and a sidebar column never hold the keyboard focus, so there is nowhere to press a key. `alt+b` opens the same conversation as an overlay, which does take focus: `j`/`k` scroll, `ctrl+j`/`ctrl+k` page, `g`/`G` top/bottom, `esc`/`q` close. It opens at the newest line, where the panel left off, and it is read-only — the answer keeps streaming in behind it. Both the panel and the reader lay out a turn with the same function (`btwContentRows`), so they cannot drift.
-- **Everything is typed in the main editor.** Only `/btw` and `/btwn` reach the side chat.
-- **Which model answers.** The session's current model, so the aside answers with the same head as the main thread. Raising the session model with `/models` raises the side chat too — including the Claude bridge, which is the one model that spends real money.
-- **What travels.** The conversation only: user and assistant text, in order, cut to the most recent 40,000 characters (`BTW_CONTEXT_CHARS`). Tool calls and tool output are left out — they are the bulk of a session's tokens and none of its conversation. `/btwn` sends none of it.
-- **It answers in the background.** The command returns at once, the panel says `pensando…`, and you keep typing meanwhile. A second question while one is in flight is refused, not queued. A failure becomes a line in the panel instead of a notification that scrolls away.
+| What you type | What it does |
+|---|---|
+| `/btw <message>` | Asks with the session's conversation as context; the answer opens in the fullscreen reader |
+| `/btw` | Opens the reader on the conversation as it stands |
+| `alt+b` | The same reader, at any moment |
+
+- **The reader is the whole interface.** Asking or opening pops it over the editor, fullscreen: `j`/`k` and `ctrl+j`/`ctrl+k` scroll, `g`/`G` top/bottom, `esc` (or `q`) brings you back to the editor. It opens at the newest line and is read-only, so opening it while an answer is still streaming is safe — it keeps filling in behind you. Nothing is drawn above the editor and the sidebar no longer swaps, so `CHANGES` and `TASKS` stay where they are.
+- **Everything is typed in the main editor.** Only `/btw` reaches the side chat.
+- **Which model answers.** The session's current model, so the aside answers with the same head as the main thread. Raising the session model with `/models` (or `/model`) raises the side chat too — including the Claude bridge, which is the one model that spends real money, and which only runs once you pick a `claude-bridge/*` model yourself.
+- **What travels.** The conversation only: user and assistant text, in order, cut to the most recent 40,000 characters (`BTW_CONTEXT_CHARS`). Tool calls and tool output are left out — they are the bulk of a session's tokens and none of its conversation.
+- **It answers in the background.** The question goes out at once, so the command returns immediately; the reader holds the keyboard until `esc`, and an answer that lands while you are elsewhere is waiting in it. A second question while one is in flight is refused, not queued. A failure becomes a turn in the reader instead of a notification that scrolls away.
 - **Nothing is saved.** The side conversation lives in memory: a new session starts empty and closing violeta forgets it.
-- While the side chat owns the sidebar, the `TAREAS` section is not drawn; `/todo` and `/changes` still show the same information on demand.
+- The side chat owns no part of the screen once you close it: the sidebar keeps showing `CHANGES` and `TASKS`, and `/todo` and `/changes` still show the same information on demand.
 
 ## Voice (opt-in)
 
@@ -191,20 +190,20 @@ Violeta ships the **visual layer** plus a neutral launcher. It has no built-in a
 - **`/voice resumen`: a separate spoken script.** The prompt asks for a closing `Voz:` section written for the ear (the answer itself, self-contained, taught in order with an everyday example); only that is read. It depends on the model following the format, which a flash model does unevenly.
 - **How it plays.** The text is split by paragraph, each one synthesized with NaN's `kokoro` (three at a time) and joined with a 0.7 s pause. Playback goes in groups of about 1,200 characters: the first group starts as soon as it is ready while the next ones are still being made. A new prompt or `/voice off` stops the audio and stops requesting more.
 - **Pace.** `/voice speed <0.5-1.3>` (default 1.1, just above the model's own pace; lower is slower) is saved in `violeta.json`; `VIOLETA_VOICE_SPEED` overrides it. It was 0.85 and then 1, and both were slow by ear: slowing a small TTS down is most of what makes it sound synthetic.
-- **`/dictar` listens.** It records from the microphone while a dialog is open, you choose *Terminar*, the audio goes to NaN's `whisper` (Spanish), and the text lands **in the editor** for you to read and send. Nothing is sent to the agent by itself, so a misheard word is never executed.
+- **`/dictar` listens.** It records from the microphone while a dialog is open, you choose *Finish*, the audio goes to NaN's `whisper` (Spanish), and the text lands **in the editor** for you to read and send. Nothing is sent to the agent by itself, so a misheard word is never executed.
 
 Players and recorders are programs already on the machine (`pw-play` or `aplay`; `pw-record` or `arecord`). Any failure is one notification per session and never touches the conversation. Subagents never use voice. Settings by environment: `VIOLETA_VOICE_NAME` (default `ef_dora(2)+em_alex(1)` — kokoro accepts a blend with weights, and this one was picked by ear over each single voice; the Spanish voices on their own are `ef_dora`, `em_alex` and `em_santa`), `VIOLETA_VOICE_TTS_MODEL`, `VIOLETA_VOICE_STT_MODEL`, `VIOLETA_VOICE_BASE_URL`. Each spoken script and each dictation uses NaN quota for those two models.
 
 ## Todo list
 
-The `todo` tool (`write`, `add`, `update`, `clear`, `list`; statuses `pending`, `in_progress`, `blocked` (needs a note), `done`, `dropped`) keeps a list that is saved in the session and restored on resume. A card above the editor shows `Tareas · N abiertas · M hechas`; when the sidebar is active the same list appears there as a `TAREAS` section instead (and not above the editor). In the sidebar the section is compact: 5 rows and then a bare `…` (the framed card above the editor keeps 8 and `… N más`). `/todo` hides or shows it wherever it is drawn. It disappears a minute after everything is finished.
+The `todo` tool (`write`, `add`, `update`, `clear`, `list`; statuses `pending`, `in_progress`, `blocked` (needs a note), `done`, `dropped`) keeps a list that is saved in the session and restored on resume. A card above the editor shows `Todo · N open · M done`; when the sidebar is active the same list appears there as a `TASKS` section instead (and not above the editor). In the sidebar the section is compact: 5 rows and then a bare `…` (the framed card above the editor keeps 8 and `… N more`). `/todo` hides or shows it wherever it is drawn. It disappears a minute after everything is finished.
 
 ## Background jobs
 
 - `bash_background` starts a command and returns at once; the model is woken once when it exits, with the exit code and the last lines of output (full output in a 0600 temp file).
 - `monitor` turns each output line of a long-running command into an event (batched in 200 ms, at most 20 lines per notice; `timeout_seconds` 1–1800 is mandatory; it stops itself after more than 120 lines in 60 s).
 - `job_list` and `job_stop` (kills the whole process tree). At most 25 run at once, and all are killed when violeta exits.
-- `/jobs` opens the list (`j`/`k`, `s` then `s` again to stop, `q` to close); `jobs: N en ejecución` shows above the editor.
+- `/jobs` opens the list (`j`/`k`, `s` then `s` again to stop, `q` to close); `jobs: N running` shows above the editor.
 
 ## More tools
 
@@ -218,9 +217,7 @@ All on demand; nothing extra is drawn by default.
 | `/context` | | What the footer shows in one glyph, written out: percent, window size, tokens used and tokens left. From 80% it repeats the `/compact` suggestion. |
 | `/usage` | | The session's tokens and cost, split by model — which the footer and the sidebar do not show, and which is the only part that costs money when the session runs on a paid model. |
 | `/notify on\|off` | | Opt-in. Terminal bell plus `notify-send` (if installed) when a run longer than 20 s ends or a confirmation dialog waits. Off by default, remembered in `violeta.json`. |
-| `/btw`, `/btwn` | | The side chat; see Side chat above. |
-| `/btwv` | `alt+b` | The side chat full screen and scrollable: `j`/`k` scroll, `ctrl+j`/`ctrl+k` page, `g`/`G` top/bottom, `esc`/`q` close. For an answer taller than the panel. |
-| `/language es\|en` | | See Language below. |
+| `/btw` | `alt+b` | The side chat in a fullscreen, scrollable reader: `j`/`k` scroll, `ctrl+j`/`ctrl+k` page, `g`/`G` top/bottom, `esc`/`q` close. See Side chat above. |
 
 - **Compact tools:** every tool call collapses to one line (`✓ read README.md`, `✓ bash npm test · 0 · 1.2s`, `✗ bash … · exit 1`); `ctrl+o` expands the full output. Display only: what the model receives is unchanged and the guard still intercepts.
 - **Context warning:** the `ctx N%` indicator turns warning color from 70% and error color from 90%; once per session at 80% a notice suggests `/compact` (re-arms below 60%).
@@ -229,9 +226,13 @@ All on demand; nothing extra is drawn by default.
 
 `config/settings.json` declares `npm:pi-claude-bridge`; `bin/violeta` merges it into `~/.violeta/agent/settings.json` on every start (idempotent) and Pi installs the package into `~/.violeta/agent/npm` on first launch (needs network once). The bridge drives your logged-in `claude` CLI: no key or token is copied and nothing under `~/.gentle-shell` or `~/.claude` is touched. Models show up as `claude-bridge/...` in `/models`. Note from the package README: it uses your regular subscription quota like Claude Code, and Anthropic has changed how Agent SDK usage is billed before, so it could be billed as extra usage in the future.
 
+## The Claude bridge is untouched, on purpose
+
+`pi-claude-bridge` is kept exactly as it is: it was asked for, it stays, and nothing in this repo modifies it. It fires **only** when a `claude-bridge/*` model is picked explicitly in `/model` (violeta's `/models` picker does the same), and then it spends your Claude subscription quota as described above. The only other trigger is the `AskClaude` tool, which lives in a separate package (`pi-claude-bridge-askclaude`) that is **not installed**. Nothing invokes the bridge implicitly: no mode or agent definition names a `claude-bridge/*` model (they are all `nan/*`), and the session starts on the flat-rate `deepseek-v4-flash` default.
+
 ## Language
 
-Violeta speaks Spanish by default. `/language es|en` (no argument toggles) switches between Spanish and English and remembers the choice in `~/.violeta/agent/violeta.json`. It applies at once to cards, sidebar, footer, overlays, dialogs and notices; command descriptions refresh on the next start. All text lives in `src/i18n.ts`. Tool names, parameter names and their descriptions stay in English because they are for the model. Pi's own built-in texts (`Operation aborted`, the key-hint line under dialogs, `Working`) are not translatable from an extension.
+The interface is English-only: one dictionary in `src/i18n.ts`, no switch, no second copy, and no `/language` command. What reaches a model is different on purpose: `btw.systemPrompt` and `guard.explainPrompt` ask for a **Spanish** answer, while `guard.explainLabels` (`Action:`/`Files:`/`Folders:`) stay English because the guard parses those labels and the dialog shows them. Tool names, parameter names and their descriptions stay English because they are for the model. Pi's own built-in texts (`Operation aborted`, the key-hint line under dialogs, `Working`) are not translatable from an extension.
 
 ## Notes
 
