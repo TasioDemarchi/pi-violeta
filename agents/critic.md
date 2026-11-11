@@ -2,7 +2,7 @@
 name: critic
 description: Contract critic. Reads one contract in a fresh session, hunts ambiguity and missing detail, returns closed questions. Never rewrites.
 model: nan/glm5.3-flash
-thinking: medium
+thinking: high
 maxTurns: 8
 maxTokens: 400000
 tools:

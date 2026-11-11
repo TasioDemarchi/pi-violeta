@@ -2,7 +2,7 @@
 name: jarvis
 description: You decide, Jarvis executes — a one-page contract, two approvals, deterministic gates
 model: nan/deepseek-v4-flash
-thinking: high
+thinking: off
 agents: [scout, critic, builder, judge, tester]
 ---
 
