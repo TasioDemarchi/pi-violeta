@@ -104,9 +104,10 @@ export function buildSidebarLines(
 		for (const line of todoRows) push(line);
 	}
 
-	// MODELO
+	// MODEL · USAGE — one section for the model, the context bar and the
+	// session's tokens and cost (S6/D8).
 	push("");
-	push(fg("accent", t.model));
+	push(fg("accent", t.modelUsage));
 	push(modelWithThinking(data.model.id, data.model.thinking, fg, t.noModel));
 	const ctx = data.model.context;
 	if (ctx) {
@@ -120,9 +121,6 @@ export function buildSidebarLines(
 		);
 	}
 
-	// USO
-	push("");
-	push(fg("accent", t.usage));
 	push(fg("dim", `↑${fmtTokens(data.usage.tokensIn)} ↓${fmtTokens(data.usage.tokensOut)}`));
 	push(fg("muted", fmtCost(data.usage.cost)));
 

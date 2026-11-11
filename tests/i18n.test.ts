@@ -15,11 +15,9 @@ test("the guard dialog offers Yes and No", () => {
 });
 
 test("the sidebar section titles are the English ones", () => {
-	assert.equal(sidebar.project, "PROJECT");
 	assert.equal(sidebar.changes, "CHANGES");
 	assert.equal(sidebar.tasks, "TASKS");
-	assert.equal(sidebar.model, "MODEL");
-	assert.equal(sidebar.usage, "USAGE");
+	assert.equal(sidebar.modelUsage, "MODEL · USAGE");
 });
 
 test("the todo card and its messages speak English", () => {

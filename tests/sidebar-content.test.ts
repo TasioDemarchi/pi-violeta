@@ -38,15 +38,28 @@ test("renders every section with counts, file names, model and usage", () => {
 			row("~ b.ts"),
 			row("− old.ts"),
 			row(""),
-			row("MODEL"),
+			row("MODEL · USAGE"),
 			row("nan/deepseek-v4-flash · off"),
 			row("ctx 43% ████░░░░░░ 43.2k/1.0M"),
-			row(""),
-			row("USAGE"),
+			row("↑1.5k ↓2.4M"),
+			row("$0.05"),
 		],
 	);
-	assert.equal(lines[11], row("↑1.5k ↓2.4M"));
-	assert.equal(lines[12], row("$0.05"));
+});
+
+// S6/D8: model, thinking, context bar, tokens and cost are ONE section under a
+// single title; there is no second title and no blank line between them.
+test("model, context and usage share one section title", () => {
+	const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
+	assert.equal(lines.filter((l) => l.includes("MODEL · USAGE")).length, 1, "exactly one title");
+	assert.ok(!lines.includes(row("MODEL")), "no separate MODEL title");
+	assert.ok(!lines.includes(row("USAGE")), "no separate USAGE title");
+	const title = lines.findIndex((l) => l.includes("MODEL · USAGE"));
+	assert.ok(lines[title - 1] === row(""), "one blank line before the section");
+	assert.equal(lines[title + 1], row("nan/deepseek-v4-flash · off"));
+	assert.equal(lines[title + 2], row("ctx 43% ████░░░░░░ 43.2k/1.0M"));
+	assert.equal(lines[title + 3], row("↑1.5k ↓2.4M"));
+	assert.equal(lines[title + 4], row("$0.05"));
 });
 
 // S5: the project name, path and branch live in the header; the sidebar opens
@@ -264,7 +277,7 @@ test("unknown usage keeps the muted ctx line", () => {
 
 // --- English mode (S3): the original English sidebar, rendered live ------------
 
-test("in English the sidebar shows CHANGES/MODEL/USAGE without count lines", () => {
+test("in English the sidebar shows CHANGES and one MODEL · USAGE title without count lines", () => {
 	try {
 		const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
 		assert.deepEqual(
@@ -276,11 +289,11 @@ test("in English the sidebar shows CHANGES/MODEL/USAGE without count lines", () 
 				row("~ b.ts"),
 				row("− old.ts"),
 				row(""),
-				row("MODEL"),
+				row("MODEL · USAGE"),
 				row("nan/deepseek-v4-flash · off"),
 				row("ctx 43% ████░░░░░░ 43.2k/1.0M"),
-				row(""),
-				row("USAGE"),
+				row("↑1.5k ↓2.4M"),
+				row("$0.05"),
 			],
 		);
 		// The TASKS section header in English, with the todo list present.
