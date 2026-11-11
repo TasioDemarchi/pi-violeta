@@ -76,4 +76,7 @@ L2. Medido en T2: `src/guard/explain.ts` lee solo los NOMBRES de etiqueta y se q
 
 ## Observed checks
 - T1: `jq 'has("briefSaid")' ~/.violeta/agent/violeta.json` → `false`.
-- T2: README pendiente; suite `env -u VIOLETA_AGENTS_CHILD npm test` → 847 pass / 0 fail (output real arriba).
+- T2: 38515a1; suite `env -u VIOLETA_AGENTS_CHILD npm test` → 847 pass / 0 fail.
+- T3: 624553c; suite → 843/843; `jq 'has("language")'` → `false`.
+- T4: 7ddd2b4; suite → 831/831; `i18n.ts` 466 líneas; grep de setLanguage/getLanguage vacío en src/extensions/tests.
+- T5: absorbido por las olas de T4 (misma suite, 831/831 audita estos archivos). Los acentos restantes en tests/ son fixtures deliberadas: guiones de `Voz:` (la salida hablada ES en español por diseño), prose de `modes/`, y datos del harness (`estado: fallada`, `por verificar`), no cadenas del diccionario.

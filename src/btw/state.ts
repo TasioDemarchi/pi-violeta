@@ -7,7 +7,7 @@
  * way the sidebar flag and the unattended toggle are forgotten.
  *
  * Every operation returns a new state, so the extension can publish it on the
- * shared hub (violeta-ui reads it to draw the panel in the sidebar) without
+ * shared hub (the reader repaints from it as an answer streams in) without
  * anyone mutating what someone else is rendering.
  */
 
@@ -21,7 +21,7 @@ export interface BtwTurn {
 }
 
 export interface BtwState {
-	/** Whether the panel is drawn (sidebar or above the editor). */
+	/** Whether the side chat is open; the reader is what shows it. */
 	open: boolean;
 	turns: readonly BtwTurn[];
 	/** A question is in flight: the panel says so and a second one is refused. */
@@ -36,21 +36,7 @@ export function openBtw(state: BtwState): BtwState {
 	return state.open ? state : { ...state, open: true };
 }
 
-export function closeBtw(state: BtwState): BtwState {
-	return state.open ? { ...state, open: false } : state;
-}
-
-export function toggleBtw(state: BtwState): BtwState {
-	return { ...state, open: !state.open };
-}
-
-/** `/btwn` with no argument: forget the conversation. The panel stays as it is
- * (open or closed) — clearing is about the history, not about the window. */
-export function clearBtw(state: BtwState): BtwState {
-	return { ...state, turns: [], asking: false };
-}
-
-/** A question: it opens the panel, because an answer nobody can see is useless. */
+/** A question: it opens the reader, because an answer nobody can see is useless. */
 export function askBtw(state: BtwState, question: string): BtwState {
 	return { open: true, turns: [...state.turns, { role: "user", text: question }], asking: true };
 }
@@ -63,8 +49,8 @@ export function failBtw(state: BtwState, message: string): BtwState {
 	return { ...state, turns: [...state.turns, { role: "error", text: message }], asking: false };
 }
 
-/** `/btw` and `/btwn` both mean "the window" with no argument and "a question"
- * with one. Whitespace is not an argument. */
+/** `/btw` means "show the side chat" with no argument and "a question" with
+ * one. Whitespace is not an argument. */
 export type BtwCommand = { kind: "window" } | { kind: "ask"; message: string };
 
 export function parseBtwArgs(args: string): BtwCommand {

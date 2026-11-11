@@ -2,12 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import {
+	btwContentRows,
 	btwViewLayout,
 	btwViewRows,
 	clampScroll,
 	initialBtwView,
 	reduceBtwView,
 	renderBtwView,
+	wrapText,
 } from "../src/btw/view.ts";
 import { answerBtw, askBtw, emptyBtw, failBtw, type BtwState } from "../src/btw/state.ts";
 
@@ -96,8 +98,21 @@ test("an empty aside and a failed one both render without throwing", () => {
 	}
 });
 
-test("the reader and the panel wrap a turn the same way", async () => {
-	const { btwContentRows } = await import("../src/btw/panel.ts");
+test("the reader wraps a turn the same way the row builder does", () => {
 	const state = longState();
 	assert.deepEqual(btwViewRows(state, 44), btwContentRows(state, 44));
+});
+
+test("btw view: wrapping breaks on spaces and never goes over the width", () => {
+	const lines = wrapText("uno dos tres cuatro cinco seis", 10);
+	for (const line of lines) assert.ok(line.length <= 10, `"${line}" fits in 10`);
+	assert.deepEqual(lines, ["uno dos", "tres", "cuatro", "cinco seis"]);
+});
+
+test("btw view: wrapping keeps paragraph breaks and hard-breaks a word that cannot fit", () => {
+	assert.deepEqual(wrapText("a\n\nb", 10), ["a", "", "b"]);
+	const long = wrapText("corto supercalifragilisticoexpialidoso", 10);
+	for (const line of long) assert.ok(line.length <= 10, `"${line}" fits in 10`);
+	assert.equal(long.join(""), "cortosupercalifragilisticoexpialidoso");
+	assert.deepEqual(wrapText("", 10), [""]);
 });

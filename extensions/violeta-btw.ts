@@ -1,37 +1,28 @@
 /**
- * violeta-btw — the side chat: `/btw` and `/btwn`.
+ * violeta-btw — the side chat: `/btw` and `alt+b`.
  *
  * An aside. `/btw <question>` asks with the session's conversation as context
- * and the answer lands in its own framed window; the main agent never sees the
- * question and the session never takes a turn for it, so asking something does
- * not interrupt — or pollute — the work in progress. `/btwn` is the same window
- * with no memory and no context: a clean question.
+ * and the answer is shown in the fullscreen reader; the main agent never sees
+ * the question and the session never takes a turn for it, so asking something
+ * does not interrupt — or pollute — the work in progress.
  *
- * Where the window is drawn is decided elsewhere, by whoever owns the space:
- * while the sidebar is active violeta-ui draws the panel in the sidebar column
- * (the sidebar BECOMES the chat), and this extension's widget above the editor
- * draws nothing. When there is no sidebar the widget draws the same panel. Both
- * read the same state from the shared hub and call the same renderer, so the two
- * placements cannot drift.
+ * The reader is the only way to see the conversation. It is an overlay, so it
+ * takes the keyboard focus and `j/k` scrolls it — a long answer fits there.
+ * `/btw` with no question and `alt+b` open it too; nothing is drawn above the
+ * editor and the sidebar no longer swaps.
  *
  * The request is one model call through `ctx.modelRegistry.complete`, which is
  * authenticated by Pi: no key handling here. It uses the session's current
  * model on purpose — the aside answers with the same head as the main thread.
- * The call is deliberately NOT awaited by the command handler: the panel says
- * `pensando…` and you keep typing in the main editor meanwhile.
- *
- * A long answer does not fit the panel, and neither placement has the keyboard
- * focus, so neither can scroll. `alt+b` (or `/btwv`) opens the same conversation
- * in an overlay, which does take focus: there `j/k` scrolls. The panel stays the
- * glance; the overlay is for reading.
+ * The call is deliberately NOT awaited by the command handler: the reader says
+ * `thinking…` and you keep typing in the main editor meanwhile.
  *
  * Nothing is persisted: the conversation is in memory and goes with the process.
  */
 
-import type { ExtensionAPI, ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import type { Component, TUI } from "@earendil-works/pi-tui";
+import type { ExtensionAPI, ExtensionContext, ThemeColor } from "@earendil-works/pi-coding-agent";
+import type { Component } from "@earendil-works/pi-tui";
 import { matchesKey } from "@earendil-works/pi-tui";
-import { renderBtwPanel, type Fg } from "../src/btw/panel.ts";
 import {
 	btwViewLayout,
 	btwViewRows,
@@ -40,22 +31,12 @@ import {
 	renderBtwView,
 	type BtwViewAction,
 	type BtwViewState,
+	type Fg,
 } from "../src/btw/view.ts";
 import { blocksText, branchTurns, buildBtwPrompt, recentTurns } from "../src/btw/request.ts";
-import {
-	answerBtw,
-	askBtw,
-	clearBtw,
-	emptyBtw,
-	failBtw,
-	parseBtwArgs,
-	toggleBtw,
-	type BtwState,
-} from "../src/btw/state.ts";
+import { answerBtw, askBtw, emptyBtw, failBtw, openBtw, parseBtwArgs, type BtwState } from "../src/btw/state.ts";
 import { btw as t } from "../src/i18n.ts";
-import { getShared, setShared, subscribeShared } from "../src/shared-hub.ts";
-
-const WIDGET_KEY = "btw-panel";
+import { setShared, subscribeShared } from "../src/shared-hub.ts";
 
 export default function (pi: ExtensionAPI) {
 	// Subagent children load this package too: an aside is for the person at the
@@ -63,22 +44,19 @@ export default function (pi: ExtensionAPI) {
 	if (process.env.VIOLETA_AGENTS_CHILD === "1") return;
 
 	let state: BtwState = emptyBtw();
-	let tuiRef: TUI | undefined;
 
-	/** Publish for violeta-ui (it draws the panel in the sidebar) and repaint. */
+	/** Publish so the reader repaints while an answer streams in. */
 	function publish(): void {
 		setShared({ btw: state });
-		tuiRef?.requestRender();
 	}
 
 	function say(ctx: ExtensionContext, message: string, level: "info" | "warning" = "info"): void {
 		if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.notify(message, level);
 	}
 
-	/** One question. `withContext` is false for /btwn, which asks as if the
-	 * session did not exist. Never throws: a failure becomes a turn in the panel,
+	/** One question. Never throws: a failure becomes a turn in the reader,
 	 * where it stays readable, instead of a notification that scrolls away. */
-	async function ask(ctx: ExtensionContext, question: string, withContext: boolean): Promise<void> {
+	async function ask(ctx: ExtensionContext, question: string): Promise<void> {
 		// The history as it was BEFORE this question: the question itself is
 		// passed on its own, so the prompt would otherwise carry it twice.
 		const history = state.turns;
@@ -92,7 +70,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		try {
-			const transcript = withContext ? recentTurns(branchTurns(ctx.sessionManager.getBranch())) : [];
+			const transcript = recentTurns(branchTurns(ctx.sessionManager.getBranch()));
 			const prompt = buildBtwPrompt({ question, transcript, history });
 			const answer = await ctx.modelRegistry.complete(model, {
 				systemPrompt: t.systemPrompt,
@@ -110,46 +88,9 @@ export default function (pi: ExtensionAPI) {
 		publish();
 	}
 
-	pi.registerCommand("btw", {
-		description: t.description,
-		handler: async (args: string, ctx: ExtensionContext) => {
-			const command = parseBtwArgs(args);
-			if (command.kind === "window") {
-				state = toggleBtw(state);
-				publish();
-				say(ctx, state.open ? t.opened : t.closed);
-				return;
-			}
-			if (state.asking) {
-				say(ctx, t.busy, "warning");
-				return;
-			}
-			// Not awaited on purpose: the editor stays yours while it answers.
-			void ask(ctx, command.message, true);
-		},
-	});
-
-	pi.registerCommand("btwn", {
-		description: t.descriptionNew,
-		handler: async (args: string, ctx: ExtensionContext) => {
-			const command = parseBtwArgs(args);
-			if (state.asking && command.kind === "ask") {
-				say(ctx, t.busy, "warning");
-				return;
-			}
-			state = clearBtw(state);
-			if (command.kind === "window") {
-				publish();
-				say(ctx, t.cleared);
-				return;
-			}
-			void ask(ctx, command.message, false);
-		},
-	});
-
 	/** The conversation in an overlay, scrollable because an overlay has focus.
 	 * Read-only: it draws state, never changes it, so opening it mid-answer is
-	 * safe — the panel keeps filling behind it and the next render shows more. */
+	 * safe — the reader keeps filling as the answer streams. */
 	async function openReader(ctx: ExtensionContext): Promise<void> {
 		if (ctx.mode !== "tui" || !ctx.hasUI) {
 			// notify directly, not through `say`: `say` is silent without a UI,
@@ -211,9 +152,26 @@ export default function (pi: ExtensionAPI) {
 		);
 	}
 
-	pi.registerCommand("btwv", {
-		description: t.viewDescription,
-		handler: async (_args: string, ctx: ExtensionContext) => openReader(ctx),
+	pi.registerCommand("btw", {
+		description: t.description,
+		handler: async (args: string, ctx: ExtensionContext) => {
+			const command = parseBtwArgs(args);
+			if (command.kind === "window") {
+				state = openBtw(state);
+				publish();
+				say(ctx, t.opened);
+				void openReader(ctx);
+				return;
+			}
+			if (state.asking) {
+				say(ctx, t.busy, "warning");
+				return;
+			}
+			// Not awaited on purpose: the editor stays yours while it answers.
+			// The reader opens on top, also without blocking the ask.
+			void ask(ctx, command.message);
+			void openReader(ctx);
+		},
 	});
 
 	pi.registerShortcut("alt+b", {
@@ -221,50 +179,13 @@ export default function (pi: ExtensionAPI) {
 		handler: async (ctx) => openReader(ctx),
 	});
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async () => {
 		state = emptyBtw();
 		publish();
-		if (ctx.mode !== "tui" || !ctx.hasUI) return;
-		// Repaint when the sidebar flag flips (/sidebar, a resize across the
-		// width threshold): the window must move between the two placements
-		// without a restart.
-		const unsub = subscribeShared(() => tuiRef?.requestRender());
-		ctx.ui.setWidget(
-			WIDGET_KEY,
-			(tui, theme) => {
-				tuiRef = tui;
-				return panelComponent(theme, unsub);
-			},
-			{ placement: "aboveEditor" },
-		);
 	});
 
-	function panelComponent(theme: Theme, onDispose: () => void): Component {
-		const fg: Fg = (role, text) => theme.fg(role as ThemeColor, text);
-		return {
-			invalidate() {},
-			dispose() {
-				onDispose();
-			},
-			render(width: number): string[] {
-				try {
-					if (!state.open) return [];
-					// While the sidebar is active it owns the window; drawing it
-					// here too would show the same chat twice.
-					if (getShared().sidebarActive === true) return [];
-					return [...renderBtwPanel(state, { width }, fg), ""];
-				} catch {
-					// a broken panel must never break the editor
-					return [];
-				}
-			},
-		};
-	}
-
-	pi.on("session_shutdown", async (_event, ctx) => {
+	pi.on("session_shutdown", async () => {
 		state = emptyBtw();
 		publish();
-		tuiRef = undefined;
-		if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.setWidget(WIDGET_KEY, undefined);
 	});
 }

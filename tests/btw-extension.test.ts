@@ -1,7 +1,8 @@
 /**
- * The side chat driven through the real extension with a fake Pi: the four
- * command forms, the one model call each makes (and what it carries), the two
- * placements, and the failures that must stay visible instead of vanishing.
+ * The side chat driven through the real extension with a fake Pi: the command
+ * forms, the one model call each makes (and what it carries), the reader that
+ * opens on every ask, and the failures that must stay visible instead of
+ * vanishing.
  */
 
 import assert from "node:assert/strict";
@@ -23,7 +24,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const message = (role: string, text: string) => ({ type: "message", message: { role, content: [{ type: "text", text }] } });
 
 function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete } = {}) {
-	// The hub is global: start every test from a clean side chat and no sidebar.
+	// The hub is global: start every test from a clean side chat.
 	setShared({ btw: undefined, sidebarActive: undefined });
 
 	const handlers = new Map<string, Handler>();
@@ -37,7 +38,8 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 
 	const calls: Array<{ model: unknown; context: { systemPrompt?: string; messages: Array<{ content: string }> } }> = [];
 	const notes: string[] = [];
-	const widgets = new Map<string, unknown>();
+	let reader: Reader | undefined;
+	let readerOpen: () => boolean = () => false;
 	const ctx = {
 		mode: "tui",
 		hasUI: true,
@@ -52,7 +54,6 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 		},
 		ui: {
 			notify: (text: string) => notes.push(text),
-			setWidget: (key: string, content: unknown) => widgets.set(key, content),
 			// Pi builds the overlay component and keeps it until `done()`; the
 			// fake builds it, hands it over and closes when the extension says so.
 			custom: async (factory: (tui: unknown, theme: unknown, keys: unknown, done: () => void) => Reader) => {
@@ -67,8 +68,6 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 
 	const theme = { fg: (_role: string, text: string) => text };
 	const tui = { requestRender: () => {}, terminal: { columns: 140, rows: 40 } };
-	let reader: Reader | undefined;
-	let readerOpen: () => boolean = () => false;
 
 	return {
 		ctx,
@@ -77,40 +76,41 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 		state: () => getShared().btw,
 		run: (name: string, args = "") => commands.get(name)!.handler(args, ctx),
 		command: (name: string) => commands.get(name),
+		commandNames: () => [...commands.keys()],
 		start: () => handlers.get("session_start")!({}, ctx),
 		shutdown: () => handlers.get("session_shutdown")!({}, ctx),
-		/** The widget above the editor, rendered the way Pi renders it. */
-		panel: (width = 60) => {
-			const factory = widgets.get("btw-panel") as (t: unknown, th: unknown) => { render(w: number): string[] };
-			return factory(tui, theme).render(width);
-		},
-		hasWidget: () => widgets.get("btw-panel") !== undefined,
 		shortcut: (key: string) => shortcuts.get(key),
-		/** Open the reader the way the shortcut does, then drive it by key. */
-		openReader: async () => {
-			await shortcuts.get("alt+b")!.handler(ctx);
-			return {
-				lines: (width = 60) => reader!.render(width),
-				press: (data: string) => reader!.handleInput?.(data),
-				isOpen: () => readerOpen(),
-			};
-		},
+		/** Open the reader the way the shortcut does. */
+		openShortcut: () => shortcuts.get("alt+b")!.handler(ctx),
+		readerLines: (width = 60) => (reader ? reader.render(width) : []),
+		isReaderOpen: () => readerOpen(),
+		press: (data: string) => reader!.handleInput?.(data),
 	};
 }
 
-test("btw: /btw with no argument opens and closes the window", async () => {
+test("btw: /btw with no argument opens the reader", async () => {
 	const env = load();
 	await env.start();
 	assert.equal(env.state()?.open, false, "a session starts with the side chat closed");
+	assert.equal(env.isReaderOpen(), false, "and no reader");
 
 	await env.run("btw");
 	assert.equal(env.state()?.open, true);
 	assert.match(env.notes.at(-1)!, /Side chat open\./);
+	assert.equal(env.isReaderOpen(), true, "the reader is what shows the chat");
+	assert.equal(env.calls.length, 0, "opening the reader asks nothing of the model");
+});
 
-	await env.run("btw");
-	assert.equal(env.state()?.open, false);
-	assert.match(env.notes.at(-1)!, /Side chat closed\./);
-	assert.equal(env.calls.length, 0, "opening a window asks nothing of the model");
+test("btw: asking with /btw opens the fullscreen reader", async () => {
+	const env = load();
+	await env.start();
+	assert.equal(env.isReaderOpen(), false, "no reader before asking");
+
+	await env.run("btw", "¿qué es el hub?");
+	assert.equal(env.isReaderOpen(), true, "asking opens the reader");
+
+	await flush();
+	assert.match(env.readerLines().join("\n"), /una respuesta corta/, "and the answer lands in it");
 });
 
 test("btw: /btw <message> asks once, with the session conversation as context", async () => {
@@ -131,7 +131,7 @@ test("btw: /btw <message> asks once, with the session conversation as context", 
 	assert.ok(!prompt.includes("npm test"), "tool output is not conversation and is not paid for");
 	assert.ok(prompt.trimEnd().endsWith("¿qué es un hub?"), "the question is last");
 
-	assert.equal(env.state()?.open, true, "asking opens the window");
+	assert.equal(env.state()?.open, true, "asking opens the reader");
 	assert.deepEqual(env.state()?.turns, [
 		{ role: "user", text: "¿qué es un hub?" },
 		{ role: "assistant", text: "una respuesta corta" },
@@ -142,18 +142,15 @@ test("btw: the English dictionary also asks the model to answer in Spanish", asy
 	// The UI is English but the answer is Spanish: the surviving dictionary is
 	// the one that has to say so, or `/btw` answers in the screen's language.
 	const env = load({ branch: [message("user", "hola")] });
-	try {
-		await env.start();
-		await env.run("btw", "¿qué es un hub?");
-		await flush();
-		const systemPrompt = env.calls[0]!.context.systemPrompt!;
-		assert.match(systemPrompt, /answer in spanish/i, "the prompt must ask for a Spanish answer");
-		assert.doesNotMatch(systemPrompt, /answer in english/i, "and must not ask for an English one");
-	} finally {
-	}
+	await env.start();
+	await env.run("btw", "¿qué es un hub?");
+	await flush();
+	const systemPrompt = env.calls[0]!.context.systemPrompt!;
+	assert.match(systemPrompt, /answer in spanish/i, "the prompt must ask for a Spanish answer");
+	assert.doesNotMatch(systemPrompt, /answer in english/i, "and must not ask for an English one");
 });
 
-test("btw: the question returns at once and the window says it is thinking", async () => {
+test("btw: the question returns at once and the reader says it is thinking", async () => {
 	let release: (value: unknown) => void = () => {};
 	const env = load({ complete: () => new Promise((resolve) => { release = resolve; }) as Promise<unknown> });
 	await env.start();
@@ -161,12 +158,12 @@ test("btw: the question returns at once and the window says it is thinking", asy
 	await env.run("btw", "¿cuánto cuesta?");
 	// The handler is back while the model is still working: the editor is yours.
 	assert.equal(env.state()?.asking, true);
-	assert.match(env.panel().join("\n"), /thinking…/);
+	assert.match(env.readerLines().join("\n"), /thinking…/);
 
 	release(answer("poco"));
 	await flush();
 	assert.equal(env.state()?.asking, false);
-	assert.match(env.panel().join("\n"), /poco/);
+	assert.match(env.readerLines().join("\n"), /poco/);
 });
 
 test("btw: a second question while one is in flight is refused, not queued", async () => {
@@ -179,25 +176,6 @@ test("btw: a second question while one is in flight is refused, not queued", asy
 	assert.equal(env.calls.length, 1);
 	assert.match(env.notes.at(-1)!, /already waiting/);
 	assert.equal(env.state()?.turns.length, 1);
-});
-
-test("btw: /btwn <message> asks with no context and with no previous conversation", async () => {
-	const env = load({ branch: [message("user", "arreglá el guard")] });
-	await env.start();
-	await env.run("btw", "primera");
-	await flush();
-
-	await env.run("btwn", "¿y 2+2?");
-	await flush();
-
-	assert.equal(env.calls.length, 2);
-	const prompt = env.calls[1]!.context.messages[0]!.content;
-	assert.ok(!prompt.includes("arreglá el guard"), "/btwn carries no session context");
-	assert.ok(!prompt.includes("primera"), "/btwn carries no previous aside");
-	assert.deepEqual(env.state()?.turns, [
-		{ role: "user", text: "¿y 2+2?" },
-		{ role: "assistant", text: "una respuesta corta" },
-	]);
 });
 
 test("btw: a follow-up /btw carries the aside so far, so it is a conversation", async () => {
@@ -214,21 +192,7 @@ test("btw: a follow-up /btw carries the aside so far, so it is a conversation", 
 	assert.equal(env.state()?.turns.length, 4);
 });
 
-test("btw: /btwn with no argument forgets the conversation and keeps the window", async () => {
-	const env = load();
-	await env.start();
-	await env.run("btw", "algo");
-	await flush();
-	assert.equal(env.state()?.turns.length, 2);
-
-	await env.run("btwn");
-	assert.deepEqual(env.state()?.turns, []);
-	assert.equal(env.state()?.open, true);
-	assert.match(env.notes.at(-1)!, /Side chat: conversation cleared\./);
-	assert.equal(env.calls.length, 1, "clearing asks nothing");
-});
-
-test("btw: a failed question stays in the window instead of scrolling away", async () => {
+test("btw: a failed question stays in the reader instead of scrolling away", async () => {
 	const env = load({ complete: async () => { throw new Error("la red se cayó"); } });
 	await env.start();
 	await env.run("btw", "¿anda?");
@@ -237,8 +201,8 @@ test("btw: a failed question stays in the window instead of scrolling away", asy
 	const turns = env.state()!.turns;
 	assert.equal(turns.at(-1)!.role, "error");
 	assert.match(turns.at(-1)!.text, /la red se cayó/);
-	assert.equal(env.state()?.asking, false, "a failure releases the window");
-	assert.match(env.panel().join("\n"), /la red se cayó/);
+	assert.equal(env.state()?.asking, false, "a failure releases the reader");
+	assert.match(env.readerLines().join("\n"), /la red se cayó/);
 });
 
 test("btw: an answer with no text is a failure, not an empty answer", async () => {
@@ -260,86 +224,54 @@ test("btw: with no model the question is kept and the reason is shown", async ()
 	assert.match(env.state()!.turns.at(-1)!.text, /No active model/);
 });
 
-test("btw: the window above the editor is framed, and empty while the side chat is closed", async () => {
+test("btw: /btw is the only side-chat command, so /palette lists it once", () => {
 	const env = load();
-	await env.start();
-	assert.deepEqual(env.panel(), [], "nothing is drawn while it is closed");
-
-	await env.run("btw", "¿qué es el guard?");
-	await flush();
-	const lines = env.panel(60);
-	assert.match(lines[0]!, /^╭─ By the way ─+╮$/, "a box, so it is not read as part of the chat");
-	assert.match(lines.at(-2)!, /^╰─+╯$/);
-	assert.equal(lines.at(-1), "", "one blank row separates it from the editor");
-});
-
-test("btw: while the sidebar is active it owns the window and the widget draws nothing", async () => {
-	const env = load();
-	await env.start();
-	await env.run("btw", "¿y esto?");
-	await flush();
-	assert.notDeepEqual(env.panel(), []);
-
-	setShared({ sidebarActive: true });
-	assert.deepEqual(env.panel(), [], "the sidebar becomes the chat; one window, not two");
-
-	setShared({ sidebarActive: false });
-	assert.notDeepEqual(env.panel(), [], "and it comes back without a restart");
-});
-
-test("btw: both commands are registered with a description, so /palette lists them", async () => {
-	const env = load();
+	assert.deepEqual(env.commandNames(), ["btw"], "no other side-chat command is registered (S7)");
 	assert.match(env.command("btw")!.description!, /\S/);
-	assert.match(env.command("btwn")!.description!, /\S/);
 	assert.match(env.command("btw")!.description!, /\/btw/);
-	assert.match(env.command("btwn")!.description!, /\/btwn/);
 });
 
 // --- The reader -------------------------------------------------------------
-// A long answer does not fit the panel, and neither the widget nor the sidebar
-// column has the keyboard focus, so neither can scroll. The reader is an
-// overlay, which does take focus. These tests drive it by key.
+// A long answer does not fit, so the reader scrolls. These tests drive it by key.
 
 /** An answer taller than any overlay, so there is always something off screen. */
 const longAnswer = (rows: number) =>
 	answer(Array.from({ length: rows }, (_unused, index) => `renglon ${index + 1}`).join("\n"));
 
-test("btw: alt+b and /btwv both open the reader, and it starts at the newest line", async () => {
+test("btw: alt+b opens the reader, and it starts at the newest line", async () => {
 	const env = load({ complete: async () => longAnswer(80) });
 	await env.start();
 	await env.run("btw", "contame algo largo");
 	await flush();
 
 	assert.match(env.shortcut("alt+b")!.description!, /\S/, "the shortcut is described for /hotkeys");
-	assert.match(env.command("btwv")!.description!, /\S/);
 
-	const reader = await env.openReader();
-	const lines = reader.lines();
+	await env.openShortcut();
+	const lines = env.readerLines();
 	assert.ok(lines.some((line) => line.includes("renglon 80")), "the end is on screen");
 	assert.ok(!lines.some((line) => line.includes("renglon 1 ")), "the start is not");
 });
 
-test("btw: the reader scrolls — g reaches the question the panel had dropped", async () => {
+test("btw: the reader scrolls — g reaches the question the answer buried", async () => {
 	const env = load({ complete: async () => longAnswer(80) });
 	await env.start();
 	await env.run("btw", "¿por qué no puedo hacer scroll?");
 	await flush();
 
-	// The panel itself cannot show the question any more: the answer buried it.
+	// The reader opens at the newest line: the answer buried the question.
 	assert.ok(
-		!env.panel().some((line) => line.includes("¿por qué no puedo hacer scroll?")),
-		"the panel dropped the question, which is the bug this view fixes",
+		!env.readerLines().some((line) => line.includes("¿por qué no puedo hacer scroll?")),
+		"the question is off screen",
 	);
 
-	const reader = await env.openReader();
-	reader.press("g");
+	env.press("g");
 	assert.ok(
-		reader.lines().some((line) => line.includes("¿por qué no puedo hacer scroll?")),
+		env.readerLines().some((line) => line.includes("¿por qué no puedo hacer scroll?")),
 		"the reader reaches it",
 	);
 
-	reader.press("G");
-	assert.ok(reader.lines().some((line) => line.includes("renglon 80")), "and comes back to the end");
+	env.press("G");
+	assert.ok(env.readerLines().some((line) => line.includes("renglon 80")), "and comes back to the end");
 });
 
 test("btw: esc and q close the reader; it never touches the conversation", async () => {
@@ -350,10 +282,10 @@ test("btw: esc and q close the reader; it never touches the conversation", async
 		await flush();
 		const before = env.state();
 
-		const reader = await env.openReader();
-		assert.equal(reader.isOpen(), true, `${key}: open before the key`);
-		reader.press(key);
-		assert.equal(reader.isOpen(), false, `${key}: closed after it`);
+		await env.openShortcut();
+		assert.equal(env.isReaderOpen(), true, `${key}: open before the key`);
+		env.press(key);
+		assert.equal(env.isReaderOpen(), false, `${key}: closed after it`);
 		assert.deepEqual(env.state(), before, `${key}: the aside is unchanged`);
 		assert.equal(env.calls.length, 1, `${key}: reading asks the model nothing`);
 	}
@@ -363,11 +295,11 @@ test("btw: without a TUI the reader says so instead of failing", async () => {
 	const env = load();
 	await env.start();
 	env.ctx.hasUI = false;
-	await env.run("btwv");
+	await env.openShortcut();
 	assert.match(env.notes.at(-1)!, /interactive/i);
 });
 
-test("btw: the side chat goes with the session — a new one starts empty, shutdown drops the window", async () => {
+test("btw: the side chat goes with the session — a new one starts empty, shutdown drops it", async () => {
 	const env = load();
 	await env.start();
 	await env.run("btw", "algo");
@@ -378,7 +310,6 @@ test("btw: the side chat goes with the session — a new one starts empty, shutd
 	assert.deepEqual(env.state(), { open: false, turns: [], asking: false });
 
 	await env.shutdown();
-	assert.equal(env.hasWidget(), false, "the widget is removed, not left drawing");
 	assert.deepEqual(env.state(), { open: false, turns: [], asking: false });
 });
 

@@ -92,9 +92,9 @@ test("btw request: the prompt carries the transcript, the aside and the question
 	assert.ok(prompt.trimEnd().endsWith("¿y el hub?"), "the question is last");
 });
 
-test("btw request: with no context and no history the prompt is the question alone", () => {
-	const prompt = buildBtwPrompt({ question: "¿cuánto es 2+2?" });
-	assert.ok(!prompt.includes("Main session transcript"), "/btwn asks as a new session");
+test("btw request: an empty transcript and history leave the question alone", () => {
+	const prompt = buildBtwPrompt({ question: "¿cuánto es 2+2?", transcript: [], history: [] });
+	assert.ok(!prompt.includes("Main session transcript"), "a session with no turns has nothing to carry");
 	assert.ok(!prompt.includes("This aside so far"));
 	assert.match(prompt, /=== The question ===\n¿cuánto es 2\+2\?$/);
 });

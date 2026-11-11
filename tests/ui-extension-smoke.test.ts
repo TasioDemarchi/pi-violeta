@@ -9,8 +9,6 @@ import { basename, join } from "node:path";
 import { test } from "node:test";
 import { VERSION } from "@earendil-works/pi-coding-agent";
 import extension from "../extensions/violeta-ui.ts";
-import { answerBtw, askBtw, emptyBtw } from "../src/btw/state.ts";
-import { setShared } from "../src/shared-hub.ts";
 
 const NODE = Symbol.for("@earendil-works/pi-tui/layout-node");
 
@@ -268,32 +266,6 @@ test("a faint divider closes the header so it does not blend into the chat", asy
 		assert.equal(lines[1], "─".repeat(24), "the divider spans the whole width");
 		assert.ok(roles.includes("borderMuted"), "drawn in the faintest border color");
 	} finally {
-		(footer as unknown as { dispose?(): void }).dispose?.();
-	}
-});
-
-// The side chat has two homes and the sidebar is the good one: a 44-column
-// column already framed on the left edge, versus a box that pushes the
-// conversation up. While it is open the sidebar IS the chat.
-test("with the side chat open the sidebar becomes the chat, framed, and comes back when it closes", async () => {
-	const env = setup(true);
-	const footer = await start(env);
-	try {
-		const node = (env.root[NODE] as () => Node)();
-		const sidebar = node.entries[1]!.component;
-
-		setShared({ btw: answerBtw(askBtw(emptyBtw(), "¿qué es un hub?"), "un objeto compartido") });
-		const chat = sidebar.render(44);
-		const text = chat.join("\n");
-		assert.match(chat[0]!, /^╭─ By the way ─+╮$/, "a framed window, not the sidebar sections");
-		assert.match(text, /un objeto compartido/);
-		assert.ok(!text.includes("PROJECT"), "the sidebar yields the whole column");
-		assert.equal(chat.length, env.tui.terminal.rows, "and still fills the column");
-
-		setShared({ btw: emptyBtw() });
-		assert.match(sidebar.render(44).join("\n"), /CHANGES/, "closing it gives the sidebar back");
-	} finally {
-		setShared({ btw: undefined });
 		(footer as unknown as { dispose?(): void }).dispose?.();
 	}
 });

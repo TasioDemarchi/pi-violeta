@@ -84,22 +84,22 @@ export function recentTurns(turns: readonly TranscriptTurn[], maxChars: number =
 
 export interface PromptOptions {
 	question: string;
-	/** The session conversation; empty for `/btwn`, which asks with no context. */
-	transcript?: readonly TranscriptTurn[];
+	/** The session conversation (empty when the session has no turns yet). */
+	transcript: readonly TranscriptTurn[];
 	/** The side chat's own previous turns (errors excluded by the caller). */
-	history?: readonly BtwTurn[];
+	history: readonly BtwTurn[];
 }
 
 /** The single user message of a /btw request: the session transcript (when
  * there is one), the aside so far, then the question. */
 export function buildBtwPrompt(opts: PromptOptions): string {
 	const parts: string[] = [];
-	const transcript = opts.transcript ?? [];
+	const transcript = opts.transcript;
 	if (transcript.length > 0) {
 		const lines = transcript.map((turn) => `${turn.role === "user" ? "User" : "Assistant"}: ${turn.text}`);
 		parts.push(`=== Main session transcript (context only, do not continue it) ===\n${lines.join("\n\n")}`);
 	}
-	const history = (opts.history ?? []).filter((turn) => turn.role !== "error");
+	const history = opts.history.filter((turn) => turn.role !== "error");
 	if (history.length > 0) {
 		const lines = history.map((turn) => `${turn.role === "user" ? "Question" : "Answer"}: ${turn.text}`);
 		parts.push(`=== This aside so far ===\n${lines.join("\n\n")}`);
