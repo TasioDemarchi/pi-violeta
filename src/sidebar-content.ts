@@ -9,7 +9,6 @@ import type { TodoState } from "./todo/store.ts";
 export type Fg = (role: string, text: string) => string;
 
 export interface SidebarData {
-	project: { name: string; path: string; branch?: string | null };
 	/** null when the directory is not inside a git repository */
 	changes: { created: string[]; updated: string[]; deleted: string[] } | null;
 	/** The current todo list; the TAREAS section renders between CAMBIOS and MODELO (T1/S2). */
@@ -55,14 +54,10 @@ export function buildSidebarLines(
 		out.push(fg("borderAccent", "│") + " " + fitted + " ".repeat(Math.max(0, contentWidth - visibleWidth(fitted))));
 	};
 
-	// PROYECTO
-	push(fg("accent", t.project));
-	push(fg("text", data.project.name));
-	push(fg("dim", data.project.path));
-	if (data.project.branch) push(fg("muted", data.project.branch));
+	// PROYECTO is not a sidebar section: the project name, path and branch live
+	// in the header (S5). The sidebar opens with CAMBIOS.
 
 	// CAMBIOS
-	push("");
 	push(fg("accent", t.changes));
 	if (data.changes === null) {
 		push(fg("dim", t.noRepo));

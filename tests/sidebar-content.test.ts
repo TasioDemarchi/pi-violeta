@@ -9,7 +9,6 @@ import { applyTodo, emptyTodo, type TodoState } from "../src/todo/store.ts";
 const plain = (_role: string, text: string) => text;
 
 const fullData: SidebarData = {
-	project: { name: "violeta", path: "/home/t/Documents/violeta", branch: "main" },
 	changes: { created: ["new.txt"], updated: ["src/a.ts", "b.ts"], deleted: ["old.ts"] },
 	model: { id: "nan/deepseek-v4-flash", thinking: "off", context: { percent: 43, used: 43210, window: 1_000_000 } },
 	usage: { tokensIn: 1500, tokensOut: 2_400_000, cost: 0.05 },
@@ -31,15 +30,10 @@ function todoState(...titles: string[]): TodoState {
 test("renders every section with counts, file names, model and usage", () => {
 	const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
 	assert.deepEqual(
-		lines.slice(0, 16),
+		lines.slice(0, 11),
 		[
-			row("PROJECT"),
-			row("violeta"),
-			row("/home/t/Documents/violeta"),
-			row("main"),
-			row(""),
 			row("CHANGES"),
-						row("+ new.txt"),
+			row("+ new.txt"),
 			row("~ src/a.ts"),
 			row("~ b.ts"),
 			row("− old.ts"),
@@ -51,8 +45,20 @@ test("renders every section with counts, file names, model and usage", () => {
 			row("USAGE"),
 		],
 	);
-	assert.equal(lines[16], row("↑1.5k ↓2.4M"));
-	assert.equal(lines[17], row("$0.05"));
+	assert.equal(lines[11], row("↑1.5k ↓2.4M"));
+	assert.equal(lines[12], row("$0.05"));
+});
+
+// S5: the project name, path and branch live in the header; the sidebar opens
+// straight into CHANGES.
+test("the sidebar has no PROJECT section: no title, name, path, branch or leading blank", () => {
+	const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
+	const text = lines.join("\n");
+	assert.equal(lines[0], row("CHANGES"), "CHANGES is the first section");
+	assert.ok(!text.includes("PROJECT"), "no project title");
+	assert.ok(!text.includes("/home/t/Documents/violeta"), "no project path");
+	assert.ok(!lines.includes(row("violeta")), "no project name row");
+	assert.ok(!lines.includes(row("main")), "no branch row");
 });
 
 test("pads output to the terminal height so the divider spans full height", () => {
@@ -176,11 +182,7 @@ test("a clean tree shows limpio and no file lines", () => {
 });
 
 test("no repository shows the sin-repo hint and no branch line", () => {
-	const lines = buildSidebarLines(
-		{ ...fullData, project: { name: "violeta", path: "/home/t/Documents/violeta", branch: null }, changes: null },
-		{ width: W, rows: 40 },
-		plain,
-	);
+	const lines = buildSidebarLines({ ...fullData, changes: null }, { width: W, rows: 40 }, plain);
 	assert.ok(lines.includes(row("no repo")));
 	assert.ok(!lines.includes(row("main")));
 });
@@ -198,9 +200,10 @@ test("without a model the id line says so and context is omitted", () => {
 test("narrow widths truncate lines instead of overflowing", () => {
 	const lines = buildSidebarLines(fullData, { width: 20, rows: 40 }, plain);
 	for (const line of lines) assert.ok(visibleWidth(line) <= 20, `too wide: ${JSON.stringify(line)}`);
-	const pathLine = lines.find((l) => l.includes("/home"));
-	assert.ok(pathLine!.startsWith("│ /home/t/Documen"));
-	assert.equal(visibleWidth(pathLine!), 20); // divider + space + 15 chars + "..."
+	assert.ok(!lines.some((l) => l.includes("/home")), "the project path is not in the sidebar");
+	const modelLine = lines.find((l) => l.includes("nan/deepseek"));
+	assert.ok(modelLine!.startsWith("│ nan/deepseek"));
+	assert.equal(visibleWidth(modelLine!), 20); // divider + space + 17 chars + "…"
 });
 
 test("sections are labeled with the accent role and statuses with their palette roles", () => {
@@ -209,11 +212,11 @@ test("sections are labeled with the accent role and statuses with their palette 
 		seen.push(role);
 		return `<${role}>${text}`;
 	});
-	assert.ok(lines[0].startsWith("<borderAccent>│ <accent>PROJECT"));
+	assert.ok(lines[0].startsWith("<borderAccent>│ <accent>CHANGES"));
 	assert.ok(lines.some((l) => l.includes("<success>+ new.txt")));
 	assert.ok(lines.some((l) => l.includes("<warning>~ src/a.ts")));
 	assert.ok(lines.some((l) => l.includes("<error>− old.ts")));
-	assert.ok(seen.includes("text") && seen.includes("muted") && seen.includes("dim"));
+	assert.ok(seen.includes("muted") && seen.includes("dim"));
 });
 
 test("contextBar fills proportionally and shows an empty bar for unknown usage", () => {
@@ -261,17 +264,12 @@ test("unknown usage keeps the muted ctx line", () => {
 
 // --- English mode (S3): the original English sidebar, rendered live ------------
 
-test("in English the sidebar shows PROJECT/CHANGES/MODEL/USAGE without count lines", () => {
+test("in English the sidebar shows CHANGES/MODEL/USAGE without count lines", () => {
 	try {
 		const lines = buildSidebarLines(fullData, { width: W, rows: 40 }, plain);
 		assert.deepEqual(
-			lines.slice(0, 16),
+			lines.slice(0, 11),
 			[
-				row("PROJECT"),
-				row("violeta"),
-				row("/home/t/Documents/violeta"),
-				row("main"),
-				row(""),
 				row("CHANGES"),
 				row("+ new.txt"),
 				row("~ src/a.ts"),
@@ -301,11 +299,7 @@ test("in English a clean tree says `clean` and a missing repo says `no repo`", (
 			plain,
 		);
 		assert.ok(clean.includes(row("clean")));
-		const noRepo = buildSidebarLines(
-			{ ...fullData, project: { name: "violeta", path: "/home/t/Documents/violeta", branch: null }, changes: null },
-			{ width: W, rows: 40 },
-			plain,
-		);
+		const noRepo = buildSidebarLines({ ...fullData, changes: null }, { width: W, rows: 40 }, plain);
 		assert.ok(noRepo.includes(row("no repo")));
 	} finally {
 	}

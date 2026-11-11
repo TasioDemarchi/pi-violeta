@@ -9,6 +9,7 @@ import { collectUsage, contextLines, usageLines } from "../src/usage.ts";
 import { modelWithThinking } from "../src/thinking.ts";
 import { fmtCost, fmtPercent, fmtTokens } from "../src/format.ts";
 import { buildSidebarLines, type SidebarData } from "../src/sidebar-content.ts";
+import { headerLines as buildHeaderLines } from "../src/header-lines.ts";
 import { readSidebarEnabled, writeSidebarEnabled } from "../src/sidebar-state.ts";
 import { renderBtwPanel } from "../src/btw/panel.ts";
 import { getShared, setShared } from "../src/shared-hub.ts";
@@ -271,7 +272,6 @@ export default function (pi: ExtensionAPI) {
 		// TAREAS section is drawn only when the card would be visible.
 		const shared = getShared();
 		return {
-			project: { name: basename(ctx.cwd), path: ctx.cwd, branch: branchOf?.() ?? null },
 			changes: changes ?? null,
 			todos: shared.todoVisible !== false && shared.todoState ? shared.todoState : null,
 			now: Date.now(),
@@ -330,21 +330,22 @@ export default function (pi: ExtensionAPI) {
 		ctx.ui.setHeader((_tui, theme) => {
 			// The active mode is always on screen: a philosophy you cannot see is one
 			// you cannot trust, and knowing which one is running is the difference
-			// between a surprising answer and an expected one.
+			// between a surprising answer and an expected one. The project and its
+			// branch live here too, so the same name is not repeated in three places.
 			const lines = (width: number): string[] => {
-				const mode = getShared().activeMode;
-				return [
-					theme.fg("borderAccent", "▍") +
-						" " +
-						theme.bold(theme.fg("accent", "violeta")) +
-						theme.fg("dim", ` · pi ${VERSION}`) +
-						(mode ? theme.fg("accent", ` · ${mode}`) : "") +
-						(getShared().unattended ? theme.fg("warning", ` · ${uiT.unattendedLabel}`) : ""),
-					// A rule under the header, in the faintest border color: without it
-					// the title line and the first line of the conversation read as one
-					// block. Full width so it reads as the edge of a region, not as text.
-					theme.fg("borderMuted", "─".repeat(Math.max(1, width))),
-				];
+				const shared = getShared();
+				return buildHeaderLines(
+					{
+						name: "violeta",
+						version: VERSION,
+						mode: shared.activeMode,
+						unattended: shared.unattended,
+						project: basename(ctx.cwd),
+						branch: branchOf?.(),
+					},
+					width,
+					{ fg: (role, text) => theme.fg(role as ThemeColor, text), bold: (text) => theme.bold(text) },
+				);
 			};
 			headerLines = lines;
 			return {
@@ -420,7 +421,9 @@ export default function (pi: ExtensionAPI) {
 					const cost = s.cost;
 
 					const branch = footerData.getGitBranch();
-					const left: string[] = [theme.fg("accent", basename(ctx.cwd))];
+					// The project name belongs to the header only (S5); the branch and
+					// the change summary stay here.
+					const left: string[] = [];
 					if (branch) left.push(theme.fg("muted", branch));
 					if (changes === null) {
 						left.push(theme.fg("dim", t.noRepo));

@@ -5,8 +5,9 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { test } from "node:test";
+import { VERSION } from "@earendil-works/pi-coding-agent";
 import extension from "../extensions/violeta-ui.ts";
 import { answerBtw, askBtw, emptyBtw } from "../src/btw/state.ts";
 import { setShared } from "../src/shared-hub.ts";
@@ -15,7 +16,7 @@ const NODE = Symbol.for("@earendil-works/pi-tui/layout-node");
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
-function setup(sidebar: boolean, config: Record<string, unknown> = { language: "es" }) {
+function setup(sidebar: boolean, config: Record<string, unknown> = { language: "es" }, branch: string | null = "main") {
 	const dir = mkdtempSync(join(tmpdir(), "violeta-ui-smoke-"));
 	writeFileSync(join(dir, "violeta.json"), JSON.stringify({ sidebar, ...config }));
 	process.env.PI_CODING_AGENT_DIR = dir;
@@ -67,7 +68,7 @@ function setup(sidebar: boolean, config: Record<string, unknown> = { language: "
 		fg: (_role: string, text: string) => text,
 		bold: (text: string) => text,
 	};
-	const footerData = { onBranchChange: () => () => {}, getGitBranch: () => "main" };
+	const footerData = { onBranchChange: () => () => {}, getGitBranch: () => branch ?? undefined };
 
 	(extension as unknown as (pi: unknown) => void)(pi);
 	return { handlers, commands, ctx, tui, theme, footerData, root, getFooter: () => footerFactory, getHeader: () => headerFactory };
@@ -90,7 +91,8 @@ test("with the sidebar on, the sidebar column renders real content and the foote
 		const text = lines.join("\n");
 		assert.ok(lines.length > 3, `sidebar must not be empty, got: ${JSON.stringify(lines)}`);
 		assert.ok(!text.includes("sidebar:"), `sidebar render threw: ${text}`);
-		assert.match(text, /PROJECT/);
+		assert.match(text, /CHANGES/);
+		assert.ok(!text.includes("PROJECT"), "S5: the project section left the sidebar");
 		assert.match(text, /nan\/test-model · medium/);
 		assert.match(text, /ctx 42%/);
 		assert.deepEqual(footer.render(140), [], "the footer paints nothing while the sidebar is active");
@@ -99,15 +101,42 @@ test("with the sidebar on, the sidebar column renders real content and the foote
 	}
 });
 
-test("with the sidebar off, the footer shows project, model and ctx", async () => {
+test("with the sidebar off, the footer shows branch, model and ctx but not the project name", async () => {
 	const env = setup(false);
 	const footer = await start(env);
 	try {
 		const text = footer.render(140).join("\n");
 		assert.match(text, /nan\/test-model · medium/);
 		assert.match(text, /ctx 42%/);
+		assert.match(text, /main/, "the branch stays on the left");
+		assert.ok(!text.includes(basename(process.cwd())), `S5: the project name left the footer, got: ${text}`);
 	} finally {
 		(footer as unknown as { dispose?(): void }).dispose?.();
+	}
+});
+
+// S5: the header is the one place the project and the branch live.
+test("the header carries project and branch, and drops the branch outside a repository", async () => {
+	const project = basename(process.cwd());
+	const withBranch = setup(false);
+	const footer = await start(withBranch);
+	try {
+		withBranch.getHeader()!(withBranch.tui, withBranch.theme);
+		const node = (withBranch.root[NODE] as () => Node)();
+		const line = node.entries[0]!.component.render(200)[0]!;
+		assert.equal(line, `▍ violeta · pi ${VERSION} · ${project} · main`);
+	} finally {
+		(footer as unknown as { dispose?(): void }).dispose?.();
+	}
+	const noBranch = setup(false, { language: "es" }, null);
+	const footer2 = await start(noBranch);
+	try {
+		noBranch.getHeader()!(noBranch.tui, noBranch.theme);
+		const node = (noBranch.root[NODE] as () => Node)();
+		const line = node.entries[0]!.component.render(200)[0]!;
+		assert.equal(line, `▍ violeta · pi ${VERSION} · ${project}`);
+	} finally {
+		(footer2 as unknown as { dispose?(): void }).dispose?.();
 	}
 });
 
@@ -179,7 +208,7 @@ test("the persisted language key no longer changes the interface", async () => {
 	try {
 		const node = (env.root[NODE] as () => { entries: Array<{ component: { render(w: number): string[] } }> })();
 		const text = node.entries[1]!.component.render(44).join("\n");
-		assert.match(text, /PROJECT/, "the key is ignored: the dictionary default stands");
+		assert.match(text, /CHANGES/, "the key is ignored: the dictionary default stands");
 	} finally {
 		(footer as unknown as { dispose?(): void }).dispose?.();
 	}
@@ -262,7 +291,7 @@ test("with the side chat open the sidebar becomes the chat, framed, and comes ba
 		assert.equal(chat.length, env.tui.terminal.rows, "and still fills the column");
 
 		setShared({ btw: emptyBtw() });
-		assert.match(sidebar.render(44).join("\n"), /PROJECT/, "closing it gives the sidebar back");
+		assert.match(sidebar.render(44).join("\n"), /CHANGES/, "closing it gives the sidebar back");
 	} finally {
 		setShared({ btw: undefined });
 		(footer as unknown as { dispose?(): void }).dispose?.();
