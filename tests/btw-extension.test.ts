@@ -38,6 +38,7 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 
 	const calls: Array<{ model: unknown; context: { systemPrompt?: string; messages: Array<{ content: string }> } }> = [];
 	const notes: string[] = [];
+	const levels: string[] = [];
 	let reader: Reader | undefined;
 	let readerOpen: () => boolean = () => false;
 	const ctx = {
@@ -53,7 +54,10 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 			},
 		},
 		ui: {
-			notify: (text: string) => notes.push(text),
+			notify: (text: string, level = "info") => {
+				notes.push(text);
+				levels.push(level);
+			},
 			// Pi builds the overlay component and keeps it until `done()`; the
 			// fake builds it, hands it over and closes when the extension says so.
 			custom: async (factory: (tui: unknown, theme: unknown, keys: unknown, done: () => void) => Reader) => {
@@ -73,6 +77,7 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 		ctx,
 		calls,
 		notes,
+		lastLevel: () => levels.at(-1),
 		state: () => getShared().btw,
 		run: (name: string, args = "") => commands.get(name)!.handler(args, ctx),
 		command: (name: string) => commands.get(name),
@@ -91,14 +96,15 @@ function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete }
 test("btw: /btw with no argument opens the reader", async () => {
 	const env = load();
 	await env.start();
-	assert.equal(env.state()?.open, false, "a session starts with the side chat closed");
-	assert.equal(env.isReaderOpen(), false, "and no reader");
+	assert.equal(env.isReaderOpen(), false, "a session starts with no reader");
 
 	await env.run("btw");
-	assert.equal(env.state()?.open, true);
-	assert.match(env.notes.at(-1)!, /Side chat open\./);
 	assert.equal(env.isReaderOpen(), true, "the reader is what shows the chat");
 	assert.equal(env.calls.length, 0, "opening the reader asks nothing of the model");
+	// esc has already closed the reader by the time the next command runs, so a
+	// "Side chat open." note would be a lie on screen.
+	assert.ok(!env.notes.some((note) => /side chat open/i.test(note)), "no stale open note");
+	assert.ok(!("open" in env.state()!), "the published state carries no open flag");
 });
 
 test("btw: asking with /btw opens the fullscreen reader", async () => {
@@ -131,7 +137,8 @@ test("btw: /btw <message> asks once, with the session conversation as context", 
 	assert.ok(!prompt.includes("npm test"), "tool output is not conversation and is not paid for");
 	assert.ok(prompt.trimEnd().endsWith("¿qué es un hub?"), "the question is last");
 
-	assert.equal(env.state()?.open, true, "asking opens the reader");
+	assert.equal(env.state()?.asking, false, "the ask is over");
+	assert.ok(!("open" in env.state()!), "asking publishes the conversation, not an open flag");
 	assert.deepEqual(env.state()?.turns, [
 		{ role: "user", text: "¿qué es un hub?" },
 		{ role: "assistant", text: "una respuesta corta" },
@@ -156,7 +163,8 @@ test("btw: the question returns at once and the reader says it is thinking", asy
 	await env.start();
 
 	await env.run("btw", "¿cuánto cuesta?");
-	// The handler is back while the model is still working: the editor is yours.
+	// The handler is back while the model is still working: the ask never blocks
+	// the command, and the reader shows the wait.
 	assert.equal(env.state()?.asking, true);
 	assert.match(env.readerLines().join("\n"), /thinking…/);
 
@@ -307,10 +315,50 @@ test("btw: the side chat goes with the session — a new one starts empty, shutd
 	assert.equal(env.state()?.turns.length, 2);
 
 	await env.start();
-	assert.deepEqual(env.state(), { open: false, turns: [], asking: false });
+	assert.deepEqual(env.state(), { turns: [], asking: false });
 
 	await env.shutdown();
-	assert.deepEqual(env.state(), { open: false, turns: [], asking: false });
+	assert.deepEqual(env.state(), { turns: [], asking: false });
+});
+
+test("btw: without a UI the question is still asked, and no reader is demanded", async () => {
+	// A child run or a pipe has no overlay: the ask itself still works (it only
+	// needs the model), so warning that the reader needs a TUI would be noise on
+	// a path that never tries to open one.
+	const env = load();
+	await env.start();
+	env.ctx.hasUI = false;
+
+	await env.run("btw", "¿y sin interfaz?");
+	await flush();
+
+	assert.ok(!env.notes.some((note) => /interactive/i.test(note)), "no reader warning without a UI");
+	assert.ok(!env.isReaderOpen(), "and no reader");
+	assert.equal(env.calls.length, 1, "the question was asked anyway");
+	assert.deepEqual(env.state()!.turns, [
+		{ role: "user", text: "¿y sin interfaz?" },
+		{ role: "assistant", text: "una respuesta corta" },
+	], "the question and its answer are published");
+});
+
+test("btw: a reader that fails to open is a warning, not an unhandled rejection", async () => {
+	// `void openReader(...)` drops the rejection: in the TUI that is an
+	// unhandled rejection nobody reads. Both call sites must report it instead.
+	const env = load();
+	await env.start();
+	env.ctx.ui.custom = () => {
+		throw new Error("no overlay");
+	};
+
+	await env.run("btw", "¿y si el overlay revienta?");
+	await flush();
+	assert.match(env.notes.at(-1)!, /no overlay/, "the ask branch reports the failure");
+	assert.equal(env.lastLevel(), "warning");
+
+	await env.run("btw");
+	await flush();
+	assert.match(env.notes.at(-1)!, /no overlay/, "and so does the no-argument branch");
+	assert.equal(env.lastLevel(), "warning");
 });
 
 test("btw: a child spawned by the agent runner registers nothing", () => {

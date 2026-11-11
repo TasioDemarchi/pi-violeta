@@ -405,6 +405,7 @@ const dictionary = {
 		thinking: "thinking…",
 		empty: "/btw <question> to ask without breaking the main thread.",
 		opened: "Side chat open.",
+		readerFailed: (message: string) => `The side chat reader could not open: ${message}`,
 		noModel: "No active model: the side chat cannot ask.",
 		busy: "The side chat is already waiting for an answer.",
 		overlayNeedsTui: "The side chat reader requires interactive mode.",

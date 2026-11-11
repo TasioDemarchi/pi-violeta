@@ -32,6 +32,15 @@ export const FIELD_MAX = 200;
 /** Lowercase and unaccented, so "Accion", "ACCIÓN" and "acción" are one label. */
 const flatten = (text: string): string => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase();
 
+/** The Spanish words the guard model sometimes answers with instead of the
+ * dictionary's English labels. Synonyms, not a second language: the parser
+ * flattens case and accents, so every spelling of them matches. */
+const SPANISH_ALIASES: Record<keyof Explanation, readonly string[]> = {
+	action: ["accion"],
+	files: ["archivos"],
+	folders: ["carpetas"],
+};
+
 function cut(value: string): string {
 	return value.length <= FIELD_MAX ? value : `${value.slice(0, FIELD_MAX).trimEnd()}…`;
 }
@@ -41,16 +50,18 @@ function cut(value: string): string {
  *
  * Returning undefined is a real outcome, not an error: the caller then shows
  * the command as it always did. That is also what happens when the model
- * answers in another language -- the labels are the dictionary's own words, so
- * an English "Action:" simply does not match the Spanish "Acción:", and the
- * owner gets the command instead of a sentence he did not ask for.
+ * answers under a label nobody asked for -- an "Answer:" line is not an
+ * explanation. The three dictionary labels are matched in English and in their
+ * Spanish synonyms (`accion`/`archivos`/`carpetas`), because the cheap guard
+ * model sometimes answers in the language the prompt asks for the content in;
+ * that answer is just as readable as the English-labelled one.
  */
 export function parseExplanation(text: string): Explanation | undefined {
 	const labels = t.explainLabels;
-	const wanted: [keyof Explanation, string][] = [
-		["action", flatten(labels.action)],
-		["files", flatten(labels.files)],
-		["folders", flatten(labels.folders)],
+	const wanted: [keyof Explanation, readonly string[]][] = [
+		["action", [flatten(labels.action), ...SPANISH_ALIASES.action]],
+		["files", [flatten(labels.files), ...SPANISH_ALIASES.files]],
+		["folders", [flatten(labels.folders), ...SPANISH_ALIASES.folders]],
 	];
 	const found: Partial<Record<keyof Explanation, string>> = {};
 	for (const raw of text.split("\n")) {
@@ -62,8 +73,8 @@ export function parseExplanation(text: string): Explanation | undefined {
 		const label = flatten(line.slice(0, at).trim());
 		const value = line.slice(at + 1).trim();
 		if (value === "") continue;
-		for (const [key, want] of wanted) {
-			if (label === want && found[key] === undefined) found[key] = cut(value);
+		for (const [key, wantedLabels] of wanted) {
+			if (wantedLabels.includes(label) && found[key] === undefined) found[key] = cut(value);
 		}
 	}
 	// Without the action there is nothing worth showing: the other two lines

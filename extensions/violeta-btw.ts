@@ -14,8 +14,9 @@
  * The request is one model call through `ctx.modelRegistry.complete`, which is
  * authenticated by Pi: no key handling here. It uses the session's current
  * model on purpose — the aside answers with the same head as the main thread.
- * The call is deliberately NOT awaited by the command handler: the reader says
- * `thinking…` and you keep typing in the main editor meanwhile.
+ * The call is deliberately NOT awaited by the command handler, so the question
+ * goes out at once; the reader then pops over the editor and holds the keyboard
+ * until `esc` brings you back to it.
  *
  * Nothing is persisted: the conversation is in memory and goes with the process.
  */
@@ -34,7 +35,7 @@ import {
 	type Fg,
 } from "../src/btw/view.ts";
 import { blocksText, branchTurns, buildBtwPrompt, recentTurns } from "../src/btw/request.ts";
-import { answerBtw, askBtw, emptyBtw, failBtw, openBtw, parseBtwArgs, type BtwState } from "../src/btw/state.ts";
+import { answerBtw, askBtw, emptyBtw, failBtw, parseBtwArgs, type BtwState } from "../src/btw/state.ts";
 import { btw as t } from "../src/i18n.ts";
 import { setShared, subscribeShared } from "../src/shared-hub.ts";
 
@@ -152,25 +153,34 @@ export default function (pi: ExtensionAPI) {
 		);
 	}
 
+	/** Open the reader and report a failure instead of dropping it: `void
+	 * openReader(...)` would turn a throwing overlay factory into an unhandled
+	 * rejection, which in a TUI is a failure nobody ever reads. */
+	function openReaderOrWarn(ctx: ExtensionContext): void {
+		void openReader(ctx).catch((error) => {
+			ctx.ui.notify(t.readerFailed(error instanceof Error ? error.message : String(error)), "warning");
+		});
+	}
+
 	pi.registerCommand("btw", {
 		description: t.description,
 		handler: async (args: string, ctx: ExtensionContext) => {
 			const command = parseBtwArgs(args);
 			if (command.kind === "window") {
-				state = openBtw(state);
 				publish();
-				say(ctx, t.opened);
-				void openReader(ctx);
+				openReaderOrWarn(ctx);
 				return;
 			}
 			if (state.asking) {
 				say(ctx, t.busy, "warning");
 				return;
 			}
-			// Not awaited on purpose: the editor stays yours while it answers.
-			// The reader opens on top, also without blocking the ask.
+			// Not awaited on purpose: the question goes out at once. The reader
+			// that pops over the answer is the only thing you have the keyboard
+			// for until esc; without a UI there is nothing to open, and the ask
+			// works anyway, so no warning is owed.
 			void ask(ctx, command.message);
-			void openReader(ctx);
+			if (ctx.hasUI) openReaderOrWarn(ctx);
 		},
 	});
 

@@ -1,6 +1,6 @@
 // The side chat's reducer and its command parsing: the behaviour /btw promises
 // (a window with no argument, a question with one) and the rule that is easy to
-// get wrong — asking opens the reader.
+// get wrong — asking publishes the question so the reader can show it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -8,26 +8,18 @@ import {
 	askBtw,
 	emptyBtw,
 	failBtw,
-	openBtw,
 	parseBtwArgs,
 } from "../src/btw/state.ts";
 
-test("btw state: a fresh side chat is closed, empty and not waiting", () => {
-	const state = emptyBtw();
-	assert.equal(state.open, false);
-	assert.deepEqual(state.turns, []);
-	assert.equal(state.asking, false);
+test("btw state: a fresh side chat is empty and not waiting", () => {
+	// Whether the reader is on screen is the reader's own state (`closed` in
+	// BtwViewState), not a flag copied here and never read.
+	assert.deepEqual(emptyBtw(), { turns: [], asking: false });
+	assert.ok(!("open" in emptyBtw()), "the state carries no open flag");
 });
 
-test("btw state: opening the window never touches the conversation", () => {
-	const asked = answerBtw(askBtw(emptyBtw(), "¿qué es un hub?"), "un objeto compartido");
-	assert.equal(openBtw(asked).open, true);
-	assert.deepEqual(openBtw(asked).turns, asked.turns);
-});
-
-test("btw state: asking opens the reader and marks it waiting", () => {
+test("btw state: asking records the question and marks it waiting", () => {
 	const state = askBtw(emptyBtw(), "¿cuánto cuesta?");
-	assert.equal(state.open, true, "an answer nobody can see is useless");
 	assert.equal(state.asking, true);
 	assert.deepEqual(state.turns, [{ role: "user", text: "¿cuánto cuesta?" }]);
 });

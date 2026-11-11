@@ -63,12 +63,27 @@ test("an answer without the action is no answer: the caller shows the command", 
 	assert.equal(parseExplanation("Action:"), undefined, "a label with nothing after it is not an explanation");
 });
 
-test("an answer in the wrong language does not reach the dialog", () => {
-	// The labels are the dictionary's own words, so this needs no language
-	// detector: "Acción:" is simply not "Action:".
-	assert.equal(parseExplanation("Acción: Borra la carpeta\nArchivos: ninguno\nCarpetas: build"), undefined);
+test("an answer that uses the Spanish labels is still read", () => {
+	// The prompt asks for the English labels, but the cheap guard model
+	// sometimes answers with its own: those three words are synonyms, not a
+	// reason to throw the explanation away.
+	assert.deepEqual(
+		parseExplanation("Acción: Borra la carpeta\nArchivos: ninguno\nCarpetas: build"),
+		{ action: "Borra la carpeta", files: "ninguno", folders: "build" },
+	);
+	// Accents and case are flattened away, so every spelling of the same word
+	// lands on the same label.
+	assert.equal(parseExplanation("ACCION: borra todo")?.action, "borra todo");
+	assert.equal(parseExplanation("accion: borra todo")?.action, "borra todo");
 	// What the prompt asks for: the English labels, the content in Spanish.
 	assert.equal(parseExplanation("Action: Borra la carpeta build\nFiles: ninguno\nFolders: build")?.action, "Borra la carpeta build");
+});
+
+test("a label nobody asked for is still not an explanation", () => {
+	// The aliases are a closed list: an answer under an unrelated label is
+	// exactly the mangled answer the caller must not show.
+	assert.equal(parseExplanation("Answer: Elimina la carpeta"), undefined);
+	assert.equal(parseExplanation("Answer: Elimina la carpeta\nFiles: ninguno"), undefined);
 });
 
 test("a model that writes an essay cannot push the Yes/No off the screen", () => {

@@ -21,24 +21,21 @@ export interface BtwTurn {
 }
 
 export interface BtwState {
-	/** Whether the side chat is open; the reader is what shows it. */
-	open: boolean;
 	turns: readonly BtwTurn[];
-	/** A question is in flight: the panel says so and a second one is refused. */
+	/** A question is in flight: the reader says so and a second one is refused. */
 	asking: boolean;
 }
 
 export function emptyBtw(): BtwState {
-	return { open: false, turns: [], asking: false };
+	return { turns: [], asking: false };
 }
 
-export function openBtw(state: BtwState): BtwState {
-	return state.open ? state : { ...state, open: true };
-}
-
-/** A question: it opens the reader, because an answer nobody can see is useless. */
+/** A question: the conversation grows and the reader, open or not, repaints from
+ * this published state. Whether the overlay is on screen is the overlay's own
+ * business (`closed` in BtwViewState) -- a flag here would be written once and
+ * never read, because esc closes the reader without telling this reducer. */
 export function askBtw(state: BtwState, question: string): BtwState {
-	return { open: true, turns: [...state.turns, { role: "user", text: question }], asking: true };
+	return { turns: [...state.turns, { role: "user", text: question }], asking: true };
 }
 
 export function answerBtw(state: BtwState, answer: string): BtwState {
