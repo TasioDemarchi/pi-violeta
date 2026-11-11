@@ -65,7 +65,7 @@ const ctxFor = (root: string) => ({
 	hasUI: true,
 	sessionManager: { getSessionId: () => "s-auth", getBranch: () => [] },
 	ui: {
-		select: async () => "Sí",
+		select: async () => "Yes",
 		confirm: async () => {
 			throw new Error("the authority block must never open a dialog");
 		},
@@ -149,7 +149,7 @@ test("a redirection into the project is blocked, and no dialog is opened", async
 	let asked = 0;
 	ctx.ui.select = async () => {
 		asked++;
-		return "Sí";
+		return "Yes";
 	};
 	const result = await loadGuard()({ toolName: "bash", input: { command: `echo hola > ${join(root, "src", "x.ts")}` } }, ctx);
 	assert.equal(result?.block, true);

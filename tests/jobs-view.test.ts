@@ -44,7 +44,7 @@ test("orderedJobs: running first (newest first), then finished (newest ended fir
 test("indicatorLine: one line while anything runs, empty otherwise", () => {
 	assert.equal(indicatorLine([]), "");
 	assert.equal(indicatorLine([job("job-1", { status: "exited", exitCode: 0, endedAt: 1 })]), "");
-	assert.equal(indicatorLine([job("job-1"), job("job-2"), job("job-3", { status: "exited", exitCode: 0, endedAt: 1 })]), "jobs: 2 en ejecución");
+	assert.equal(indicatorLine([job("job-1"), job("job-2"), job("job-3", { status: "exited", exitCode: 0, endedAt: 1 })]), "jobs: 2 running");
 });
 
 test("formatDuration matches the list and notices format", () => {
@@ -55,7 +55,7 @@ test("formatDuration matches the list and notices format", () => {
 });
 
 test("listLine is one compact line per job", () => {
-	assert.equal(listLine(job("job-1"), 10_000), "job-1 · job · label job-1 · en ejecución · 10s");
+	assert.equal(listLine(job("job-1"), 10_000), "job-1 · job · label job-1 · running · 10s");
 });
 
 test("reduceOverlay: j/k moves the selection through the ordered list", () => {
@@ -104,19 +104,19 @@ test("renderJobOverlay: header, rows, confirm row and hint", () => {
 	];
 	const state = initialOverlayState(jobs);
 	const lines = renderJobOverlay(jobs, state, { width: 80, rows: 10 }, 1_100, fg);
-	assert.equal(lines[0], "Jobs · 1 en ejecución · 1 terminado");
+	assert.equal(lines[0], "Jobs · 1 running · 1 finished");
 	assert.match(lines[1], /› .*job-1/);
 	assert.match(lines[1], /label job-1/);
 	assert.match(lines[2], /job-2/);
 	const confirming = renderJobOverlay(jobs, { ...state, confirmId: "job-1" }, { width: 80, rows: 10 }, 1_100, fg);
-	assert.ok(confirming.some((line) => /s otra vez para detener job-1/.test(line)), confirming.join("\n"));
-	assert.equal(lines.at(-1), "j/k seleccionar  s detener  q cerrar");
+	assert.ok(confirming.some((line) => /s again to stop job-1/.test(line)), confirming.join("\n"));
+	assert.equal(lines.at(-1), "j/k select  s stop  q close");
 });
 
 test("renderJobOverlay: empty state and narrow width clip gracefully", () => {
 	const lines = renderJobOverlay([], initialOverlayState([]), { width: 80, rows: 10 }, 0, fg);
-	assert.equal(lines[0], "Jobs · 0 en ejecución");
-	assert.match(lines[1]!, /Sin trabajos/);
+	assert.equal(lines[0], "Jobs · 0 running");
+	assert.match(lines[1]!, /No jobs./);
 	const narrow = renderJobOverlay([job("job-1")], initialOverlayState([job("job-1")]), { width: 20, rows: 10 }, 0, fg);
 	for (const line of narrow) {
 		const visible = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");

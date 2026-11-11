@@ -8,7 +8,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import guardExtension from "../extensions/violeta-guard.ts";
-import { setLanguage } from "../src/i18n.ts";
 import { getShared, setShared } from "../src/shared-hub.ts";
 
 delete process.env.VIOLETA_AGENTS_CHILD;
@@ -45,15 +44,14 @@ function load() {
 }
 
 test("/unattended switches the mode on and off and says so", async () => {
-	setLanguage("es");
 	const env = load();
 	await env.commands.get("unattended")!.handler("on", env.ctx);
 	assert.equal(getShared().unattended, true);
-	assert.match(env.notes.at(-1)!.text, /ACTIVADO/);
+	assert.match(env.notes.at(-1)!.text, /ON/);
 	await env.commands.get("unattended")!.handler("off", env.ctx);
 	assert.equal(getShared().unattended, false);
 	await env.commands.get("unattended")!.handler("quizás", env.ctx);
-	assert.match(env.notes.at(-1)!.text, /uso: \/unattended/);
+	assert.match(env.notes.at(-1)!.text, /usage: \/unattended/);
 	assert.equal(getShared().unattended, false, "a bad argument changes nothing");
 });
 
@@ -73,14 +71,13 @@ test("a session starts attended unless VIOLETA_UNATTENDED=1", async () => {
 });
 
 test("unattended: a destructive command is refused without asking and the model is told to carry on", async () => {
-	setLanguage("es");
 	const env = load();
 	setShared({ unattended: true });
 	try {
 		const result = await env.call("bash", { command: "rm -rf build" });
 		assert.equal(result?.block, true);
-		assert.match(result!.reason!, /modo sin supervisión/);
-		assert.match(result!.reason!, /seguí con el resto del trabajo/);
+		assert.match(result!.reason!, /unattended mode/);
+		assert.match(result!.reason!, /carry on with the rest of the work/);
 		const safe = await env.call("bash", { command: "ls build" });
 		assert.equal(safe, undefined, "harmless commands are not slowed down");
 	} finally {
@@ -117,7 +114,6 @@ test("unattended: reading outside the project is always approved, for every read
 });
 
 test("unattended: writing, editing or running shell commands on outside paths is refused", async () => {
-	setLanguage("es");
 	const env = load();
 	setShared({ unattended: true });
 	try {
@@ -128,7 +124,7 @@ test("unattended: writing, editing or running shell commands on outside paths is
 		] as const) {
 			const result = await env.call(tool, { ...input });
 			assert.equal(result?.block, true, `${tool} outside the project is refused`);
-			assert.match(result!.reason!, /solo se puede leer/);
+			assert.match(result!.reason!, /you can only read/);
 		}
 		assert.equal(await env.call("write", { path: "/repo/ok.txt", content: "x" }), undefined, "inside the project stays free");
 	} finally {

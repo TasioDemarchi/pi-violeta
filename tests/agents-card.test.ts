@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cardMaxRows, cardTasks, formatElapsed, renderAgentsCard, type CardFg } from "../src/agents/card.ts";
-import { setLanguage } from "../src/i18n.ts";
 import type { AgentTask } from "../src/agents/store.ts";
 
 // Identity theme: roles must not change the visible text in layout tests.
@@ -74,7 +73,7 @@ test("renderAgentsCard shows the title as the primary column with the role dimme
 	];
 	const lines = renderAgentsCard(tasks, { width: 70, now }, plain);
 	assert.deepEqual(lines, [
-		"╭─ Agentes · 1 activo · 1 terminado " + "─".repeat(27) + " 25s ─╮",
+		"╭─ Agents · 1 active · 1 done " + "─".repeat(33) + " 25s ─╮",
 		"│ ◐  Map the footer sources" + " ".repeat(10) + "explore ·  34.0k ·  $0.27 · 25s │",
 		"│ ✓  Write the shell" + " ".repeat(17) + "worker  · 120.0k · $12.50 · 20s │",
 		"╰" + "─".repeat(68) + "╯",
@@ -100,7 +99,7 @@ test("model·effort stays when the title keeps room for it and yields when it wo
 test("renderAgentsCard paints the card through theme roles only", () => {
 	const tasks = [task({ id: "a", status: "completed", tokens: 1000, cost: 0.01, endedAt: 9_000 })];
 	const lines = renderAgentsCard(tasks, { width: 70, now: 10_000 }, tagged);
-	assert.ok(lines[0]!.includes("<accent>Agentes · 0 activos · 1 terminado</accent>"));
+	assert.ok(lines[0]!.includes("<accent>Agents · 0 active · 1 done</accent>"));
 	assert.ok(lines[0]!.startsWith("<borderAccent>╭"));
 	assert.ok(lines[1]!.includes("<success>✓</success>"));
 	assert.ok(lines[1]!.includes("<text>hello</text>"), "the title is the primary text");
@@ -108,12 +107,12 @@ test("renderAgentsCard paints the card through theme roles only", () => {
 	assert.ok(lines[2]!.startsWith("<borderAccent>╰"));
 });
 
-test("a queued row shows its title, its role and the word en cola", () => {
+test("a queued row shows its title, its role and the word queued", () => {
 	const tasks = [task({ id: "a", status: "queued", startedAt: 0 })];
 	const lines = renderAgentsCard(tasks, { width: 40, now: 5_000 }, plain);
 	assert.deepEqual(lines, [
-		"╭─ Agentes · 1 activo · 0 terminados ─╮",
-		"│ ◌  hello" + " ".repeat(13) + "probe · en cola │",
+		"╭─ Agents · 1 active · 0 done ──── 5s ─╮",
+		"│ ◌  hello" + " ".repeat(14) + "probe · queued │",
 		"╰" + "─".repeat(38) + "╯",
 	]);
 });
@@ -125,21 +124,21 @@ test("narrow cards drop the role first, then model·effort, then tokens; the tit
 	// 66 columns: the role and the model·effort label no longer fit.
 	const lines = renderAgentsCard(tasks, { width: 66, now: 25_000 }, plain);
 	assert.deepEqual(lines, [
-		"╭─ Agentes · 1 activo · 0 terminados " + "─".repeat(22) + " 25s ─╮",
+		"╭─ Agents · 1 active · 0 done " + "─".repeat(29) + " 25s ─╮",
 		"│ ◐  Greet the world and more" + " ".repeat(14) + "120.0k · $12.50 · 25s │",
 		"╰" + "─".repeat(64) + "╯",
 	]);
 	// 34 columns: tokens drop too and the title finally truncates with `…`;
 	// cost and elapsed are the last non-title columns standing.
 	const narrower = renderAgentsCard(tasks, { width: 34, now: 25_000 }, plain);
-	assert.equal(narrower[0], "╭─ Agentes · 1 activo · 0 ter… ─╮");
+	assert.equal(narrower[0], "╭─ Agents · 1 active · 0 done ──╮");
 	assert.equal(narrower[1], "│ ◐  Greet the wo…  $12.50 · 25s" + " ".repeat(0) + " │");
 	// 16 columns: the title shares the row with elapsed only.
 	const narrowest = renderAgentsCard(tasks, { width: 16, now: 25_000 }, plain);
 	assert.equal(narrowest[1], "│ ◐  Gre…  25s │");
 });
 
-test("the card folds overflow into one `… N más · alt+a para ver` row and keeps active work first", () => {
+test("the card folds overflow into one `… N more · alt+a to view` row and keeps active work first", () => {
 	const now = 10_000;
 	const tasks = [
 		task({ id: "done1", status: "completed", endedAt: now - 1_000 }),
@@ -150,21 +149,20 @@ test("the card folds overflow into one `… N más · alt+a para ver` row and ke
 	// 12 terminal rows → cardMaxRows 3 → one body row, spent on the fold line.
 	const lines = renderAgentsCard(tasks, { width: 60, rows: 12, now, viewKey: "alt+a" }, plain);
 	assert.deepEqual(lines, [
-		"╭─ Agentes · 2 activos · 2 terminados " + "─".repeat(15) + " 10s ─╮",
-		"│ … 4 más · alt+a para ver" + " ".repeat(32) + " │",
+		"╭─ Agents · 2 active · 2 done " + "─".repeat(23) + " 10s ─╮",
+		"│ … 4 more · alt+a to view" + " ".repeat(32) + " │",
 		"╰" + "─".repeat(58) + "╯",
 	]);
 	// 16 rows → 4 card rows → two body rows: the running task and the fold line.
 	const two = renderAgentsCard(tasks, { width: 60, rows: 16, now, viewKey: "alt+a" }, plain);
 	assert.ok(two[1]!.includes("hello"), two[1]);
-	assert.ok(two[2]!.includes("… 3 más · alt+a para ver"), two[2]);
+	assert.ok(two[2]!.includes("… 3 more · alt+a to view"), two[2]);
 });
 
 // --- English mode (S3): the original English card, rendered live --------------
 
 test("in English the card reads `Agents · N active · M done` with a queued row and `… N more · alt+a to view`", () => {
 	try {
-		setLanguage("en");
 		const queued = renderAgentsCard([task({ id: "a", status: "queued", startedAt: 0 })], { width: 40, now: 5_000 }, plain);
 		assert.equal(queued[0], "╭─ Agents · 1 active · 0 done " + "─".repeat(4) + " 5s ─╮");
 		assert.equal(queued[1], "│ ◌  hello" + " ".repeat(14) + "probe · queued │");
@@ -180,14 +178,12 @@ test("in English the card reads `Agents · N active · M done` with a queued row
 		assert.equal(folded[0], "╭─ Agents · 2 active · 2 done " + "─".repeat(23) + " 10s ─╮");
 		assert.equal(folded[1], "│ … 4 more · alt+a to view" + " ".repeat(32) + " │");
 	} finally {
-		setLanguage("es");
 	}
 });
 
 test("a budget stop reads as its own glyph and counts as done, never as failed", () => {
 	// A planned ceiling stop produced a usable handoff, so the header counts it
 	// with the finished work; only the glyph tells it apart from a clean run.
-	setLanguage("es");
 	const now = 100_000;
 	const tasks = [
 		task({ id: "a", status: "completed", endedAt: now - 1_000 }),
@@ -195,7 +191,7 @@ test("a budget stop reads as its own glyph and counts as done, never as failed",
 	];
 	const rows = renderAgentsCard(tasks, { width: 80, now }, plain);
 	const header = rows[0]!;
-	assert.match(header, /2 terminados/);
+	assert.match(header, /2 done/);
 	assert.doesNotMatch(header, /fallido/);
 	assert.ok(rows.some((row) => row.includes("◼")), `expected the budget glyph in:\n${rows.join("\n")}`);
 	assert.ok(!rows.some((row) => row.includes("✗")));

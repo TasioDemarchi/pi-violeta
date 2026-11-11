@@ -52,7 +52,7 @@ S1. Un Check destructivo que pasa.
     Accept: la fila queda verificada.
     Check: rm -rf .cache && printf 'ran\\n' >> check.log; exit 0
 S2. Un Check destructivo que falla.
-    Accept: la fila queda fallada con la salida real.
+    Accept: la fila queda failed con la salida real.
     Check: rm -rf .cache && printf 'boom\\n'; exit 1
 S3. Un Check inocuo.
     Accept: la fila queda verificada sin diálogo.
@@ -93,7 +93,7 @@ interface Harness {
 
 /** A temp project whose only content is the contract file at the active path,
  * plus the mocked owner: `answer` is what `ctx.ui.select` returns. */
-function project(answer: string | undefined = "Sí", options: { hasUI?: boolean; outside?: string } = {}): Harness {
+function project(answer: string | undefined = "Yes", options: { hasUI?: boolean; outside?: string } = {}): Harness {
 	setShared({ unattended: false });
 	const dir = mkdtempSync(join(tmpdir(), "violeta-task-verify-guard-"));
 	mkdirSync(join(dir, "tasks"), { recursive: true });
@@ -162,7 +162,7 @@ const noteAt = (md: string, id: string) => linesOf(md)[rowAt(md, id) + 1]!;
 const writeContract = (h: Harness, md: string) => writeFileSync(h.file, md);
 
 test("a destructive Check asks the guard's dialog first, and Sí runs it", async () => {
-	const h = project("Sí");
+	const h = project("Yes");
 	await dispatchAndFinish(h, 1);
 
 	// the dialog is the guard's, with the guard's title, command and options
@@ -170,7 +170,7 @@ test("a destructive Check asks the guard's dialog first, and Sí runs it", async
 	assert.equal(h.selects[0]!.options.join("|"), `${guard.yes}|${guard.no}`);
 	assert.ok(h.selects[0]!.prompt.includes(guard.destructiveTitle), h.selects[0]!.prompt);
 	assert.ok(h.selects[0]!.prompt.includes("rm -rf .cache"), h.selects[0]!.prompt);
-	assert.ok(h.selects[0]!.prompt.includes("Motivo: borrado recursivo de archivos"), h.selects[0]!.prompt);
+	assert.ok(h.selects[0]!.prompt.includes(`Why: ${guardReasons.recursiveRemoval}`), h.selects[0]!.prompt);
 
 	// and only then did it run, in the contract's project
 	assert.equal(readFileSync(join(h.dir, "check.log"), "utf8"), "ran\n");
@@ -181,8 +181,8 @@ test("a destructive Check asks the guard's dialog first, and Sí runs it", async
 	assert.match(md, /^T3\..*— commit: -$/m);
 });
 
-test("an approved destructive Check that fails is fallada, ruled by the real result", async () => {
-	const h = project("Sí");
+test("an approved destructive Check that fails is failed, ruled by the real result", async () => {
+	const h = project("Yes");
 	await dispatchAndFinish(h, 2);
 
 	assert.equal(h.selects.length, 1);
@@ -202,7 +202,7 @@ test("a destructive Check the owner declines never runs and leaves the row por v
 	const md = read(h);
 	assert.match(linesOf(md)[rowAt(md, "1")]!, /— estado: por verificar$/);
 	// D8's continuation line carries the motive, not the output of a Check
-	assert.match(noteAt(md, "1"), /^ {4}Check no ejecutado: .*rechazó/);
+	assert.match(noteAt(md, "1"), /^ {4}Check no ejecutado: .*declined/);
 	assert.ok(noteAt(md, "1").includes("rm -rf .cache"), noteAt(md, "1"));
 	assert.doesNotMatch(md, /Check falló/);
 	// exactly one line added, and no other row moved
@@ -211,14 +211,14 @@ test("a destructive Check the owner declines never runs and leaves the row por v
 });
 
 test("a destructive Check with no UI is blocked, never run, and the motive says why", async () => {
-	const h = project("Sí", { hasUI: false });
+	const h = project("Yes", { hasUI: false });
 	await dispatchAndFinish(h, 4);
 
 	assert.equal(h.selects.length, 0, "there is no one to ask");
 	assert.equal(ranCheck(h), false);
 	const md = read(h);
 	assert.match(linesOf(md)[rowAt(md, "4")]!, /— estado: por verificar$/);
-	assert.match(noteAt(md, "4"), /^ {4}Check no ejecutado: .*interactivo/);
+	assert.match(noteAt(md, "4"), /^ {4}Check no ejecutado: .*interactive/);
 });
 
 test("an innocuous Check runs with no dialog at all", async () => {
@@ -236,7 +236,7 @@ test("unattended mode runs no Check at all — destructive or not — and writes
 	setShared({ unattended: true });
 	try {
 		// destructive: no dialog (nobody is there), nothing executed
-		const destructive = project("Sí");
+		const destructive = project("Yes");
 		setShared({ unattended: true });
 		await dispatchAndFinish(destructive, 1);
 		assert.equal(destructive.selects.length, 0, "unattended never asks");
@@ -248,7 +248,7 @@ test("unattended mode runs no Check at all — destructive or not — and writes
 
 		// S6 is about the verification, not about destructiveness: the innocuous
 		// Check does not run either.
-		const innocuous = project("Sí");
+		const innocuous = project("Yes");
 		setShared({ unattended: true });
 		await dispatchAndFinish(innocuous, 5);
 		assert.equal(ranCheck(innocuous), false, "unattended runs no Check at all");
@@ -275,7 +275,7 @@ test("a row refused while unattended is verified once unattended is off and the 
 		setShared({ unattended: false });
 	}
 	try {
-		h!.answer = "Sí";
+		h!.answer = "Yes";
 		await dispatchAndFinish(h!, 1);
 	} finally {
 		setShared({ unattended: false });
@@ -296,7 +296,7 @@ test("a Check that touches a path outside the project asks for the grant first, 
 	const outside = join(OUTSIDE_BASE, "granted");
 	mkdirSync(outside, { recursive: true });
 	try {
-		const h = project("Sí", { outside });
+		const h = project("Yes", { outside });
 		await dispatchAndFinish(h, 6);
 
 		// The dialog is the guard's grant dialog, naming the outside directory.
@@ -339,7 +339,7 @@ test("a Check that touches a path outside the project is refused when the grant 
 // its own, so a command the recognizer cannot read is asked about instead.
 
 test("a Check with an inline interpreter payload asks first even though nothing is destructive, and Sí runs it", async () => {
-	const h = project("Sí");
+	const h = project("Yes");
 	await dispatchAndFinish(h, 7);
 
 	assert.equal(h.selects.length, 1, "an inline payload is never silently approved");
@@ -360,13 +360,13 @@ test("a Check with an inline interpreter payload the owner declines never runs",
 	assert.equal(ranCheck(h), false, "a declined inline payload must not run");
 	const md = read(h);
 	assert.match(linesOf(md)[rowAt(md, "7")]!, /— estado: por verificar$/);
-	assert.match(noteAt(md, "7"), /^ {4}Check no ejecutado: .*rechazó/);
+	assert.match(noteAt(md, "7"), /^ {4}Check no ejecutado: .*declined/);
 });
 
 test("unattended mode refuses a Check with an inline interpreter payload without asking", async () => {
 	setShared({ unattended: true });
 	try {
-		const h = project("Sí");
+		const h = project("Yes");
 		setShared({ unattended: true });
 		await dispatchAndFinish(h, 7);
 

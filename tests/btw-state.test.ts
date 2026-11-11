@@ -47,9 +47,9 @@ test("btw state: the answer and the failure both stop the wait and stay in the p
 		{ role: "user", text: "a" },
 		{ role: "assistant", text: "b" },
 	]);
-	const failed = failBtw(askBtw(emptyBtw(), "a"), "sin modelo");
+	const failed = failBtw(askBtw(emptyBtw(), "a"), "no model");
 	assert.equal(failed.asking, false);
-	assert.deepEqual(failed.turns[1], { role: "error", text: "sin modelo" });
+	assert.deepEqual(failed.turns[1], { role: "error", text: "no model" });
 });
 
 test("btw state: clearing forgets the conversation and the wait, and leaves the window alone", () => {

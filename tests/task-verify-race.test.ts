@@ -22,7 +22,6 @@ import { test } from "node:test";
 import agentsExtension from "../extensions/violeta-agents.ts";
 import { verifyDispatch } from "../extensions/violeta-task-state.ts";
 import type { CheckExecutor } from "../src/contract/verify.ts";
-import { setLanguage } from "../src/i18n.ts";
 import { setShared } from "../src/shared-hub.ts";
 
 // A subagent exports this and both extensions then install nothing, and the
@@ -102,7 +101,6 @@ function agentsSetup() {
 	const scout = readFileSync(join(ROOT, "agents", "scout.md"), "utf8").replace(/^model:.*$/m, "model: nope/none");
 	writeFileSync(join(dir, "agents", "scout.md"), scout);
 	process.env.PI_CODING_AGENT_DIR = dir;
-	setLanguage("es");
 	setShared({ unattended: false });
 
 	type Tool = {

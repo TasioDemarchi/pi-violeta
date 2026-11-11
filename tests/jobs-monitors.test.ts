@@ -93,7 +93,7 @@ function setup() {
 
 test("timeout_seconds validation: mandatory integer 1-1800 with a clear error", () => {
 	for (const bad of [undefined, 0, -1, 1.5, 1801, "20", Number.NaN]) {
-		assert.throws(() => validateTimeoutSeconds(bad), /timeout_seconds es obligatorio y debe ser un número entero de 1 a 1800/, String(bad));
+		assert.throws(() => validateTimeoutSeconds(bad), /timeout_seconds is required and must be a whole number from 1 to 1800/, String(bad));
 	}
 	assert.equal(validateTimeoutSeconds(1), 1);
 	assert.equal(validateTimeoutSeconds(1800), 1800);

@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { collectUsage, contextLines, usageLines, type UsageEntry } from "../src/usage.ts";
-import { setLanguage } from "../src/i18n.ts";
 
 /** One assistant message, as the session branch stores it. */
 function reply(model: string, input: number, output: number, cost: number, cache: { read?: number; write?: number } = {}): UsageEntry {
@@ -63,75 +62,64 @@ test("an empty branch yields zeroes and no models", () => {
 });
 
 test("usageLines says so when the model has not answered yet", () => {
-	setLanguage("es");
-	assert.deepEqual(usageLines(collectUsage([])), ["Todavía no hubo respuestas del modelo en esta sesión."]);
+	assert.deepEqual(usageLines(collectUsage([])), ["The model has not answered yet in this session."]);
 });
 
 test("usageLines puts a single model in the title instead of repeating it below", () => {
-	setLanguage("es");
 	const lines = usageLines(collectUsage([reply("deepseek-v4-flash", 1200, 340, 0)]));
-	assert.deepEqual(lines, ["Uso de la sesión · 1 respuesta · deepseek-v4-flash", "Entrada 1.2k · Salida 340 · Costo $0.00"]);
+	assert.deepEqual(lines, ["Session usage · 1 reply · deepseek-v4-flash", "In 1.2k · Out 340 · Cost $0.00"]);
 });
 
 test("usageLines lists every model when the session used more than one", () => {
-	setLanguage("es");
 	const lines = usageLines(collectUsage([reply("flash", 1000, 100, 0), reply("opus", 900, 120, 0.42)]));
-	assert.equal(lines[0], "Uso de la sesión · 2 respuestas");
-	assert.equal(lines[1], "Entrada 1.9k · Salida 220 · Costo $0.42");
-	assert.equal(lines[2], "Por modelo:");
-	assert.equal(lines[3], "  opus · 1 respuesta · ↑900 ↓120 · $0.42");
-	assert.equal(lines[4], "  flash · 1 respuesta · ↑1.0k ↓100 · $0.00");
+	assert.equal(lines[0], "Session usage · 2 replies");
+	assert.equal(lines[1], "In 1.9k · Out 220 · Cost $0.42");
+	assert.equal(lines[2], "By model:");
+	assert.equal(lines[3], "  opus · 1 reply · ↑900 ↓120 · $0.42");
+	assert.equal(lines[4], "  flash · 1 reply · ↑1.0k ↓100 · $0.00");
 });
 
 test("the cache line appears only when something was cached", () => {
-	setLanguage("es");
 	const without = usageLines(collectUsage([reply("a", 10, 1, 0)]));
-	assert.ok(!without.some((line) => line.startsWith("Caché")));
+	assert.ok(!without.some((line) => line.startsWith("Cache")));
 	const with_ = usageLines(collectUsage([reply("a", 10, 1, 0, { read: 5000, write: 10 })]));
-	assert.ok(with_.includes("Caché: 5.0k leídos · 10 escritos"));
+	assert.ok(with_.includes("Cache: 5.0k read · 10 written"));
 });
 
 test("a reply with no model id is named, not printed as undefined", () => {
-	setLanguage("es");
 	const lines = usageLines(collectUsage([{ type: "message", message: { role: "assistant", usage: { input: 1, output: 1, cost: { total: 0 } } } }]));
-	assert.equal(lines[0], "Uso de la sesión · 1 respuesta · (sin nombre)");
+	assert.equal(lines[0], "Session usage · 1 reply · (unnamed)");
 });
 
 test("contextLines reports the percent, the window and what is left", () => {
-	setLanguage("es");
 	assert.deepEqual(contextLines({ percent: 12.5, tokens: 125000, contextWindow: 1000000 }), [
-		"Contexto: 13% de 1.0M tokens.",
-		"Usado 125.0k · Libre 875.0k",
+		"Context: 13% of 1.0M tokens.",
+		"Used 125.0k · Free 875.0k",
 	]);
 });
 
 test("contextLines adds the /compact suggestion from 80% up", () => {
-	setLanguage("es");
 	assert.equal(contextLines({ percent: 79, tokens: 790, contextWindow: 1000 }).length, 2);
 	const hot = contextLines({ percent: 80, tokens: 800, contextWindow: 1000 });
 	assert.equal(hot.length, 3);
-	assert.equal(hot[2], "El contexto está al 80 %. Considerá /compact.");
+	assert.equal(hot[2], "Context is at 80%. Consider /compact.");
 });
 
 test("contextLines falls back to the division when the percent is missing", () => {
-	setLanguage("es");
-	assert.equal(contextLines({ percent: null, tokens: 500, contextWindow: 1000 })[0], "Contexto: 50% de 1.0k tokens.");
+	assert.equal(contextLines({ percent: null, tokens: 500, contextWindow: 1000 })[0], "Context: 50% of 1.0k tokens.");
 });
 
 test("an unknown token count says so instead of claiming 0%", () => {
-	setLanguage("es");
-	const unknown = "Todavía no hay datos de contexto en esta sesión.";
+	const unknown = "No context reading yet in this session.";
 	assert.deepEqual(contextLines({ percent: null, tokens: null, contextWindow: 1000000 }), [unknown]);
 	assert.deepEqual(contextLines(undefined), [unknown]);
 	assert.deepEqual(contextLines({ percent: 10, tokens: 100, contextWindow: 0 }), [unknown]);
 });
 
-test("the English dictionary renders both commands too", () => {
+test("both commands render the same English dictionary", () => {
 	try {
-		setLanguage("en");
 		assert.deepEqual(usageLines(collectUsage([reply("flash", 1000, 100, 0)])), ["Session usage · 1 reply · flash", "In 1.0k · Out 100 · Cost $0.00"]);
 		assert.deepEqual(contextLines({ percent: 50, tokens: 500, contextWindow: 1000 }), ["Context: 50% of 1.0k tokens.", "Used 500 · Free 500"]);
 	} finally {
-		setLanguage("es");
 	}
 });

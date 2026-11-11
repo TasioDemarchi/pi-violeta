@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { cardVisible, renderTodoCard, todoPlacement, todoSectionRows, TODO_HIDE_MS, type CardFg } from "../src/todo/card.ts";
-import { setLanguage } from "../src/i18n.ts";
 import { applyTodo, emptyTodo, type TodoState } from "../src/todo/store.ts";
 
 // Identity theme: roles must not change the visible text in layout tests.
@@ -32,7 +31,7 @@ test("renderTodoCard draws the frame, title counts and one row per task", () => 
 	const lines = renderTodoCard(taskList(), { width: WIDTH, now: NOW }, plain);
 	// Only blocked rows show their note; pads are exact (inner = width - 4).
 	assert.deepEqual(lines, [
-		"╭─ Tareas · 3 abiertas · 0 hechas " + "─".repeat(13) + "╮",
+		"╭─ Todo · 3 open · 0 done " + "─".repeat(21) + "╮",
 		"│ ○  Write the parser" + " ".repeat(26) + "│",
 		"│ ◐  Run tests" + " ".repeat(33) + "│",
 		"│ ⏸  Deploy  · waiting for CI" + " ".repeat(18) + "│",
@@ -50,7 +49,7 @@ test("card rows paint the theme roles: glyphs, dimmed finished rows, dimmed note
 	// Exact rendered strings (pi-tui measures ✓ and ⊘ as width 2, so pads differ
 	// from the plain-theme rows).
 	assert.deepEqual(lines, [
-		t("borderAccent", "╭─ ") + t("accent", "Tareas · 2 abiertas · 1 hecha") + " " + t("borderAccent", "─".repeat(14) + "╮"),
+		t("borderAccent", "╭─ ") + t("accent", "Todo · 2 open · 1 done") + " " + t("borderAccent", "─".repeat(21) + "╮"),
 		t("borderAccent", "│ ") + t("success", "✓") + "  " + t("dim", "Write the parser") + " ".repeat(24) + t("borderAccent", " │"),
 		t("borderAccent", "│ ") + t("accent", "◐") + "  " + t("text", "Run tests") + " ".repeat(32) + t("borderAccent", " │"),
 		t("borderAccent", "│ ") + t("warning", "⏸") + "  " + t("text", "Deploy") + t("dim", "  · waiting for CI") + " ".repeat(16) + t("borderAccent", " │"),
@@ -58,21 +57,21 @@ test("card rows paint the theme roles: glyphs, dimmed finished rows, dimmed note
 		t("borderAccent", "╰" + "─".repeat(46) + "╯"),
 	]);
 	// Title counts: open = pending + in_progress + blocked; done = done only.
-	assert.match(lines[0]!, /Tareas · 2 abiertas · 1 hecha/);
+	assert.match(lines[0]!, /Todo · 2 open · 1 done/);
 });
 
-test("more than 8 rows fold into `… N más`", () => {
+test("more than 8 rows fold into `… N more`", () => {
 	let state = emptyTodo();
 	for (let i = 1; i <= 10; i++) state = applyTodo(state, { action: "add", title: `task ${i}` }, NOW).state;
 	const lines = renderTodoCard(state, { width: WIDTH, now: NOW }, plain);
 	// Title + 8 rows + fold + bottom.
 	assert.equal(lines.length, 11);
-	assert.equal(lines[9], "│ " + "… 2 más" + " ".repeat(37) + " │");
-	assert.match(lines[0]!, /Tareas · 10 abiertas · 0 hechas/);
+	assert.equal(lines[9], "│ " + "… 2 more" + " ".repeat(36) + " │");
+	assert.match(lines[0]!, /Todo · 10 open · 0 done/);
 	// A 9-task list folds one row.
 	const nine = applyTodo(state, { action: "write", tasks: state.tasks.slice(0, 9).map((task) => ({ id: task.id, title: task.title })) }, NOW).state;
-	assert.equal(renderTodoCard(nine, { width: WIDTH, now: NOW }, plain)[9], "│ " + "… 1 más" + " ".repeat(37) + " │");
-	assert.match(renderTodoCard(nine, { width: WIDTH, now: NOW }, plain)[0]!, /Tareas · 9 abiertas · 0 hechas/);
+	assert.equal(renderTodoCard(nine, { width: WIDTH, now: NOW }, plain)[9], "│ " + "… 1 more" + " ".repeat(36) + " │");
+	assert.match(renderTodoCard(nine, { width: WIDTH, now: NOW }, plain)[0]!, /Todo · 9 open · 0 done/);
 });
 
 test("long titles and notes are truncated to the available width, never overflowing", () => {
@@ -173,7 +172,6 @@ test("todoPlacement: sidebar active renders the section, otherwise the above-edi
 
 test("in English the todo card reads `Todo · N open · M done` and folds into `… N more`", () => {
 	try {
-		setLanguage("en");
 		const lines = renderTodoCard(taskList(), { width: WIDTH, now: NOW }, plain);
 		assert.equal(lines[0], "╭─ Todo · 3 open · 0 done " + "─".repeat(21) + "╮");
 		assert.match(lines[0]!, /Todo · 3 open · 0 done/);
@@ -183,6 +181,5 @@ test("in English the todo card reads `Todo · N open · M done` and folds into `
 		assert.equal(folded[9], "│ " + "… 2 more" + " ".repeat(36) + " │");
 		assert.match(folded[0]!, /Todo · 10 open · 0 done/);
 	} finally {
-		setLanguage("es");
 	}
 });

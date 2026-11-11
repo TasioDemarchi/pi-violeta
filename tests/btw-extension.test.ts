@@ -7,7 +7,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import extension from "../extensions/violeta-btw.ts";
-import { setLanguage } from "../src/i18n.ts";
 import { getShared, setShared } from "../src/shared-hub.ts";
 
 delete process.env.VIOLETA_AGENTS_CHILD;
@@ -24,7 +23,6 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const message = (role: string, text: string) => ({ type: "message", message: { role, content: [{ type: "text", text }] } });
 
 function load(opts: { model?: unknown; branch?: unknown[]; complete?: Complete } = {}) {
-	setLanguage("es");
 	// The hub is global: start every test from a clean side chat and no sidebar.
 	setShared({ btw: undefined, sidebarActive: undefined });
 
@@ -107,11 +105,11 @@ test("btw: /btw with no argument opens and closes the window", async () => {
 
 	await env.run("btw");
 	assert.equal(env.state()?.open, true);
-	assert.match(env.notes.at(-1)!, /abierto/);
+	assert.match(env.notes.at(-1)!, /Side chat open\./);
 
 	await env.run("btw");
 	assert.equal(env.state()?.open, false);
-	assert.match(env.notes.at(-1)!, /cerrado/);
+	assert.match(env.notes.at(-1)!, /Side chat closed\./);
 	assert.equal(env.calls.length, 0, "opening a window asks nothing of the model");
 });
 
@@ -126,7 +124,7 @@ test("btw: /btw <message> asks once, with the session conversation as context", 
 	assert.equal(env.calls.length, 1, "one question, one call");
 	const call = env.calls[0]!;
 	assert.deepEqual(call.model, { id: "nan/qwen3.8-flash" }, "the session's own model answers");
-	assert.match(call.context.systemPrompt!, /español/i, "the prompt asks for a Spanish answer");
+	assert.match(call.context.systemPrompt!, /answer in spanish/i, "the prompt asks for a Spanish answer");
 	const prompt = call.context.messages[0]!.content;
 	assert.match(prompt, /arreglá el guard/, "the session conversation travels as context");
 	assert.match(prompt, /listo, quedó verde/);
@@ -144,7 +142,6 @@ test("btw: the English dictionary also asks the model to answer in Spanish", asy
 	// The UI is English but the answer is Spanish: the surviving dictionary is
 	// the one that has to say so, or `/btw` answers in the screen's language.
 	const env = load({ branch: [message("user", "hola")] });
-	setLanguage("en");
 	try {
 		await env.start();
 		await env.run("btw", "¿qué es un hub?");
@@ -153,7 +150,6 @@ test("btw: the English dictionary also asks the model to answer in Spanish", asy
 		assert.match(systemPrompt, /answer in spanish/i, "the prompt must ask for a Spanish answer");
 		assert.doesNotMatch(systemPrompt, /answer in english/i, "and must not ask for an English one");
 	} finally {
-		setLanguage("es");
 	}
 });
 
@@ -165,7 +161,7 @@ test("btw: the question returns at once and the window says it is thinking", asy
 	await env.run("btw", "¿cuánto cuesta?");
 	// The handler is back while the model is still working: the editor is yours.
 	assert.equal(env.state()?.asking, true);
-	assert.match(env.panel().join("\n"), /pensando…/);
+	assert.match(env.panel().join("\n"), /thinking…/);
 
 	release(answer("poco"));
 	await flush();
@@ -181,7 +177,7 @@ test("btw: a second question while one is in flight is refused, not queued", asy
 	await flush();
 
 	assert.equal(env.calls.length, 1);
-	assert.match(env.notes.at(-1)!, /ya está esperando/);
+	assert.match(env.notes.at(-1)!, /already waiting/);
 	assert.equal(env.state()?.turns.length, 1);
 });
 
@@ -228,7 +224,7 @@ test("btw: /btwn with no argument forgets the conversation and keeps the window"
 	await env.run("btwn");
 	assert.deepEqual(env.state()?.turns, []);
 	assert.equal(env.state()?.open, true);
-	assert.match(env.notes.at(-1)!, /borrada/);
+	assert.match(env.notes.at(-1)!, /Side chat: conversation cleared\./);
 	assert.equal(env.calls.length, 1, "clearing asks nothing");
 });
 
@@ -261,7 +257,7 @@ test("btw: with no model the question is kept and the reason is shown", async ()
 
 	assert.equal(env.calls.length, 0);
 	assert.deepEqual(env.state()!.turns[0], { role: "user", text: "¿hola?" });
-	assert.match(env.state()!.turns.at(-1)!.text, /No hay modelo activo/);
+	assert.match(env.state()!.turns.at(-1)!.text, /No active model/);
 });
 
 test("btw: the window above the editor is framed, and empty while the side chat is closed", async () => {
@@ -272,7 +268,7 @@ test("btw: the window above the editor is framed, and empty while the side chat 
 	await env.run("btw", "¿qué es el guard?");
 	await flush();
 	const lines = env.panel(60);
-	assert.match(lines[0]!, /^╭─ Al margen ─+╮$/, "a box, so it is not read as part of the chat");
+	assert.match(lines[0]!, /^╭─ By the way ─+╮$/, "a box, so it is not read as part of the chat");
 	assert.match(lines.at(-2)!, /^╰─+╯$/);
 	assert.equal(lines.at(-1), "", "one blank row separates it from the editor");
 });
@@ -368,7 +364,7 @@ test("btw: without a TUI the reader says so instead of failing", async () => {
 	await env.start();
 	env.ctx.hasUI = false;
 	await env.run("btwv");
-	assert.match(env.notes.at(-1)!, /interactivo/i);
+	assert.match(env.notes.at(-1)!, /interactive/i);
 });
 
 test("btw: the side chat goes with the session — a new one starts empty, shutdown drops the window", async () => {

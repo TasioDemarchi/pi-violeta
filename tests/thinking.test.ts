@@ -25,5 +25,5 @@ test("model and level render as `model · level` with the level colored", () => 
 
 test("without a level only the model shows; without a model the placeholder", () => {
 	assert.equal(modelWithThinking("m", undefined, fg), "<text:m>");
-	assert.equal(modelWithThinking(undefined, "high", fg, "sin modelo"), "<dim:sin modelo>");
+	assert.equal(modelWithThinking(undefined, "high", fg, "no model"), "<dim:no model>");
 });

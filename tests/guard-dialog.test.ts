@@ -1,15 +1,16 @@
 /**
  * The destructive-command and outside-project dialogs must be asked through
- * `ctx.ui.select` with Spanish options ["Sí","No"] (S10): only "Sí" approves;
- * "No", cancel and undefined decline. Driven through the extension's public
- * tool_call handler with a mocked ctx.ui — ctx.ui.confirm must never be used.
+ * `ctx.ui.select` with the English options ["Yes","No"] (S4): only "Yes"
+ * approves; "No", cancel and undefined decline. Driven through the extension's
+ * public tool_call handler with a mocked ctx.ui — ctx.ui.confirm must never be
+ * used.
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import guardExtension from "../extensions/violeta-guard.ts";
-import { guard, setLanguage } from "../src/i18n.ts";
+import { guard } from "../src/i18n.ts";
 
 // The guard reads VIOLETA_AGENTS_CHILD on every call to decide whether it may
 // ask. A suite started from inside a subagent inherits that variable, so every
@@ -64,7 +65,7 @@ function makeCtx(selectResult: string | undefined, options: { hasUI?: boolean; r
 				return selectResult;
 			},
 			confirm: async () => {
-				throw new Error("ctx.ui.confirm must not be used: the options must be Spanish");
+				throw new Error("ctx.ui.confirm must not be used: the dialog is a select");
 			},
 			notify: (message: string) => notifications.push(message),
 		},
@@ -72,27 +73,24 @@ function makeCtx(selectResult: string | undefined, options: { hasUI?: boolean; r
 	return { ctx, selects, notifications };
 }
 
-const OUTSIDE_DIR = "/opt/violeta-guard-es/fuera";
-// A different directory from the Spanish tests: grants are remembered per
-// session and every mocked context here shares session id "s1".
-const OUTSIDE_DIR_EN = "/opt/violeta-guard-en/fuera";
+const OUTSIDE_DIR = "/opt/violeta-guard-outside/elsewhere";
 
-test("the destructive dialog uses ctx.ui.select with the Spanish title, body and options", async () => {
+test("the destructive dialog uses ctx.ui.select with the title, body and options", async () => {
 	const { toolCall } = loadGuard();
 	const { ctx, selects } = makeCtx(undefined);
 	const command = "rm -rf build";
 	await toolCall({ toolName: "bash", input: { command } }, ctx);
 	assert.equal(selects.length, 1);
-	assert.equal(selects[0]!.options.join("|"), "Sí|No");
-	assert.ok(selects[0]!.prompt.includes("Comando destructivo"), selects[0]!.prompt);
+	assert.equal(selects[0]!.options.join("|"), "Yes|No");
+	assert.ok(selects[0]!.prompt.includes("Destructive command"), selects[0]!.prompt);
 	assert.ok(selects[0]!.prompt.includes(command), selects[0]!.prompt);
-	assert.ok(selects[0]!.prompt.includes("Motivo: borrado recursivo de archivos. ¿Ejecutarlo igual?"), selects[0]!.prompt);
+	assert.ok(selects[0]!.prompt.includes("Why: recursive file removal. Run it anyway?"), selects[0]!.prompt);
 });
 
-test("only Sí approves the destructive dialog; No, cancel and undefined decline", async () => {
+test("only Yes approves the destructive dialog; No, cancel and undefined decline", async () => {
 	const { toolCall } = loadGuard();
 	const command = "rm -rf build";
-	for (const [answer, approved] of [["Sí", true], ["No", false], [undefined, false]] as const) {
+	for (const [answer, approved] of [["Yes", true], ["No", false], [undefined, false]] as const) {
 		const { ctx } = makeCtx(answer);
 		const result = await toolCall({ toolName: "bash", input: { command } }, ctx);
 		if (approved) {
@@ -104,26 +102,26 @@ test("only Sí approves the destructive dialog; No, cancel and undefined decline
 	}
 });
 
-test("the outside-project dialog is Spanish, asked once per directory, and approves only with Sí", async () => {
+test("the outside-project dialog is asked once per directory, and approves only with Yes", async () => {
 	const { toolCall } = loadGuard();
 	const path = `${OUTSIDE_DIR}/x.md`;
 	{
 		const { ctx, selects } = makeCtx(undefined);
 		await toolCall({ toolName: "read", input: { path } }, ctx);
 		assert.equal(selects.length, 1);
-		assert.equal(selects[0]!.options.join("|"), "Sí|No");
-		assert.ok(selects[0]!.prompt.includes("Acceso fuera del proyecto"), selects[0]!.prompt);
+		assert.equal(selects[0]!.options.join("|"), "Yes|No");
+		assert.ok(selects[0]!.prompt.includes("Outside-project access"), selects[0]!.prompt);
 		// The grant covers the directory that holds the file, so the dialog
 		// names it rather than the file.
 		assert.ok(selects[0]!.prompt.includes(OUTSIDE_DIR), selects[0]!.prompt);
-		assert.ok(selects[0]!.prompt.includes("El permiso dura solo esta sesión."), selects[0]!.prompt);
+		assert.ok(selects[0]!.prompt.includes("The grant lasts only for this session."), selects[0]!.prompt);
 		const result = await toolCall({ toolName: "read", input: { path } }, ctx);
 		assert.ok(result?.block);
 		// The refusal names the scope that was refused.
 		assert.equal(result?.reason, guard.outsideDeclined(OUTSIDE_DIR, "/repo"));
 	}
 	{
-		const { ctx, selects } = makeCtx("Sí");
+		const { ctx, selects } = makeCtx("Yes");
 		await toolCall({ toolName: "read", input: { path } }, ctx);
 		assert.equal(selects.length, 1);
 		// The grant is remembered for the rest of the session: no second dialog.
@@ -133,184 +131,69 @@ test("the outside-project dialog is Spanish, asked once per directory, and appro
 	}
 });
 
-test("catastrophic targets deny without a dialog and without a UI the guard blocks in Spanish", async () => {
+test("catastrophic targets deny without a dialog and without a UI the guard blocks", async () => {
 	const { toolCall } = loadGuard();
 	{
-		const { ctx, selects } = makeCtx("Sí");
+		const { ctx, selects } = makeCtx("Yes");
 		const result = await toolCall({ toolName: "bash", input: { command: "rm -rf /" } }, ctx);
 		assert.ok(result?.block);
-		assert.equal(result?.reason, guard.catastrophic("borrado recursivo de archivos"));
+		assert.equal(result?.reason, guard.catastrophic("recursive file removal"));
 		assert.equal(selects.length, 0);
 	}
 	{
 		const { ctx, selects } = makeCtx(undefined, { hasUI: false });
 		const result = await toolCall({ toolName: "bash", input: { command: "rm -rf build" } }, ctx);
 		assert.ok(result?.block);
-		assert.equal(result?.reason, guard.blocked(["borrado recursivo de archivos"]));
+		assert.equal(result?.reason, guard.blocked(["recursive file removal"]));
 		assert.equal(selects.length, 0);
 	}
 });
 
-test("/grants revoke notifies in Spanish", async () => {
+test("/grants revoke notifies without inventing a grant to revoke", async () => {
 	const { grants } = loadGuard();
-	const { ctx, notifications } = makeCtx("Sí");
+	const { ctx, notifications } = makeCtx("Yes");
 	await grants.handler("revoke", ctx);
 	assert.deepEqual(notifications, [guard.grantsNothingToRevoke]);
 });
 
-test("no English user-facing literal remains in any guard dialog, decline or block text", async () => {
+test("no Spanish user-facing literal remains in any guard dialog, decline or block text", async () => {
 	const { toolCall } = loadGuard();
 	const seen: string[] = [];
 	const captureCtx = (answer: string | undefined) => {
 		const base = makeCtx(answer);
-		return {
-			ctx: base.ctx,
-			collect: (prompt: string) => seen.push(prompt),
-			notifications: base.notifications,
+		base.ctx.ui.select = async (prompt: string, options: string[]) => {
+			seen.push(prompt, ...options);
+			return answer;
 		};
+		return base;
 	};
 	// Every dialog and every decline/block path, with the answers recorded.
 	for (const [command, answer] of [
-		["rm -rf build", "Sí"],
+		["rm -rf build", "Yes"],
 		["rm -rf build", "No"],
 		["git push -f origin main", undefined],
-		["rm -rf /", "Sí"],
+		["rm -rf /", "Yes"],
 	] as const) {
 		const env = captureCtx(answer);
-		const originalSelect = env.ctx.ui.select;
-		env.ctx.ui.select = async (prompt: string, options: string[]) => {
-			seen.push(prompt, ...options);
-			return originalSelect(prompt, options);
-		};
 		const result = await toolCall({ toolName: "bash", input: { command } }, env.ctx);
 		if (result?.reason) seen.push(result.reason);
 	}
 	{
 		const path = `${OUTSIDE_DIR}/y.md`;
 		const env = captureCtx(undefined);
-		const originalSelect = env.ctx.ui.select;
-		env.ctx.ui.select = async (prompt: string, options: string[]) => {
-			seen.push(prompt, ...options);
-			return originalSelect(prompt, options);
-		};
 		const result = await toolCall({ toolName: "read", input: { path } }, env.ctx);
 		if (result?.reason) seen.push(result.reason);
 	}
-	const banned = [
-		"Destructive command",
-		"Run it anyway",
-		"Why: ",
-		"Yes",
-		"Outside-project access",
-		"Allow access outside the project",
-		"The grant lasts only",
-		"declined this destructive command",
-		"Find a safer way",
-		"Blocked without a prompt",
-		"Catastrophic target denied",
-		"denied without a prompt",
-	];
+	const banned = ["Comando destructivo", "Motivo:", "¿Ejecutarlo igual?", "Acceso fuera del proyecto", "Permitir acceso fuera del proyecto"];
 	for (const text of seen) {
 		for (const phrase of banned) {
-			assert.ok(!text.includes(phrase), `English literal leaked: "${phrase}" in "${text}"`);
+			assert.ok(!text.includes(phrase), `Spanish literal leaked: "${phrase}" in "${text}"`);
 		}
 	}
-	// And the Spanish dictionary is actually shown.
-	assert.ok(seen.some((text) => text.includes("Comando destructivo")));
-	assert.ok(seen.includes("Sí") && seen.includes("No"));
-});
-
-// --- English mode (S3): the same dialogs with the original English strings ----
-
-test("in English mode the destructive dialog shows Destructive command / Why / Run it anyway? with Yes|No", async () => {
-	try {
-		setLanguage("en");
-		const { toolCall } = loadGuard();
-		const { ctx, selects } = makeCtx(undefined);
-		const command = "rm -rf build";
-		await toolCall({ toolName: "bash", input: { command } }, ctx);
-		assert.equal(selects.length, 1);
-		assert.equal(selects[0]!.options.join("|"), "Yes|No");
-		assert.ok(selects[0]!.prompt.includes("Destructive command"), selects[0]!.prompt);
-		assert.ok(selects[0]!.prompt.includes(command), selects[0]!.prompt);
-		assert.ok(selects[0]!.prompt.includes("Why: recursive file removal. Run it anyway?"), selects[0]!.prompt);
-	} finally {
-		setLanguage("es");
-	}
-});
-
-test("in English mode only Yes approves the destructive dialog; No, cancel and undefined decline", async () => {
-	try {
-		setLanguage("en");
-		const { toolCall } = loadGuard();
-		const command = "rm -rf build";
-		for (const [answer, approved] of [["Yes", true], ["No", false], [undefined, false]] as const) {
-			const { ctx } = makeCtx(answer);
-			const result = await toolCall({ toolName: "bash", input: { command } }, ctx);
-			if (approved) {
-				assert.equal(result, undefined, `answer ${String(answer)} must approve`);
-			} else {
-				assert.ok(result?.block, `answer ${String(answer)} must decline`);
-				assert.equal(result?.reason, guard.declined(command));
-			}
-		}
-	} finally {
-		setLanguage("es");
-	}
-});
-
-test("in English mode the outside-project dialog is English and approves only with Yes", async () => {
-	try {
-		setLanguage("en");
-		const { toolCall } = loadGuard();
-		const path = `${OUTSIDE_DIR_EN}/x.md`;
-		{
-			const { ctx, selects } = makeCtx(undefined);
-			await toolCall({ toolName: "read", input: { path } }, ctx);
-			assert.equal(selects.length, 1);
-			assert.equal(selects[0]!.options.join("|"), "Yes|No");
-			assert.ok(selects[0]!.prompt.includes("Outside-project access"), selects[0]!.prompt);
-			assert.ok(selects[0]!.prompt.includes("Allow access outside the project"), selects[0]!.prompt);
-			assert.ok(selects[0]!.prompt.includes(OUTSIDE_DIR_EN), selects[0]!.prompt);
-			assert.ok(selects[0]!.prompt.includes("The grant lasts only for this session."), selects[0]!.prompt);
-			const declined = await toolCall({ toolName: "read", input: { path } }, ctx);
-			assert.ok(declined?.block);
-			assert.equal(declined?.reason, guard.outsideDeclined(OUTSIDE_DIR_EN, "/repo"));
-		}
-		{
-			const { ctx, selects } = makeCtx("Yes");
-			await toolCall({ toolName: "read", input: { path } }, ctx);
-			assert.equal(selects.length, 1);
-			const again = await toolCall({ toolName: "read", input: { path } }, ctx);
-			assert.equal(again, undefined);
-			assert.equal(selects.length, 1);
-		}
-	} finally {
-		setLanguage("es");
-	}
-});
-
-test("in English mode the no-UI block and catastrophic deny texts are the original English", async () => {
-	try {
-		setLanguage("en");
-		const { toolCall } = loadGuard();
-		{
-			const { ctx, selects } = makeCtx("Yes");
-			const result = await toolCall({ toolName: "bash", input: { command: "rm -rf /" } }, ctx);
-			assert.ok(result?.block);
-			assert.equal(result?.reason, "Catastrophic target denied without a prompt: recursive file removal.");
-			assert.equal(selects.length, 0);
-		}
-		{
-			const { ctx, selects } = makeCtx(undefined, { hasUI: false });
-			const result = await toolCall({ toolName: "bash", input: { command: "rm -rf build" } }, ctx);
-			assert.ok(result?.block);
-			assert.equal(result?.reason, "Blocked: recursive file removal. No interactive user is available to approve it.");
-			assert.equal(selects.length, 0);
-		}
-	} finally {
-		setLanguage("es");
-	}
+	// And the English dictionary is actually shown.
+	assert.ok(seen.some((text) => text.includes("Destructive command")));
+	assert.ok(seen.some((text) => text.includes("Outside-project access")));
+	assert.ok(seen.includes("Yes") && seen.includes("No"));
 });
 
 // --- Scratch space and the explained dialog (the owner's two asks) ----------
@@ -332,21 +215,20 @@ test("anything under the system temp root is used without asking at all", async 
 });
 
 test("the destructive dialog shows what the command does, with the command underneath", async () => {
-	setLanguage("es");
 	const { toolCall } = loadGuard();
 	const record = { prompts: [] as string[] };
-	const answer = "Acción: Borra definitivamente dos carpetas con todo su contenido.\nArchivos: ninguno\nCarpetas: build, node_modules";
-	const { ctx, selects, notifications } = makeCtx("Sí", { registry: fakeRegistry(answer, record) });
+	const answer = "Action: Borra definitivamente dos carpetas con todo su contenido.\nFiles: ninguno\nFolders: build, node_modules";
+	const { ctx, selects, notifications } = makeCtx("Yes", { registry: fakeRegistry(answer, record) });
 	const command = "rm -rf build node_modules";
 	await toolCall({ toolName: "bash", input: { command } }, ctx);
 	assert.equal(selects.length, 1);
 	const prompt = selects[0]!.prompt;
 	assert.ok(prompt.includes("Borra definitivamente dos carpetas"), prompt);
-	assert.ok(prompt.includes("Carpetas: build, node_modules"), prompt);
-	assert.ok(prompt.includes("Motivo: borrado recursivo de archivos."), prompt);
+	assert.ok(prompt.includes("Folders: build, node_modules"), prompt);
+	assert.ok(prompt.includes("Why: recursive file removal."), prompt);
 	// The summary is a model's reading and can be wrong, so the command itself
 	// has to survive to the dialog.
-	assert.ok(prompt.includes(`Comando: ${command}`), prompt);
+	assert.ok(prompt.includes(`Command: ${command}`), prompt);
 	assert.equal(record.prompts.length, 1, "one call, and the command is what it is asked about");
 	assert.ok(record.prompts[0]!.includes(command));
 	// Nine silent seconds before a dialog look like a hung harness.
@@ -354,9 +236,9 @@ test("the destructive dialog shows what the command does, with the command under
 });
 
 test("when no model can read the command, the dialog is exactly what it was before", async () => {
-	setLanguage("es");
 	const { toolCall } = loadGuard();
 	const command = "rm -rf build";
+	const reasons = ["recursive file removal"];
 	// No registry at all, a registry with no NaN model, and an answer that is
 	// not in the three-line shape: all three fall back to the command.
 	const runs = [
@@ -367,16 +249,16 @@ test("when no model can read the command, the dialog is exactly what it was befo
 	for (const run of runs) await toolCall({ toolName: "bash", input: { command } }, run.ctx);
 	for (const run of runs) {
 		assert.equal(run.selects.length, 1);
-		assert.equal(run.selects[0]!.prompt, `${guard.destructiveTitle}\n${guard.destructiveBody(command, ["borrado recursivo de archivos"])}`);
+		assert.equal(run.selects[0]!.prompt, `${guard.destructiveTitle}\n${guard.destructiveBody(command, reasons)}`);
 	}
 });
 
 test("a model that never answers costs the dialog a moment, not the session", async () => {
-	setLanguage("es");
 	process.env.VIOLETA_TEST_EXPLAIN_MS = "50";
 	try {
 		const { toolCall } = loadGuard();
 		const command = "rm -rf build";
+		const reasons = ["recursive file removal"];
 		// fakeRegistry(undefined) returns a promise that never settles: a hung
 		// service, from the guard's side.
 		const { ctx, selects } = makeCtx("No", { registry: fakeRegistry(undefined) });
@@ -384,7 +266,7 @@ test("a model that never answers costs the dialog a moment, not the session", as
 		const result = await toolCall({ toolName: "bash", input: { command } }, ctx);
 		assert.ok(Date.now() - started < 2000, "the ceiling is a ceiling");
 		assert.equal(selects.length, 1, "the dialog is still asked");
-		assert.equal(selects[0]!.prompt, `${guard.destructiveTitle}\n${guard.destructiveBody(command, ["borrado recursivo de archivos"])}`);
+		assert.equal(selects[0]!.prompt, `${guard.destructiveTitle}\n${guard.destructiveBody(command, reasons)}`);
 		assert.ok(result?.block, "and declining still blocks");
 	} finally {
 		delete process.env.VIOLETA_TEST_EXPLAIN_MS;

@@ -107,7 +107,7 @@ test("look-alikes are not flagged: prose, quoted strings, heredoc data and safe 
 });
 
 test("each match names its family in the reason", () => {
-	assert.match(recognizeDestructiveCommands("rm -rf build")[0].reason, /borrado recursivo/);
+	assert.match(recognizeDestructiveCommands("rm -rf build")[0].reason, /recursive file removal/);
 	assert.match(recognizeDestructiveCommands("git push -f")[0].reason, /push/);
 	assert.match(recognizeDestructiveCommands('psql -c "DROP TABLE users"')[0].reason, /DROP/);
 });
@@ -132,7 +132,7 @@ test("guardDecision hard-denies catastrophic targets with no prompt", () => {
 		assert.equal(withUi.action, "deny", command);
 		const withoutUi = guardDecision(command, false);
 		assert.equal(withoutUi.action, "deny", command);
-		assert.ok(withUi.action === "deny" && /denegado|catastrófico/i.test(withUi.reason));
+		assert.ok(withUi.action === "deny" && /denied|catastrophic/i.test(withUi.reason));
 	}
 });
 
@@ -206,7 +206,7 @@ test("a kill whose target the harness cannot count asks first", () => {
 	const real = 'D=$(pgrep -f "daemon[.]ts" | head -1)\nH=$(ps -eo pid,ppid --ppid "$D" --no-headers)\nkill -9 $H 2>/dev/null';
 	const decision = guardDecision(real, true);
 	assert.equal(decision.action, "confirm");
-	assert.ok(decision.reasons!.some((r) => /PID literal/i.test(r)), decision.reasons!.join("; "));
+	assert.ok(decision.reasons!.some((r) => /literal PID/.test(r)), decision.reasons!.join("; "));
 });
 
 test("a literal pid still passes, so routine work is not a dialog every time", () => {

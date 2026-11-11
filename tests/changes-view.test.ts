@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { changes as t, setLanguage, sidebar as sidebarT } from "../src/i18n.ts";
+import { changes as t, sidebar as sidebarT } from "../src/i18n.ts";
 import {
 	capDiff,
 	colorDiffLine,
@@ -142,22 +142,20 @@ test("listLines draws group headers and +/~/− markers with the selected row ma
 	const lines = listLines(ENTRIES, { width: 40, selectedKey: "created:a.txt" }, tagged);
 	assert.deepEqual(lines, [
 		"<success>+1</success> <warning>~1</warning> <error>−1</error>",
-		"<success>+</success> <dim>1 creado</dim>",
+		"<success>+</success> <dim>1 created</dim>",
 		"<accent>›</accent> <success>+</success> <text>a.txt</text>",
-		"<warning>~</warning> <dim>1 modificado</dim>",
+		"<warning>~</warning> <dim>1 updated</dim>",
 		"  <warning>~</warning> <muted>b.ts</muted>",
-		"<error>−</error> <dim>1 eliminado</dim>",
+		"<error>−</error> <dim>1 deleted</dim>",
 		"  <error>−</error> <muted>c.js</muted>",
 	]);
 });
 
 test("listLines of a clean tree shows the dim empty message", () => {
-	setLanguage("es");
 	try {
 		const lines = listLines([], { width: 40 }, tagged);
-		assert.deepEqual(lines, ["<dim>Sin cambios.</dim>"]);
+		assert.deepEqual(lines, ["<dim>No changes.</dim>"]);
 	} finally {
-		setLanguage("es");
 	}
 });
 
@@ -205,7 +203,6 @@ function diffData(overrides: Partial<DiffData> = {}): DiffData {
 }
 
 test("renderOverlay draws the counts header, the divider, the diff and the hint at the exact height", () => {
-	setLanguage("es");
 	try {
 		const layout = overlayLayout(80, 10);
 		const lines = renderOverlay(ENTRIES, diffData(), initialOverlayState(ENTRIES), layout, plain);
@@ -215,11 +212,10 @@ test("renderOverlay draws the counts header, the divider, the diff and the hint 
 		assert.ok(lines.some((line) => line.includes("│")), "split mode has a divider column");
 		assert.ok(lines.some((line) => line.includes("-two")), "deleted diff lines are shown");
 		assert.ok(lines.some((line) => line.includes("+TWO")), "added diff lines are shown");
-		assert.ok(lines.some((line) => line.includes("1 creado")), "group headers appear");
-		assert.ok(lines[9]!.startsWith("j/k archivo  ctrl+j/k desplazar  g/G inicio/fin  o abrir  esc cerrar"));
+		assert.ok(lines.some((line) => line.includes("1 created")), "group headers appear");
+		assert.ok(lines[9]!.startsWith("j/k file  ctrl+j/k scroll  g/G top/bottom  o open  esc close"));
 		assert.ok(lines.every((line) => line.length <= 80));
 	} finally {
-		setLanguage("es");
 	}
 });
 
@@ -247,33 +243,28 @@ test("renderOverlay clamps the scroll: G lands on the last lines, g returns to t
 });
 
 test("renderOverlay appends the truncation notice after the capped lines", () => {
-	setLanguage("es");
 	try {
 		const layout = overlayLayout(80, 6);
 		const keys = ENTRIES.map(entryKey);
 		const data = diffData({ truncated: 2, lines: [] });
 		const bottom = renderOverlay(ENTRIES, data, reduceOverlay(initialOverlayState(ENTRIES), "bottom", keys), layout, plain);
-		assert.ok(bottom.join("\n").includes("… 2 líneas más"));
+		assert.ok(bottom.join("\n").includes("… 2 more lines"));
 	} finally {
-		setLanguage("es");
 	}
 });
 
-test("renderOverlay shows `binario` for binary diffs and `cargando…` while loading", () => {
-	setLanguage("es");
+test("renderOverlay shows `binary` for binary diffs and `loading…` while loading", () => {
 	try {
 		const layout = overlayLayout(80, 10);
 		const binary = renderOverlay(ENTRIES, diffData({ binary: true, lines: [] }), initialOverlayState(ENTRIES), layout, plain);
-		assert.ok(binary.join("\n").includes("binario"));
+		assert.ok(binary.join("\n").includes("binary"));
 		const loading = renderOverlay(ENTRIES, undefined, initialOverlayState(ENTRIES), layout, plain);
-		assert.ok(loading.join("\n").includes("cargando…"));
+		assert.ok(loading.join("\n").includes("loading…"));
 	} finally {
-		setLanguage("es");
 	}
 });
 
 test("narrow mode is list-only; Enter opens the diff and esc returns", () => {
-	setLanguage("es");
 	try {
 		const layout = overlayLayout(50, 10);
 		const state = initialOverlayState(ENTRIES);
@@ -281,24 +272,21 @@ test("narrow mode is list-only; Enter opens the diff and esc returns", () => {
 		assert.equal(list.length, 10);
 		assert.ok(list[0]!.includes("+1 ~1 −1"));
 		assert.ok(!list.join("\n").includes("b.ts · +2 −1"), "no diff header in the narrow list");
-		assert.ok(list[9]!.startsWith("j/k archivo  enter diff  esc volver  q cerrar"));
+		assert.ok(list[9]!.startsWith("j/k file  enter diff  esc back  q close"));
 		const keys = ENTRIES.map(entryKey);
 		const detail = renderOverlay(ENTRIES, diffData(), reduceOverlay(state, "open", keys), layout, plain);
 		assert.ok(detail[0]!.includes("b.ts · +2 −1"), "detail header is the diff header");
 		assert.ok(detail.join("\n").includes("+TWO"));
-		assert.ok(detail[9]!.startsWith("j/k archivo  enter diff  esc volver  q cerrar"));
+		assert.ok(detail[9]!.startsWith("j/k file  enter diff  esc back  q close"));
 	} finally {
-		setLanguage("es");
 	}
 });
 
-test("the hint row speaks both languages", () => {
-	setLanguage("es");
+test("the hint row is the English one", () => {
 	try {
-		assert.equal(t.hint("split"), "j/k archivo  ctrl+j/k desplazar  g/G inicio/fin  o abrir  esc cerrar");
-		assert.equal(t.hint("narrow"), "j/k archivo  enter diff  esc volver  q cerrar");
-		assert.equal(sidebarT.noRepo, "sin repo");
-		setLanguage("en");
+		assert.equal(t.hint("split"), "j/k file  ctrl+j/k scroll  g/G top/bottom  o open  esc close");
+		assert.equal(t.hint("narrow"), "j/k file  enter diff  esc back  q close");
+		assert.equal(sidebarT.noRepo, "no repo");
 		assert.equal(t.hint("split"), "j/k file  ctrl+j/k scroll  g/G top/bottom  o open  esc close");
 		assert.equal(t.hint("narrow"), "j/k file  enter diff  esc back  q close");
 		assert.equal(sidebarT.noRepo, "no repo");
@@ -308,26 +296,23 @@ test("the hint row speaks both languages", () => {
 		assert.equal(t.moreLines(3), "… 3 more lines");
 		assert.equal(t.loading, "loading…");
 	} finally {
-		setLanguage("es");
 	}
 });
 
-test("the Spanish texts use binario, the empty tree message and the plural truncation notice", () => {
-	setLanguage("es");
+test("the texts are English: binary, the empty tree message and the plural truncation notice", () => {
 	try {
-		assert.equal(t.binary, "binario");
-		assert.equal(t.empty, "Sin cambios.");
-		assert.equal(t.loading, "cargando…");
-		assert.equal(t.moreLines(1), "… 1 línea más");
-		assert.equal(t.moreLines(3), "… 3 líneas más");
-		assert.equal(t.created(1), "1 creado");
-		assert.equal(t.created(2), "2 creados");
-		assert.equal(t.updated(1), "1 modificado");
-		assert.equal(t.deleted(4), "4 eliminados");
-		assert.equal(t.overlayNeedsTui, "La vista de cambios requiere modo interactivo.");
-		assert.equal(t.description, "Muestra el visor de cambios (archivos y su diff)");
-		assert.equal(t.shortcut, "Muestra el visor de cambios");
+		assert.equal(t.binary, "binary");
+		assert.equal(t.empty, "No changes.");
+		assert.equal(t.loading, "loading…");
+		assert.equal(t.moreLines(1), "… 1 more line");
+		assert.equal(t.moreLines(3), "… 3 more lines");
+		assert.equal(t.created(1), "1 created");
+		assert.equal(t.created(2), "2 created");
+		assert.equal(t.updated(1), "1 updated");
+		assert.equal(t.deleted(4), "4 deleted");
+		assert.equal(t.overlayNeedsTui, "The changes overlay requires interactive mode.");
+		assert.equal(t.description, "Show the changes viewer (files and their diff)");
+		assert.equal(t.shortcut, "Show the changes viewer");
 	} finally {
-		setLanguage("es");
 	}
 });

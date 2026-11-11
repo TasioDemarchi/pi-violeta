@@ -35,11 +35,11 @@ test("every successful call returns the compact rendering of the current list", 
 	assert.equal(applyTodo(state, { action: "list" }, NOW).text, LIST_TEXT);
 	assert.equal(applyTodo(state, { action: "add", title: "Extra" }, NOW).text, LIST_TEXT + "\n#4 [pending] Extra");
 	assert.equal(applyTodo(state, { action: "update", id: 1, status: "done" }, NOW).text, "#1 [done] Write the parser\n" + LIST_TEXT.slice(LIST_TEXT.indexOf("#2")));
-	assert.equal(applyTodo(state, { action: "clear" }, NOW).text, "Sin tareas.");
+	assert.equal(applyTodo(state, { action: "clear" }, NOW).text, "No tasks.");
 });
 
-test("renderTodoText of an empty list is exactly `Sin tareas.`", () => {
-	assert.equal(renderTodoText(emptyTodo()), "Sin tareas.");
+test("renderTodoText of an empty list is exactly `No tasks.`", () => {
+	assert.equal(renderTodoText(emptyTodo()), "No tasks.");
 });
 
 test("write replaces the whole list and keeps the ids of tasks that already exist", () => {
@@ -78,7 +78,7 @@ test("write with a duplicate id keeps the first and assigns a new one to the sec
 test("write with no tasks empties the list", () => {
 	const result = applyTodo(seededState(), { action: "write", tasks: [] }, NOW);
 	assert.deepEqual(result.state.tasks, []);
-	assert.equal(result.text, "Sin tareas.");
+	assert.equal(result.text, "No tasks.");
 });
 
 test("update changes one task by id (status, title, note)", () => {
@@ -96,8 +96,8 @@ test("update changes one task by id (status, title, note)", () => {
 test("update with an unknown id fails and leaves the list unchanged", () => {
 	const state = seededState();
 	const result = applyTodo(state, { action: "update", id: 9, status: "done" }, NOW);
-	assert.equal(result.text, "Error: no existe la tarea #9");
-	assert.equal(result.error, "no existe la tarea #9");
+	assert.equal(result.text, "Error: no task #9");
+	assert.equal(result.error, "no task #9");
 	assert.equal(result.state, state);
 	assert.deepEqual(result.state.tasks, state.tasks);
 });
@@ -105,23 +105,23 @@ test("update with an unknown id fails and leaves the list unchanged", () => {
 test("update with nothing to change fails", () => {
 	const state = seededState();
 	const result = applyTodo(state, { action: "update", id: 1 }, NOW);
-	assert.equal(result.text, "Error: nada que actualizar: pasá status, title o note");
+	assert.equal(result.text, "Error: nothing to update: pass status, title, or note");
 	assert.equal(result.state, state);
 });
 
 test("blocked requires a note on add, write and update", () => {
 	const state = emptyTodo();
 	const added = applyTodo(state, { action: "add", title: "Wait", status: "blocked" }, NOW);
-	assert.equal(added.text, "Error: una tarea bloqueada necesita una nota que diga qué espera");
-	assert.equal(added.error, "una tarea bloqueada necesita una nota que diga qué espera");
+	assert.equal(added.text, "Error: blocked needs a note naming what it waits for");
+	assert.equal(added.error, "blocked needs a note naming what it waits for");
 	assert.equal(added.state, state);
 
 	const written = applyTodo(state, { action: "write", tasks: [{ title: "Wait", status: "blocked" }] }, NOW);
-	assert.equal(written.error, "una tarea bloqueada necesita una nota que diga qué espera");
+	assert.equal(written.error, "blocked needs a note naming what it waits for");
 	assert.equal(written.state, state);
 
 	const updated = applyTodo(seededState(), { action: "update", id: 1, status: "blocked" }, NOW);
-	assert.equal(updated.error, "una tarea bloqueada necesita una nota que diga qué espera");
+	assert.equal(updated.error, "blocked needs a note naming what it waits for");
 
 	// A note attached by a separate update satisfies the rule.
 	const ok = applyTodo(applyTodo(emptyTodo(), { action: "add", title: "Wait", note: "on ops" }, NOW).state, { action: "update", id: 1, status: "blocked" }, NOW);
@@ -132,19 +132,19 @@ test("blocked requires a note on add, write and update", () => {
 test("an empty title is rejected", () => {
 	const state = emptyTodo();
 	const result = applyTodo(state, { action: "add", title: "   " }, NOW);
-	assert.equal(result.text, "Error: falta el título");
+	assert.equal(result.text, "Error: title is required");
 	assert.equal(result.state, state);
 });
 
 test("an unknown status is rejected with the valid list", () => {
 	const result = applyTodo(emptyTodo(), { action: "add", title: "X", status: "doing" }, NOW);
-	assert.equal(result.text, 'Error: estado desconocido "doing" (usá pending, in_progress, blocked, done o dropped)');
+	assert.equal(result.text, 'Error: unknown status "doing" (use pending, in_progress, blocked, done, or dropped)');
 });
 
 test("an unknown action is rejected and leaves the list unchanged", () => {
 	const state = seededState();
 	const result = applyTodo(state, { action: "purge" }, NOW);
-	assert.equal(result.text, 'Error: acción desconocida "purge" (usá write, add, update, clear o list)');
+	assert.equal(result.text, 'Error: unknown action "purge" (use write, add, update, clear, or list)');
 	assert.equal(result.state, state);
 });
 

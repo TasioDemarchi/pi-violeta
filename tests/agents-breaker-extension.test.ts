@@ -9,7 +9,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import extension from "../extensions/violeta-agents.ts";
-import { setLanguage } from "../src/i18n.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -25,7 +24,6 @@ function setup(env: Record<string, string>) {
 	process.env.PI_CODING_AGENT_DIR = dir;
 	delete process.env.VIOLETA_AGENTS_CHILD;
 	Object.assign(process.env, env);
-	setLanguage("es");
 
 	const tools = new Map<string, Tool>();
 	const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
@@ -69,10 +67,10 @@ test("a refused confirmation returns an error and never spawns a child", async (
 	assert.equal(result.isError, true);
 	assert.equal(result.details?.error, "breaker");
 	assert.equal(result.details?.reason, "loop");
-	assert.match(result.content[0]!.text, /no autorizó lanzar más subagentes/);
+	assert.match(result.content[0]!.text, /did not authorize launching more subagents/);
 	assert.equal(env.asked.length, 1);
-	assert.equal(env.asked[0]!.title, "¿Seguir lanzando subagentes?");
-	assert.match(env.asked[0]!.question, /vez 1 que se lanza «scout»/);
+	assert.equal(env.asked[0]!.title, "Keep launching subagents?");
+	assert.match(env.asked[0]!.question, /^"scout" is about to run with "map the repo" for the 1th time/);
 	await env.stop();
 });
 

@@ -8,7 +8,6 @@ import {
 	type ModelCandidate,
 	type ViewFg,
 } from "../src/models-view/view.ts";
-import { setLanguage } from "../src/i18n.ts";
 
 const plain: ViewFg = (_role, text) => text;
 
@@ -77,14 +76,13 @@ test("the reducer is safe on an empty list", () => {
 	assert.equal(reduceModels(state, "select", 0).chosen, undefined);
 });
 
-// --- Render (es + en) -----------------------------------------------------------
+// --- Render (English only, S4) ---------------------------------------------------
 
 const rows = modelRows(candidates, "nan", "deepseek-v4-flash");
 
-test("the overlay renders title, marked rows with context windows, and the es hint", () => {
-	setLanguage("es");
+test("the overlay renders title, marked rows with context windows, and the English hint", () => {
 	const lines = renderModelsOverlay(rows, initialModelsState(rows.length), 60, plain);
-	assert.equal(lines[0], "Modelos");
+	assert.equal(lines[0], "Models");
 	assert.ok(lines.some((l) => l.includes("nan/glm5.3")), lines.join("\n"));
 	assert.ok(lines.some((l) => l.includes("1.0M")), lines.join("\n"));
 	assert.ok(lines.some((l) => l.includes("262.0k")), lines.join("\n"));
@@ -92,24 +90,21 @@ test("the overlay renders title, marked rows with context windows, and the es hi
 	assert.ok(lines.some((l) => l.includes("›") && l.includes("nan/deepseek-v4-flash")), lines.join("\n"));
 	assert.ok(lines.some((l) => l.includes("●") && l.includes("nan/deepseek-v4-flash")), lines.join("\n"));
 	assert.ok(!lines.some((l) => l.includes("locked/gpt-x")));
-	assert.equal(lines[lines.length - 1], "j/k seleccionar  enter cambiar  esc cerrar");
+	assert.equal(lines[lines.length - 1], "j/k select  enter switch  esc close");
 	// No row wider than the overlay width.
 	for (const line of lines) assert.ok(line.length <= 60, line);
 });
 
-test("the overlay renders the en hint and title", () => {
+test("the overlay renders the same English hint and title", () => {
 	try {
-		setLanguage("en");
 		const lines = renderModelsOverlay(rows, initialModelsState(rows.length), 60, plain);
 		assert.equal(lines[0], "Models");
 		assert.equal(lines[lines.length - 1], "j/k select  enter switch  esc close");
 	} finally {
-		setLanguage("es");
 	}
 });
 
 test("the selection marker follows the reducer state", () => {
-	setLanguage("es");
 	const state = reduceModels(initialModelsState(rows.length), "down", rows.length);
 	const lines = renderModelsOverlay(rows, state, 60, plain);
 	const selected = lines.find((l) => l.includes("›"));
@@ -119,16 +114,13 @@ test("the selection marker follows the reducer state", () => {
 	assert.ok(!current!.includes("›"), current);
 });
 
-test("an empty list shows the empty message in the active language", () => {
-	setLanguage("es");
+test("an empty list shows the empty message", () => {
 	const es = renderModelsOverlay([], initialModelsState(0), 60, plain);
-	assert.ok(es.some((l) => l.includes("No hay modelos con autenticación disponible.")), es.join("\n"));
+	assert.ok(es.some((l) => l.includes("No models with available authentication.")), es.join("\n"));
 	try {
-		setLanguage("en");
 		const en = renderModelsOverlay([], initialModelsState(0), 60, plain);
 		assert.ok(en.some((l) => l.includes("No models with available authentication.")), en.join("\n"));
 	} finally {
-		setLanguage("es");
 	}
 });
 
@@ -138,6 +130,6 @@ test("roles: the title uses accent, the selected row text, others muted", () => 
 		seen.push([role, text]);
 		return text;
 	});
-	assert.ok(seen.some(([role, text]) => role === "accent" && text === "Modelos"));
-	assert.ok(seen.some(([role, text]) => role === "dim" && text.includes("j/k seleccionar")));
+	assert.ok(seen.some(([role, text]) => role === "accent" && text === "Models"));
+	assert.ok(seen.some(([role, text]) => role === "dim" && text.includes("j/k select")));
 });

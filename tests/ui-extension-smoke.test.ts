@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 import extension from "../extensions/violeta-ui.ts";
 import { answerBtw, askBtw, emptyBtw } from "../src/btw/state.ts";
-import { setLanguage } from "../src/i18n.ts";
 import { setShared } from "../src/shared-hub.ts";
 
 const NODE = Symbol.for("@earendil-works/pi-tui/layout-node");
@@ -91,13 +90,12 @@ test("with the sidebar on, the sidebar column renders real content and the foote
 		const text = lines.join("\n");
 		assert.ok(lines.length > 3, `sidebar must not be empty, got: ${JSON.stringify(lines)}`);
 		assert.ok(!text.includes("sidebar:"), `sidebar render threw: ${text}`);
-		assert.match(text, /PROYECTO/);
+		assert.match(text, /PROJECT/);
 		assert.match(text, /nan\/test-model · medium/);
 		assert.match(text, /ctx 42%/);
 		assert.deepEqual(footer.render(140), [], "the footer paints nothing while the sidebar is active");
 	} finally {
 		(footer as unknown as { dispose?(): void }).dispose?.();
-		setLanguage("es");
 	}
 });
 
@@ -110,7 +108,6 @@ test("with the sidebar off, the footer shows project, model and ctx", async () =
 		assert.match(text, /ctx 42%/);
 	} finally {
 		(footer as unknown as { dispose?(): void }).dispose?.();
-		setLanguage("es");
 	}
 });
 
@@ -182,10 +179,9 @@ test("the persisted language key no longer changes the interface", async () => {
 	try {
 		const node = (env.root[NODE] as () => { entries: Array<{ component: { render(w: number): string[] } }> })();
 		const text = node.entries[1]!.component.render(44).join("\n");
-		assert.match(text, /PROYECTO/, "the key is ignored: the dictionary default stands");
+		assert.match(text, /PROJECT/, "the key is ignored: the dictionary default stands");
 	} finally {
 		(footer as unknown as { dispose?(): void }).dispose?.();
-		setLanguage("es");
 	}
 });
 
@@ -260,16 +256,15 @@ test("with the side chat open the sidebar becomes the chat, framed, and comes ba
 		setShared({ btw: answerBtw(askBtw(emptyBtw(), "¿qué es un hub?"), "un objeto compartido") });
 		const chat = sidebar.render(44);
 		const text = chat.join("\n");
-		assert.match(chat[0]!, /^╭─ Al margen ─+╮$/, "a framed window, not the sidebar sections");
+		assert.match(chat[0]!, /^╭─ By the way ─+╮$/, "a framed window, not the sidebar sections");
 		assert.match(text, /un objeto compartido/);
-		assert.ok(!text.includes("PROYECTO"), "the sidebar yields the whole column");
+		assert.ok(!text.includes("PROJECT"), "the sidebar yields the whole column");
 		assert.equal(chat.length, env.tui.terminal.rows, "and still fills the column");
 
 		setShared({ btw: emptyBtw() });
-		assert.match(sidebar.render(44).join("\n"), /PROYECTO/, "closing it gives the sidebar back");
+		assert.match(sidebar.render(44).join("\n"), /PROJECT/, "closing it gives the sidebar back");
 	} finally {
 		setShared({ btw: undefined });
 		(footer as unknown as { dispose?(): void }).dispose?.();
-		setLanguage("es");
 	}
 });

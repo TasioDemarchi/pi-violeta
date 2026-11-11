@@ -13,7 +13,7 @@ import {
 	type ViewFg,
 } from "../src/palette/view.ts";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { palette as t, setLanguage } from "../src/i18n.ts";
+import { palette as t } from "../src/i18n.ts";
 
 const plain: ViewFg = (_role, text) => text;
 
@@ -176,16 +176,15 @@ test("esc is two-step: it first clears a non-empty query, then closes", () => {
 // --- Rendering ------------------------------------------------------------------
 
 test("the render lists commands with descriptions and sources, and the shortcuts block", () => {
-	setLanguage("es");
 	const entries = paletteEntries(FIXTURE_COMMANDS);
 	const lines = renderPalette(entries, initialPaletteState(), 100, 200, plain).join("\n");
-	// title, search prompt, es hints
-	assert.ok(lines.includes("Paleta de comandos"), lines);
-	assert.ok(lines.includes("escribí para filtrar"), lines);
+	// title, search prompt, English hints
+	assert.ok(lines.includes("Command palette"), lines);
+	assert.ok(lines.includes("type to filter"), lines);
 	// commands with description and source
 	assert.ok(lines.includes("/sidebar"), lines);
 	assert.ok(lines.includes("Muestra u oculta la barra lateral"), lines);
-	assert.ok(lines.includes("extensión"), lines);
+	assert.ok(lines.includes("extension"), lines);
 	assert.ok(lines.includes("/skill:review"), lines);
 	assert.ok(lines.includes("Review the current diff"), lines);
 	assert.ok(lines.includes("skill"), lines);
@@ -193,37 +192,35 @@ test("the render lists commands with descriptions and sources, and the shortcuts
 	assert.ok(lines.includes("/compact"), lines);
 	assert.ok(lines.includes("Manually compact the session context"), lines);
 	assert.ok(lines.includes("pi"), lines);
-	// group headers in es
-	assert.ok(lines.includes("Sesión"), lines);
-	assert.ok(lines.includes("Interfaz"), lines);
-	assert.ok(lines.includes("Herramientas"), lines);
-	assert.ok(lines.includes("Otros"), lines);
+	// group headers in English
+	assert.ok(lines.includes("Session"), lines);
+	assert.ok(lines.includes("Interface"), lines);
+	assert.ok(lines.includes("Tools"), lines);
+	assert.ok(lines.includes("Other"), lines);
 	// the static shortcuts block (alt+a, alt+g, alt+m, alt+k, alt+s, ctrl+o)
 	assert.ok(lines.includes("alt+a"), lines);
-	assert.ok(lines.includes("agentes"), lines);
+	assert.ok(lines.includes("agents"), lines);
 	assert.ok(lines.includes("alt+g"), lines);
-	assert.ok(lines.includes("cambios"), lines);
+	assert.ok(lines.includes("changes"), lines);
 	assert.ok(lines.includes("alt+m"), lines);
-	assert.ok(lines.includes("modelos"), lines);
+	assert.ok(lines.includes("models"), lines);
 	assert.ok(lines.includes("alt+k"), lines);
-	assert.ok(lines.includes("paleta"), lines);
+	assert.ok(lines.includes("palette"), lines);
 	assert.ok(lines.includes("alt+s"), lines);
-	assert.ok(lines.includes("detener agentes"), lines);
+	assert.ok(lines.includes("stop agents"), lines);
 	assert.ok(lines.includes("ctrl+o"), lines);
-	assert.ok(lines.includes("expandir herramientas"), lines);
+	assert.ok(lines.includes("expand tools"), lines);
 });
 
 test("an empty result renders the empty row", () => {
-	setLanguage("es");
 	const entries = paletteEntries(FIXTURE_COMMANDS);
 	const state = reducePalette(initialPaletteState(), { type: "insert", text: "zzzz" }, []);
 	const lines = renderPalette(entries, state, 100, 200, plain);
-	assert.ok(lines.join("\n").includes("Sin coincidencias."), lines.join("\n"));
+	assert.ok(lines.join("\n").includes("No matches."), lines.join("\n"));
 });
 
-test("the same overlay renders in English when the language is en", () => {
+test("the overlay renders every section in English", () => {
 	try {
-		setLanguage("en");
 		const entries = paletteEntries(FIXTURE_COMMANDS);
 		// the empty-result row in en
 		const emptyState = reducePalette(initialPaletteState(), { type: "insert", text: "zzzz" }, []);
@@ -242,12 +239,10 @@ test("the same overlay renders in English when the language is en", () => {
 		assert.ok(lines.includes("stop agents"), lines);
 		assert.ok(lines.includes("expand tools"), lines);
 	} finally {
-		setLanguage("es");
 	}
 });
 
 test("narrow terminals get a single-column list that fits the width", () => {
-	setLanguage("es");
 	const entries = paletteEntries(FIXTURE_COMMANDS);
 	const lines = renderPalette(entries, initialPaletteState(), 40, 6, plain);
 	assert.ok(lines.every((line) => visibleWidth(line) <= 40), lines.join("\n"));
@@ -260,7 +255,6 @@ test("narrow terminals get a single-column list that fits the width", () => {
 });
 
 test("the selected row stays visible inside a small body window", () => {
-	setLanguage("es");
 	const entries = paletteEntries(FIXTURE_COMMANDS);
 	let state = initialPaletteState();
 	const all = filterEntries(entries, "");

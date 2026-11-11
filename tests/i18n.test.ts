@@ -1,115 +1,74 @@
+/**
+ * One dictionary, English, and nothing else (S4). Its sections ARE the
+ * exports: no language switch, no second copy, no lookup at access time. These
+ * tests assert the strings the screen actually shows, one expectation per test.
+ */
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agents, btw, changes, context, usage, guard, guardReasons, jobs, models, notify, palette, sidebar, todo, ui, activity, getLanguage, setLanguage } from "../src/i18n.ts";
+import * as i18n from "../src/i18n.ts";
+import { agents, btw, context, guard, palette, sidebar, todo, usage } from "../src/i18n.ts";
 
-test("agents card title pluralizes activos/terminados and adds fallidos only when present", () => {
-	setLanguage("es");
-	assert.equal(agents.cardTitle(1, 0, 0), "Agentes · 1 activo · 0 terminados");
-	assert.equal(agents.cardTitle(2, 1, 0), "Agentes · 2 activos · 1 terminado");
-	assert.equal(agents.cardTitle(0, 1, 1), "Agentes · 0 activos · 1 terminado · 1 fallido");
-	assert.equal(agents.cardTitle(3, 2, 4), "Agentes · 3 activos · 2 terminados · 4 fallidos");
+test("the guard dialog offers Yes and No", () => {
+	assert.equal(guard.yes, "Yes");
+	assert.equal(guard.no, "No");
 });
 
-test("agents fold line and list header use the Spanish dictionary", () => {
-	setLanguage("es");
-	assert.equal(agents.fold(4, "alt+a"), "… 4 más · alt+a para ver");
-	assert.equal(agents.listHeader(1, 2), "1 activo · 2 terminados");
-	assert.equal(agents.listHeader(0, 1), "0 activos · 1 terminado");
+test("the sidebar section titles are the English ones", () => {
+	assert.equal(sidebar.project, "PROJECT");
+	assert.equal(sidebar.changes, "CHANGES");
+	assert.equal(sidebar.tasks, "TASKS");
+	assert.equal(sidebar.model, "MODEL");
+	assert.equal(sidebar.usage, "USAGE");
 });
 
-test("agents status words map every task and tool status", () => {
-	setLanguage("es");
-	assert.equal(agents.statuses.queued, "en cola");
-	assert.equal(agents.statuses.running, "en curso");
-	assert.equal(agents.statuses.completed, "completado");
-	assert.equal(agents.statuses.failed, "fallido");
-	assert.equal(agents.statuses.aborted, "abortado");
-	assert.equal(agents.toolStatuses.running, "en curso");
-	assert.equal(agents.toolStatuses.done, "listo");
-	assert.equal(agents.toolStatuses.error, "error");
+test("the todo card and its messages speak English", () => {
+	assert.equal(todo.cardTitle(3, 2), "Todo · 3 open · 2 done");
+	assert.equal(todo.fold(2), "… 2 more");
+	assert.equal(todo.empty, "No tasks.");
+	assert.equal(todo.unknownStatus("doing"), 'unknown status "doing" (use pending, in_progress, blocked, done, or dropped)');
+	assert.equal(todo.unknownAction("purge"), 'unknown action "purge" (use write, add, update, clear, or list)');
+	assert.equal(todo.shown, "Todo card shown.");
+	assert.equal(todo.hidden, "Todo card hidden.");
 });
 
-test("todo card title and fold line pluralize", () => {
-	setLanguage("es");
-	assert.equal(todo.cardTitle(1, 0), "Tareas · 1 abierta · 0 hechas");
-	assert.equal(todo.cardTitle(3, 2), "Tareas · 3 abiertas · 2 hechas");
-	assert.equal(todo.fold(2), "… 2 más");
-	assert.equal(todo.fold(1), "… 1 más");
+test("the agents card, its statuses and its fold line speak English", () => {
+	assert.equal(agents.statuses.queued, "queued");
+	assert.equal(agents.statuses.failed, "failed");
+	assert.equal(agents.toolStatuses.done, "done");
+	assert.equal(agents.cardTitle(3, 2, 4), "Agents · 3 active · 2 done · 4 failed");
+	assert.equal(agents.fold(4, "alt+a"), "… 4 more · alt+a to view");
+	assert.equal(agents.listHeader(1, 2), "1 active · 2 finished");
+	assert.equal(agents.inProgress, "in progress…");
 });
 
-test("guard dialog body interpolates command and reasons", () => {
-	setLanguage("es");
-	assert.equal(
-		guard.destructiveBody("rm -rf build", ["borrado recursivo de archivos"]),
-		"rm -rf build\n\nMotivo: borrado recursivo de archivos. ¿Ejecutarlo igual?",
-	);
-	assert.equal(
-		guard.destructiveBody("x", ["a", "b"]),
-		"x\n\nMotivo: a; b. ¿Ejecutarlo igual?",
-	);
-	assert.equal(guard.outsideBody("/tmp/otro"), "¿Permitir acceso fuera del proyecto: /tmp/otro? El permiso dura solo esta sesión.");
+test("the usage report speaks English", () => {
+	assert.equal(usage.title(1), "Session usage · 1 reply");
+	assert.equal(usage.title(2), "Session usage · 2 replies");
+	assert.equal(usage.tokens("1.2k", "300", "$0.004"), "In 1.2k · Out 300 · Cost $0.004");
+	assert.equal(usage.cache("1k", "200"), "Cache: 1k read · 200 written");
+	assert.equal(usage.byModel, "By model:");
 });
 
-test("guard grant notifications pluralize", () => {
-	setLanguage("es");
-	assert.equal(guard.grantsRevoked(1), "Revocado 1 permiso fuera del proyecto.");
-	assert.equal(guard.grantsRevoked(3), "Revocados 3 permisos fuera del proyecto.");
+test("the context report speaks English", () => {
+	assert.equal(context.line("42%", "64k"), "Context: 42% of 64k tokens.");
+	assert.equal(context.usedFree("27k", "37k"), "Used 27k · Free 37k");
+	assert.equal(context.compactSuggest, "Context is at 80%. Consider /compact.");
 });
 
-test("jobs indicator and overlay header interpolate and pluralize", () => {
-	setLanguage("es");
-	assert.equal(jobs.indicator(2), "jobs: 2 en ejecución");
-	assert.equal(jobs.indicator(1), "jobs: 1 en ejecución");
-	assert.equal(jobs.overlayHeader(1, 1), "Jobs · 1 en ejecución · 1 terminado");
-	assert.equal(jobs.overlayHeader(2, 3), "Jobs · 2 en ejecución · 3 terminados");
-	assert.equal(jobs.overlayHeader(0, 0), "Jobs · 0 en ejecución");
+test("the command palette speaks English", () => {
+	assert.equal(palette.title, "Command palette");
+	assert.equal(palette.empty, "No matches.");
+	assert.equal(palette.groups.tools, "Tools");
+	assert.equal(palette.shortcuts.stop, "stop agents");
 });
 
-test("jobs monitor notices pluralize lines", () => {
-	setLanguage("es");
-	assert.equal(jobs.monitorReported("job-2", "watch", 1), "El monitor job-2 (watch) reportó 1 línea nueva:");
-	assert.equal(jobs.monitorReported("job-2", "watch", 2), "El monitor job-2 (watch) reportó 2 líneas nuevas:");
-	assert.equal(jobs.linesDropped(3), "(+3 líneas descartadas)");
-});
-
-test("sidebar markers keep their glyphs and pluralize", () => {
-	setLanguage("es");
-	assert.equal(sidebar.tasks, "TAREAS");
-	assert.equal(sidebar.ellipsis, "…");
-});
-
-test("notify, models and context strings exist in both languages (T3)", () => {
-	setLanguage("es");
-	assert.equal(notify.enabled, "Avisos activados.");
-	assert.equal(notify.disabled, "Avisos desactivados.");
-	assert.equal(notify.needsAnswer, "Necesita tu respuesta");
-	assert.equal(notify.finished("listo"), "Terminó: listo");
-	assert.equal(models.title, "Modelos");
-	assert.equal(models.switched("nan/glm5.3"), "Modelo cambiado a nan/glm5.3.");
-	assert.equal(context.compactSuggest, "El contexto está al 80 %. Considerá /compact.");
-	try {
-		setLanguage("en");
-		assert.equal(notify.enabled, "Notifications on.");
-		assert.equal(notify.disabled, "Notifications off.");
-		assert.equal(notify.needsAnswer, "Needs your answer");
-		assert.equal(notify.finished("done"), "Finished: done");
-		assert.equal(models.title, "Models");
-		assert.equal(models.switched("nan/glm5.3"), "Switched to nan/glm5.3.");
-		assert.equal(context.compactSuggest, "Context is at 80%. Consider /compact.");
-	} finally {
-		setLanguage("es");
-	}
-});
-
-// --- Language switching (S3) ---------------------------------------------------
-
-test("the language defaults to es and setLanguage/getLanguage round-trip", () => {
-	setLanguage("es");
-	assert.equal(getLanguage(), "es");
-	setLanguage("en");
-	assert.equal(getLanguage(), "en");
-	setLanguage("es");
-	assert.equal(getLanguage(), "es");
+test("the side chat speaks English", () => {
+	assert.equal(btw.title, "By the way");
+	assert.equal(btw.thinking, "thinking…");
+	assert.equal(btw.opened, "Side chat open.");
+	assert.equal(btw.cleared, "Side chat: conversation cleared.");
+	assert.equal(btw.noModel, "No active model: the side chat cannot ask.");
 });
 
 /** Candidate argument lists by function arity; the first one that runs without
@@ -125,216 +84,49 @@ function candidateArgs(arity: number): unknown[][] {
 	}
 }
 
-/** Recursive shape check: identical key sets, and every entry is a non-empty
- * string or a function returning one for sample arguments (both languages). */
-function walk(esValue: unknown, enValue: unknown, path: string): void {
-	if (typeof esValue === "function") {
-		assert.equal(typeof enValue, "function", `en.${path} must be a function`);
-		assert.equal((esValue as { length: number }).length, (enValue as { length: number }).length, `arity mismatch at ${path}`);
-		for (const args of candidateArgs((esValue as { length: number }).length)) {
-			let esOut: unknown;
+/** Recursive shape check: every entry of every section is a non-empty string
+ * or a function that returns one for sample arguments. */
+function walk(value: unknown, path: string): void {
+	if (typeof value === "function") {
+		for (const args of candidateArgs((value as { length: number }).length)) {
+			let out: unknown;
 			try {
-				esOut = (esValue as (...a: unknown[]) => unknown)(...args);
+				out = (value as (...a: unknown[]) => unknown)(...args);
 			} catch {
 				continue;
 			}
-			const enOut = (enValue as (...a: unknown[]) => unknown)(...args);
-			assert.equal(typeof esOut, "string", `es.${path}(...) must return a string`);
-			assert.ok((esOut as string).length > 0, `es.${path}(...) must return a non-empty string`);
-			assert.equal(typeof enOut, "string", `en.${path}(...) must return a string`);
-			assert.ok((enOut as string).length > 0, `en.${path}(...) must return a non-empty string`);
+			assert.equal(typeof out, "string", `${path}(...) must return a string`);
+			assert.ok((out as string).length > 0, `${path}(...) must return a non-empty string`);
 			return;
 		}
 		assert.fail(`no candidate arguments produced a string for ${path}`);
 	}
-	if (typeof esValue === "string") {
-		assert.equal(typeof enValue, "string", `en.${path} must be a string`);
-		assert.ok(esValue.length > 0, `es.${path} must be non-empty`);
-		assert.ok((enValue as string).length > 0, `en.${path} must be non-empty`);
+	if (typeof value === "string") {
+		assert.ok(value.length > 0, `${path} must be a non-empty string`);
 		return;
 	}
-	assert.equal(typeof esValue, "object", `es.${path} must be an object, string or function`);
-	assert.equal(typeof enValue, "object", `en.${path} must be an object`);
-	assert.deepEqual(Object.keys(esValue as object), Object.keys(enValue as object), `key sets differ at ${path}`);
-	for (const key of Object.keys(esValue as object)) {
-		walk((esValue as Record<string, unknown>)[key], (enValue as Record<string, unknown>)[key], path ? `${path}.${key}` : key);
+	assert.equal(typeof value, "object", `${path} must be an object, a string or a function`);
+	for (const key of Object.keys(value as Record<string, unknown>)) {
+		walk((value as Record<string, unknown>)[key], path ? `${path}.${key}` : key);
 	}
 }
 
-/** Shallow-copy every namespace with the ACTIVE language (the proxies resolve
- * at access time, so the spread captures that dictionary's entries). */
-function snapshot(): Record<string, Record<string, unknown>> {
-	return {
-		guardReasons: { ...guardReasons },
-		guard: { ...guard },
-		btw: { ...btw },
-		agents: { ...agents },
-		changes: { ...changes },
-		todo: { ...todo },
-		jobs: { ...jobs },
-		sidebar: { ...sidebar },
-		ui: { ...ui },
-		activity: { ...activity },
-		notify: { ...notify },
-		models: { ...models },
-		context: { ...context },
-		usage: { ...usage },
-		palette: { ...palette },
-	};
-}
-
-test("es and en dictionaries have the same key set and every entry is usable", () => {
-	try {
-		setLanguage("es");
-		const esDict = snapshot();
-		setLanguage("en");
-		const enDict = snapshot();
-		setLanguage("es");
-		assert.deepEqual(Object.keys(esDict), Object.keys(enDict));
-		for (const area of Object.keys(esDict)) {
-			assert.deepEqual(Object.keys(esDict[area]!), Object.keys(enDict[area]!), `top-level keys differ in ${area}`);
-			walk(esDict[area], enDict[area], area);
-		}
-	} finally {
-		setLanguage("es");
-	}
+test("every dictionary entry is a non-empty string or a function that returns one", () => {
+	const sections = Object.keys(i18n);
+	assert.ok(sections.length > 0, "the dictionary exports at least one section");
+	for (const section of sections) walk((i18n as unknown as Record<string, unknown>)[section], section);
 });
 
-test("the English dictionary reproduces the original English guard strings", () => {
-	try {
-		setLanguage("en");
-		assert.equal(guardReasons.recursiveRemoval, "recursive file removal");
-		assert.equal(guardReasons.forcedRemoval, "forced file removal");
-		assert.equal(guardReasons.ddDevice, "dd writes to a device");
-		assert.equal(guardReasons.gitForcePush, "git force push");
-		assert.equal(guardReasons.gitCheckoutWholeTree, "git checkout of the whole tree");
-		assert.equal(guardReasons.gitRestoreWholeTree, "git restore of the whole tree");
-		assert.equal(guardReasons.sqlDropTruncate, "SQL DROP/TRUNCATE statement");
-		assert.equal(guardReasons.sqlDeleteWithoutWhere, "DELETE without WHERE");
-		assert.equal(guardReasons.recursiveBroadPath("chmod"), "recursive chmod on a broad path");
-		assert.equal(guard.yes, "Yes");
-		assert.equal(guard.no, "No");
-		assert.equal(guard.destructiveTitle, "Destructive command");
-		assert.equal(guard.destructiveBody("rm -rf build", ["recursive file removal"]), "rm -rf build\n\nWhy: recursive file removal. Run it anyway?");
-		assert.equal(guard.declined("rm -rf build"), "The user declined this destructive command: rm -rf build. Find a safer way.");
-		assert.equal(guard.blocked(["recursive file removal"]), "Blocked: recursive file removal. No interactive user is available to approve it.");
-		assert.equal(guard.catastrophic("recursive file removal"), "Catastrophic target denied without a prompt: recursive file removal.");
-		assert.equal(guard.outsideTitle, "Outside-project access");
-		assert.equal(guard.outsideBody("/tmp/x"), "Allow access outside the project: /tmp/x? The grant lasts only for this session.");
-		assert.equal(
-			guard.outsideNeedsGrant("/tmp/x", "/repo"),
-			"Access outside the project (/tmp/x) needs a grant and there is no UI to ask. Grant it in an interactive session, or keep work inside /repo.",
-		);
-		assert.equal(guard.outsideDeclined("/tmp/x", "/repo"), "Access to /tmp/x was not approved. Stay inside /repo or ask the user to grant it.");
-		assert.equal(guard.grantsRevoked(3), "Revoked 3 outside-project grant(s).");
-	} finally {
-		setLanguage("es");
-	}
-});
+test("both model-facing strings ask for Spanish answers and keep the English labels", () => {
+	assert.match(btw.systemPrompt, /answer in spanish/i, "the aside must ask for a Spanish answer");
+	assert.doesNotMatch(btw.systemPrompt, /answer in english/i, "and must not ask for an English one");
 
-test("the English dictionary reproduces the original English agents strings", () => {
-	try {
-		setLanguage("en");
-		assert.equal(agents.statuses.queued, "queued");
-		assert.equal(agents.statuses.completed, "completed");
-		assert.equal(agents.toolStatuses.done, "done");
-		assert.equal(agents.cardTitle(1, 0, 0), "Agents · 1 active · 0 done");
-		assert.equal(agents.cardTitle(3, 2, 4), "Agents · 3 active · 2 done · 4 failed");
-		assert.equal(agents.fold(4, "alt+a"), "… 4 more · alt+a to view");
-		assert.equal(agents.listHeader(1, 2), "1 active · 2 finished");
-		assert.equal(agents.listHeader(0, 0), "0 active · 0 finished");
-		assert.equal(agents.sectionResult, "── Result ──");
-		assert.equal(agents.sectionThread, "── Thread ──");
-		assert.equal(agents.inProgress, "in progress…");
-		assert.equal(agents.hint("split"), "j/k task  ctrl+j/k scroll  f follow  esc back  q close");
-		assert.equal(agents.hint("narrow"), "j/k select  enter thread  esc back  q close");
-		assert.equal(agents.finishedMessage("Do it", "coder", "t1", "completed"), "Subagent finished: Do it (coder, t1)\nStatus: completed");
-		assert.equal(agents.taskStatusWord("failed"), "task failed");
-		assert.equal(agents.cancelled("t1"), "Cancelled task t1.");
-		assert.equal(agents.notCancellable("t1"), "Task t1 cannot be cancelled (unknown id or already finished).");
-	} finally {
-		setLanguage("es");
-	}
-});
-
-test("the English dictionary reproduces the original English todo, jobs, sidebar and activity strings", () => {
-	try {
-		setLanguage("en");
-		assert.equal(todo.cardTitle(3, 2), "Todo · 3 open · 2 done");
-		assert.equal(todo.fold(2), "… 2 more");
-		assert.equal(todo.empty, "No tasks.");
-		assert.equal(todo.blockedNeedsNote, "blocked needs a note naming what it waits for");
-		assert.equal(todo.titleRequired, "title is required");
-		assert.equal(todo.noTask(9), "no task #9");
-		assert.equal(todo.nothingToUpdate, "nothing to update: pass status, title, or note");
-		assert.equal(todo.unknownStatus("doing"), 'unknown status "doing" (use pending, in_progress, blocked, done, or dropped)');
-		assert.equal(todo.unknownAction("purge"), 'unknown action "purge" (use write, add, update, clear, or list)');
-		assert.equal(todo.shown, "Todo card shown.");
-		assert.equal(todo.hidden, "Todo card hidden.");
-
-		assert.equal(jobs.jobRunning, "running");
-		assert.equal(jobs.jobStopped, "stopped");
-		assert.equal(jobs.jobFailed("boom"), "failed: boom");
-		assert.equal(jobs.jobSignal("SIGTERM"), "killed by signal SIGTERM");
-		assert.equal(jobs.jobExited(0), "exited with code 0");
-		assert.equal(jobs.indicator(2), "jobs: 2 running");
-		assert.equal(jobs.overlayHeader(1, 1), "Jobs · 1 running · 1 finished");
-		assert.equal(jobs.overlayHeader(0, 0), "Jobs · 0 running");
-		assert.equal(jobs.listEmpty, "No jobs.");
-		assert.equal(jobs.listEmptyHint, "No jobs. Start one with bash_background or monitor.");
-		assert.equal(jobs.confirmStop("job-1", "build check"), "s again to stop job-1 (build check)");
-		assert.equal(jobs.hint, "j/k select  s stop  q close");
-		assert.equal(jobs.jobStart("job-1", "build check", "/tmp/x.log"), "Started job job-1 (build check). Output: /tmp/x.log");
-		assert.equal(jobs.monitorStart("job-2", "watch", 20, "/tmp/x.log"), "Started monitor job-2 (watch) for up to 20s. Output: /tmp/x.log");
-		assert.equal(jobs.monitorReported("job-2", "watch", 1), "Monitor job-2 (watch) reported 1 new line:");
-		assert.equal(jobs.monitorReported("job-2", "watch", 2), "Monitor job-2 (watch) reported 2 new lines:");
-		assert.equal(jobs.linesDropped(3), "(+3 lines dropped)");
-		assert.equal(jobs.capError(25), "At most 25 jobs can run at once; stop one with job_stop first.");
-		assert.equal(jobs.timeoutSecondsInvalid(1800), "timeout_seconds is required and must be a whole number from 1 to 1800.");
-		assert.equal(jobs.jobStopUnknown("job-9"), "Unknown job id job-9. Use job_list to see the current jobs.");
-		assert.equal(jobs.jobStopNotRunning("job-1", "build check", "finished"), "Job job-1 (build check) is not running anymore: finished.");
-		assert.equal(jobs.jobStoppedNotice("job-1", "build check"), "Stopped job job-1 (build check).");
-
-		assert.equal(sidebar.project, "PROJECT");
-		assert.equal(sidebar.changes, "CHANGES");
-		assert.equal(sidebar.tasks, "TASKS");
-		assert.equal(sidebar.model, "MODEL");
-		assert.equal(sidebar.usage, "USAGE");
-		assert.equal(sidebar.noRepo, "no repo");
-		assert.equal(sidebar.clean, "clean");
-		assert.equal(sidebar.noModel, "no model");
-		assert.equal(sidebar.ellipsis, "…");
-
-		assert.equal(activity.phases.thinking, "thinking");
-		assert.equal(activity.phases.exploring, "exploring");
-		assert.equal(activity.phases.implementing, "implementing");
-		assert.equal(activity.phases.checking, "checking");
-		assert.equal(activity.phases.running, "running");
-
-		assert.equal(ui.languageSet, "Language: English");
-		assert.equal(ui.languageUsage, "usage: /language [es|en]");
-	} finally {
-		setLanguage("es");
-	}
-});
-
-test("switching back to es restores the Spanish dictionary everywhere", () => {
-	try {
-		setLanguage("en");
-		setLanguage("es");
-		assert.equal(guard.yes, "Sí");
-		assert.equal(agents.cardTitle(1, 0, 0), "Agentes · 1 activo · 0 terminados");
-		assert.equal(todo.cardTitle(3, 2), "Tareas · 3 abiertas · 2 hechas");
-		assert.equal(jobs.indicator(2), "jobs: 2 en ejecución");
-		assert.equal(sidebar.project, "PROYECTO");
-		assert.equal(sidebar.changes, "CAMBIOS");
-		assert.equal(sidebar.tasks, "TAREAS");
-		assert.equal(sidebar.model, "MODELO");
-		assert.equal(sidebar.usage, "USO");
-		assert.equal(activity.phases.checking, "verificando");
-		assert.equal(ui.languageSet, "Idioma: Español");
-		assert.equal(ui.languageUsage, "uso: /language [es|en]");
-	} finally {
-		setLanguage("es");
+	const prompt = guard.explainPrompt("rm -rf build");
+	assert.match(prompt, /in spanish/i, "the explanation itself must come back in Spanish");
+	assert.doesNotMatch(prompt, /in english/i, "nothing asks for an English explanation");
+	assert.ok(prompt.includes("rm -rf build"), "the command itself must be in the prompt");
+	assert.deepEqual(Object.values(guard.explainLabels), ["Action", "Files", "Folders"], "the parser's labels stay English");
+	for (const label of Object.values(guard.explainLabels)) {
+		assert.ok(prompt.includes(`${label}:`), `the prompt never asks for ${label}`);
 	}
 });

@@ -26,7 +26,7 @@ S1. Algo.
 T1. Nunca construida — specs: S1 — test: required — riesgo: no — commit: -
 T2. Construida y commiteada — specs: S1 — test: required — riesgo: no — commit: -
 T3. Verificada por el harness — specs: S1 — test: required — riesgo: no — commit: - — estado: verificada
-T4. Fallada, se puede reintentar — specs: S1 — test: required — riesgo: no — commit: - — estado: fallada
+T4. Fallada, se puede reintentar — specs: S1 — test: required — riesgo: no — commit: - — estado: failed
 T5. Marcada con commit por el modelo — specs: S1 — test: required — riesgo: no — commit: 9f8e7d6
 `;
 

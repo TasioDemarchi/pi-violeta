@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import extension from "../extensions/violeta-voice.ts";
-import { setLanguage } from "../src/i18n.ts";
 import { pickPlayer, pickRecorder } from "../src/voice/devices.ts";
 import { PCM_RATE, clampSpeed, joinAsWav, readApiKey, synthesize, transcribe, voiceConfigFromEnv } from "../src/voice/nan.ts";
 import { LISTEN_PROMPT, MAX_FULL_CHARS, MAX_SPOKEN_CHARS, VOICE_PROMPT, extractFull, extractSpoken } from "../src/voice/spoken.ts";
@@ -119,7 +118,6 @@ test("players and recorders are picked from what exists, or none", () => {
 // --- the extension, against a fake Pi and a fake player ---------------------
 
 function setup(voiceOn: boolean, mode: "completo" | "resumen" = "resumen") {
-	setLanguage("es");
 	const agentDir = tmp();
 	writeFileSync(join(agentDir, "violeta.json"), JSON.stringify(voiceOn ? { voice: true, voiceMode: mode } : {}));
 	writeFileSync(join(agentDir, "auth.json"), JSON.stringify({ nan: { key: "test-key" } }));
@@ -215,7 +213,7 @@ test("a failing voice service warns once and never throws", async () => {
 		await env.fire("agent_settled");
 		for (let i = 0; i < 50 && env.notes.length === 0; i++) await new Promise((resolve) => setTimeout(resolve, 50));
 		assert.equal(env.notes.length, 1);
-		assert.match(env.notes[0]!, /La voz falló/);
+		assert.match(env.notes[0]!, /Voice failed/);
 		assert.match(env.notes[0]!, /503/);
 		assert.ok(!env.notes[0]!.includes("test-key"));
 	} finally {
@@ -237,7 +235,7 @@ test("/dictar needs voice on, and a cancelled recording sends nothing to Whisper
 	try {
 		await on.fire("session_start");
 		await on.commands.get("dictar")!.handler("", on.ctx);
-		assert.ok(on.notes.length === 1 && /cancelado|No encontré con qué grabar/.test(on.notes[0]!), on.notes.join("|"));
+		assert.ok(on.notes.length === 1 && /cancelled|No audio recorder found/.test(on.notes[0]!), on.notes.join("|"));
 	} finally {
 		globalThis.fetch = realFetch;
 	}
@@ -280,7 +278,7 @@ test("/voice speed saves a valid pace and rejects the rest", async () => {
 	assert.equal(readVoiceSpeed(join(env.agentDir, "violeta.json")), 0.75);
 	assert.match(env.notes.at(-1)!, /0\.75/);
 	await env.commands.get("voice")!.handler("speed 5", env.ctx);
-	assert.match(env.notes.at(-1)!, /uso: \/voice speed/);
+	assert.match(env.notes.at(-1)!, /usage: \/voice speed/);
 	assert.equal(readVoiceSpeed(join(env.agentDir, "violeta.json")), 0.75, "an invalid pace changes nothing");
 	writeVoiceSpeed(join(env.agentDir, "violeta.json"), 0.9);
 	assert.equal(readVoiceSpeed(join(env.agentDir, "violeta.json")), 0.9);

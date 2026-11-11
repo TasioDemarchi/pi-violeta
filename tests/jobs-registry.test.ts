@@ -143,7 +143,7 @@ test("at most maxRunning jobs run at once; the extra start throws a clear error"
 	try {
 		registry.start({ command: "sleep 5", cwd: repo });
 		registry.start({ command: "sleep 5", cwd: repo });
-		assert.throws(() => registry.start({ command: "sleep 5", cwd: repo }), /Como mucho pueden ejecutarse 2 trabajos a la vez/);
+		assert.throws(() => registry.start({ command: "sleep 5", cwd: repo }), /At most 2 jobs can run at once/);
 	} finally {
 		registry.dispose();
 		rmSync(repo, { recursive: true, force: true });

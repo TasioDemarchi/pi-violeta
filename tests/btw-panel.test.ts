@@ -5,7 +5,6 @@ import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { BTW_MAX_WIDGET_ROWS, renderBtwPanel, wrapText } from "../src/btw/panel.ts";
 import { answerBtw, askBtw, emptyBtw, failBtw, openBtw } from "../src/btw/state.ts";
-import { setLanguage } from "../src/i18n.ts";
 
 const fg = (_role: string, text: string) => text;
 
@@ -24,7 +23,6 @@ test("btw panel: wrapping keeps paragraph breaks and hard-breaks a word that can
 });
 
 test("btw panel: every line is exactly the requested width, frame included", () => {
-	setLanguage("es");
 	const state = answerBtw(askBtw(emptyBtw(), "¿qué es el hub?"), "un objeto en globalThis que comparten las extensiones");
 	for (const width of [12, 20, 44, 80]) {
 		const lines = renderBtwPanel(state, { width }, fg);
@@ -34,17 +32,16 @@ test("btw panel: every line is exactly the requested width, frame included", () 
 
 test("btw panel: the frame is a closed box, so it does not read as part of the chat", () => {
 	const lines = renderBtwPanel(openBtw(emptyBtw()), { width: 30 }, fg);
-	assert.match(lines[0]!, /^╭─ Al margen ─+╮$/);
+	assert.match(lines[0]!, /^╭─ By the way ─+╮$/);
 	assert.equal(lines.at(-1), "╰" + "─".repeat(28) + "╯");
 	for (const line of lines.slice(1, -1)) assert.match(line, /^│ .* │$/);
 });
 
 test("btw panel: an empty side chat explains how to use it, and a waiting one says so", () => {
-	setLanguage("es");
 	const empty = renderBtwPanel(openBtw(emptyBtw()), { width: 44 }, fg).join("\n");
-	assert.match(empty, /\/btw <pregunta>/);
+	assert.match(empty, /\/btw <question>/);
 	const waiting = renderBtwPanel(askBtw(emptyBtw(), "¿cuánto cuesta?"), { width: 44 }, fg).join("\n");
-	assert.match(waiting, /pensando…/);
+	assert.match(waiting, /thinking…/);
 	assert.match(waiting, /› ¿cuánto cuesta\?/, "the question is marked as yours");
 });
 
