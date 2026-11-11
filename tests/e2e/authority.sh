@@ -30,16 +30,29 @@
 # el guard saca quién es. No es un despacho real —eso costaría una obra
 # entera— pero ejercita el mismo mecanismo por el mismo camino.
 #
-# Gasta créditos de NaN: tres llamadas cortas con un modelo rápido.
+# Gasta créditos de NaN: siete llamadas cortas sobre el modelo del modo activo.
 set -uo pipefail
 
 VIOLETA="${VIOLETA_CMD:-violeta-test}"
 ESPERA="${VIOLETA_E2E_TIMEOUT:-420}"
-# El modelo se fija acá a propósito: esto mide el harness, no la velocidad del
-# que el dueño tenga configurado. Con jarvis sobre GLM y thinking alto cada
-# fase tarda minutos y el timeout se come la prueba.
-MODELO=(--model "${VIOLETA_E2E_MODEL:-nan/deepseek-v4-flash}" --thinking off)
 AGENTE_DIR="${VIOLETA_HOME:-$HOME/.violeta-test}/agent"
+
+# El modelo NO se fija acá, y no se puede: un modo pisa `--model` y `--thinking`
+# con lo que diga su frontmatter. Medido: pedir `--model nan/qwen3.8-max` corre
+# glm5.3-flash si el modo lo pide, y `--thinking off` deja 11 tokens de
+# razonamiento si el modo pide `high`. Esta prueba antes decía fijarlos y
+# mentía: corría siempre sobre el modelo del modo.
+#
+# Y está bien que sea así: las fases miden que la filosofía de jarvis llegue al
+# modelo, así que tienen que correr BAJO ese modo, y entonces el modelo es el
+# que el modo elige. Lo que sí se hace es decirlo en pantalla, leyéndolo de la
+# definición, para que la salida nunca afirme algo que no pasó. Si una fase se
+# come el timeout, el lever es VIOLETA_E2E_TIMEOUT, no el modelo.
+MODO="$(jq -r '.mode // "raw"' "$AGENTE_DIR/violeta.json" 2>/dev/null || echo raw)"
+DEF_MODO="$AGENTE_DIR/modes/$MODO.md"
+ASIENTO="$(sed -n 's/^model: *//p' "$DEF_MODO" 2>/dev/null | head -1)"
+PENSAR="$(sed -n 's/^thinking: *//p' "$DEF_MODO" 2>/dev/null | head -1)"
+[ -n "$ASIENTO" ] || ASIENTO="el que tengas configurado"
 
 command -v "$VIOLETA" >/dev/null || { echo "✗ no encuentro $VIOLETA en el PATH"; exit 1; }
 
@@ -110,7 +123,7 @@ PY
 
 CODIGO=0
 correr() {
-	SALIDA="$( cd "$PROY" && timeout "$ESPERA" "$VIOLETA" -p "${MODELO[@]}" "$1" 2>&1 )"
+	SALIDA="$( cd "$PROY" && timeout "$ESPERA" "$VIOLETA" -p "$1" 2>&1 )"
 	CODIGO=$?
 	TRANS="$(transcripcion || true)"
 }
@@ -122,7 +135,7 @@ correr() {
 correr_como() {
 	local agente="$1" herramientas="$2"; shift 2
 	SALIDA="$( cd "$PROY" && VIOLETA_AGENTS_CHILD=1 VIOLETA_AGENT_NAME="$agente" \
-		timeout "$ESPERA" "$VIOLETA" -p "${MODELO[@]}" --tools "$herramientas" "$1" 2>&1 )"
+		timeout "$ESPERA" "$VIOLETA" -p --tools "$herramientas" "$1" 2>&1 )"
 	CODIGO=$?
 	TRANS="$(transcripcion || true)"
 }
@@ -137,7 +150,7 @@ fallos=0
 paso() { echo "  ✓ $1"; }
 malo() { echo "  ✗ $1"; fallos=$((fallos + 1)); }
 
-echo "proyecto: $PROY   (timeout ${ESPERA}s por fase, modelo ${MODELO[1]})"
+echo "proyecto: $PROY   (timeout ${ESPERA}s por fase, modo $MODO sobre $ASIENTO, thinking ${PENSAR:-?})"
 
 # ---------------------------------------------------------------- fase 1
 echo
