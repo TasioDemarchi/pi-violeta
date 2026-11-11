@@ -80,3 +80,9 @@ L2. Medido en T2: `src/guard/explain.ts` lee solo los NOMBRES de etiqueta y se q
 - T3: 624553c; suite → 843/843; `jq 'has("language")'` → `false`.
 - T4: 7ddd2b4; suite → 831/831; `i18n.ts` 466 líneas; grep de setLanguage/getLanguage vacío en src/extensions/tests.
 - T5: absorbido por las olas de T4 (misma suite, 831/831 audita estos archivos). Los acentos restantes en tests/ son fixtures deliberadas: guiones de `Voz:` (la salida hablada ES en español por diseño), prose de `modes/`, y datos del harness (`estado: fallada`, `por verificar`), no cadenas del diccionario.
+- T6: 257b9d8; suite 838/838; header `violeta · pi <version> · <mode> · <project> · <branch>` via `src/header-lines.ts`.
+- T7: 81f7018; suite 839/839; un título `MODEL · USAGE`, sin secciones separadas.
+- T8: 7dc19dc; suite 826/826; grep btwn/btwv vacío; 17 tests obsoletos borrados (neto −13).
+- Juez: 4 hallazgos de T8 + 1 de T2; ronda única de fixes aprobada → 0a4c9d1; suite 828/828.
+- T9: f3a75de; suite 828/828; README sin /language, /btwn, /btwv, ni prosa del panel; sección del puente escrita.
+- Tester (desde copias limpias): suite 828/828 en checkout limpio; header correcto con/sin rama y con/sin modo; sidebar con exactamente un `MODEL · USAGE` y cero `PROJECT`; comandos registrados = {agents, unattended, grants, todo, jobs, changes, models, mode, btw, palette}; /btw abre exactamente un overlay fullscreen; parser del guard lee etiquetas inglesas y españolas; README consistente. Hallazgos: P1 (tests/guard-authority.test.ts no desarma VIOLETA_AGENT_NAME — la familia de la trampa conocida, solo falla si se corre la suite desde dentro de una sesión de agente), P2 (un fragmento español incrustado en `resumeDeclined`), P3 (alias singular `Archivo:/Carpeta:` no aliasados — pérdida menor de detalle). Reporte completo en .violeta/scratch/probe/informe.md (se borra al cerrar).
