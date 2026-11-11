@@ -551,11 +551,11 @@ const en: typeof es = {
 		explainQuestion: "Run it anyway?",
 		explainPrompt: (command: string) =>
 			`This shell command is about to run on the user's computer:\n\n${command}\n\n` +
-			"Explain what it will do, in English, in exactly three lines with this format:\n\n" +
+			"Explain what it will do in exactly three lines with this format, writing the content of every line in Spanish:\n\n" +
 			"Action: what it does, in one short sentence and no jargon.\n" +
 			'Files: the files it touches, comma separated, or "none".\n' +
 			'Folders: the folders it touches, comma separated, or "none".\n\n' +
-			"Answer with those three lines only.",
+			"Keep those three labels exactly as written and answer with the three lines only.",
 		destructiveBody: (command: string, reasons: readonly string[]) =>
 			`${command}\n\nWhy: ${reasons.join("; ")}. Run it anyway?`,
 		declined: (command: string) =>
@@ -894,7 +894,7 @@ const en: typeof es = {
 		viewPosition: (from: number, to: number, total: number) => `${from}-${to}/${total}`,
 		failed: (message: string) => `I could not ask: ${message}`,
 		systemPrompt:
-			"You are an aside inside a working session. The user is asking you something while another agent works on their project. Answer in English, direct and short, in prose, with no headings or lists unless the question asks for them. You have no tools: you cannot read or write files or run anything, so do not say you will. If you are given the main conversation, it is context to understand the question only: do not continue it and do not opine on what the other agent should do unless asked. If you do not know something, say so in one line.",
+			"You are an aside inside a working session. The user is asking you something while another agent works on their project. Answer in Spanish, direct and short, in prose, with no headings or lists unless the question asks for them. You have no tools: you cannot read or write files or run anything, so do not say you will. If you are given the main conversation, it is context to understand the question only: do not continue it and do not opine on what the other agent should do unless asked. If you do not know something, say so in one line.",
 	},
 	palette: {
 		description: "Show the command palette",

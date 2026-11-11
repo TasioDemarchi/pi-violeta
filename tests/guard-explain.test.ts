@@ -127,6 +127,23 @@ test("the missing fields are left out instead of printed empty", () => {
 	assert.ok(body.startsWith("Acción: Apaga la máquina"));
 });
 
+test("the prompt asks for the explanation in Spanish while keeping the English labels", () => {
+	// The dialog and the parser are English, the explanation is for the owner:
+	// Spanish content under the three labels the dictionary already uses.
+	setLanguage("en");
+	try {
+		const prompt = guard.explainPrompt("rm -rf build");
+		assert.match(prompt, /in spanish/i, "the explanation itself must come back in Spanish");
+		assert.doesNotMatch(prompt, /in english/i, "nothing asks for an English explanation");
+		// The labels are the parser's contract, so the Spanish content must still
+		// be read out of them.
+		const parsed = parseExplanation("Action: Borra la carpeta build\nFiles: ninguno\nFolders: build");
+		assert.equal(parsed?.action, "Borra la carpeta build");
+	} finally {
+		setLanguage("es");
+	}
+});
+
 test("the prompt asks for exactly the three labels the parser looks for", () => {
 	// The one thing that would break this silently: renaming a label in the
 	// dictionary and forgetting the prompt, leaving every answer unparsable.

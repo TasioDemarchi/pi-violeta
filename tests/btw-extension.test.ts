@@ -126,7 +126,7 @@ test("btw: /btw <message> asks once, with the session conversation as context", 
 	assert.equal(env.calls.length, 1, "one question, one call");
 	const call = env.calls[0]!;
 	assert.deepEqual(call.model, { id: "nan/qwen3.8-flash" }, "the session's own model answers");
-	assert.match(call.context.systemPrompt!, /al margen/i);
+	assert.match(call.context.systemPrompt!, /español/i, "the prompt asks for a Spanish answer");
 	const prompt = call.context.messages[0]!.content;
 	assert.match(prompt, /arreglá el guard/, "the session conversation travels as context");
 	assert.match(prompt, /listo, quedó verde/);
@@ -138,6 +138,23 @@ test("btw: /btw <message> asks once, with the session conversation as context", 
 		{ role: "user", text: "¿qué es un hub?" },
 		{ role: "assistant", text: "una respuesta corta" },
 	]);
+});
+
+test("btw: the English dictionary also asks the model to answer in Spanish", async () => {
+	// The UI is English but the answer is Spanish: the surviving dictionary is
+	// the one that has to say so, or `/btw` answers in the screen's language.
+	const env = load({ branch: [message("user", "hola")] });
+	setLanguage("en");
+	try {
+		await env.start();
+		await env.run("btw", "¿qué es un hub?");
+		await flush();
+		const systemPrompt = env.calls[0]!.context.systemPrompt!;
+		assert.match(systemPrompt, /answer in spanish/i, "the prompt must ask for a Spanish answer");
+		assert.doesNotMatch(systemPrompt, /answer in english/i, "and must not ask for an English one");
+	} finally {
+		setLanguage("es");
+	}
 });
 
 test("btw: the question returns at once and the window says it is thinking", async () => {
