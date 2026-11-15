@@ -16,6 +16,7 @@ export type RuleId =
 	| "jarvis.write-lock"
 	| "jarvis.tests-readonly"
 	| "jarvis.bash-write"
+	| "jarvis.contract-frozen"
 	| "agent.read-only"
 	| "agent.scratch-only"
 	| "critic.contract-only"
@@ -59,6 +60,12 @@ export interface AuthorityRequest {
 	/** The active contract, when the session has one: absolute path and the raw
 	 * text. Absent is a normal state, not an error. */
 	contract?: { path: string; text: string };
+	/** The frozen view of the active contract the owner approved through
+	 * `contract_approve` (src/contract/approval.ts). Absent: never approved. */
+	approved?: string;
+	/** The active contract's text after this call, when the call writes it and
+	 * the harness can read the result (`write`, `edit`). Absent otherwise. */
+	contractAfter?: string;
 }
 
 /** What a block carries: which rule refused, and the path it refused. */

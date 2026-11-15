@@ -14,6 +14,7 @@ import { type AuthorityRequest, type Decision, type Rule } from "./rules.ts";
 import { testsReadonly } from "./tests-readonly.ts";
 import { agentNoDelivery, agentNoSecrets, agentReadOnly, agentScratchOnly, criticContractOnly } from "./agent-scope.ts";
 import { bashWrite, writeLock } from "./write-lock.ts";
+import { contractFrozen } from "./contract-frozen.ts";
 
 /** The rules this harness ships, most specific first: a test write should be
  * refused as a test write, not as the generic lock.
@@ -28,6 +29,7 @@ export const RULES: readonly Rule[] = [
 	agentScratchOnly,
 	criticContractOnly,
 	testsReadonly,
+	contractFrozen,
 	writeLock,
 	bashWrite,
 ];

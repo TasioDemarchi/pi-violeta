@@ -34,6 +34,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { bashPathTargets, resolvePath, toolCallPaths } from "../src/guard/paths.ts";
 import { activeContractFrom } from "../src/contract/active.ts";
+import { approvalFrom, contractAfterWrite } from "../src/contract/approval.ts";
 import { decide } from "../src/authority/decide.ts";
 import { PROJECT_SCRATCH } from "../src/authority/rules.ts";
 import { readPaths, writePaths } from "../src/authority/request.ts";
@@ -97,13 +98,18 @@ function authorityRefusal(
 		: toolCallPaths(toolName, input).map((path) => resolvePath(path, root, home()));
 	if (paths.length === 0 && reads.length === 0 && touches.length === 0 && command === undefined) return undefined;
 
-	const contractPath = resolve(root, activeContractFrom(ctx.sessionManager));
+	const activePath = activeContractFrom(ctx.sessionManager);
+	const contractPath = resolve(root, activePath);
 	let contract: { path: string; text: string } | undefined;
 	try {
 		contract = { path: contractPath, text: readFileSync(contractPath, "utf8") };
 	} catch {
 		contract = undefined;
 	}
+	// contrato-aprobado: what the owner approved, and what this call would leave.
+	const approved = contract ? approvalFrom(ctx.sessionManager, activePath) : undefined;
+	const contractAfter =
+		contract && approved !== undefined && paths.includes(contract.path) ? contractAfterWrite(toolName, input, contract.text) : undefined;
 
 	// Who is asking: the runner puts the agent's own name in the child's
 	// environment, so a rule can bind `scout` without asking the model.
@@ -119,6 +125,8 @@ function authorityRefusal(
 		scratch: join(root, PROJECT_SCRATCH),
 		...(agent ? { agent } : {}),
 		...(contract ? { contract } : {}),
+		...(approved !== undefined ? { approved } : {}),
+		...(contractAfter !== undefined ? { contractAfter } : {}),
 	});
 	if (decision.allowed) return undefined;
 	const scratch = join(root, PROJECT_SCRATCH);
@@ -131,6 +139,7 @@ function authorityRefusal(
 		"jarvis.tests-readonly": () => t.testsLocked(decision.path),
 		"jarvis.bash-write": () => t.bashLocked(decision.path, contractPath),
 		"jarvis.write-lock": () => t.writeLocked(decision.path, contractPath),
+		"jarvis.contract-frozen": () => t.contractFrozen(decision.path),
 	};
 	return { block: true, reason: reasons[decision.rule]!() };
 }

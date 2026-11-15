@@ -20,6 +20,9 @@ import { resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { ACTIVE_CONTRACT_ENTRY_TYPE, activeContractSnapshot } from "../src/contract/active.ts";
+import { CONTRACT_APPROVAL_ENTRY_TYPE, approvalFrom, approvalSnapshot, frozenChanges, frozenView } from "../src/contract/approval.ts";
+import { contract as tc, guard as tg } from "../src/i18n.ts";
+import { setShared, getShared } from "../src/shared-hub.ts";
 import { formatLint, lintContract } from "../src/contract/lint.ts";
 import { compactRenderers } from "../src/tools-view/compact.ts";
 
@@ -51,5 +54,56 @@ export default function (pi: ExtensionAPI) {
 			};
 		},
 		...compactRenderers("contract_check"),
+	});
+
+	/** Approval 1 as a fact the harness records (contrato-aprobado). The owner
+	 * answers in a dialog, so the model cannot approve for them; the snapshot is
+	 * what `jarvis.contract-frozen` compares every later write against. */
+	const MAX_DIFF_LINES = 20;
+	pi.registerTool({
+		name: "contract_approve",
+		label: "Approve contract",
+		description: tc.approveDescription,
+		parameters: Type.Object({
+			path: Type.String({ description: "Path of the contract markdown file, relative to the project (usually tasks/<name>.md)." }),
+		}),
+		async execute(_id, params, _signal, _onUpdate, ctx) {
+			const path = params.path.trim();
+			const file = resolve(ctx.cwd, path);
+			const fail = (text: string) => ({ content: [{ type: "text" as const, text }], details: { approved: false }, isError: true });
+			if (!existsSync(file)) return fail(`contract_approve: file not found: ${path}`);
+			const text = readFileSync(file, "utf8");
+			const lint = lintContract(text);
+			if (!lint.ok) return fail(formatLint(lint));
+
+			const previous = approvalFrom(ctx.sessionManager, path);
+			if (previous !== undefined && previous === frozenView(text)) {
+				return { content: [{ type: "text" as const, text: tc.approveUnchanged(path) }], details: { approved: true } };
+			}
+			if (!ctx.hasUI || getShared().unattended) return fail(tc.approveNoUser(path));
+
+			let body = tc.approveFirst(path);
+			if (previous !== undefined) {
+				const { removed, added } = frozenChanges(previous, text);
+				const shown = [...removed, ...added].length;
+				const keepRemoved = removed.slice(0, MAX_DIFF_LINES);
+				const keepAdded = added.slice(0, Math.max(0, MAX_DIFF_LINES - keepRemoved.length));
+				const more = shown - keepRemoved.length - keepAdded.length;
+				const diff = [...keepRemoved.map((l) => `- ${l}`), ...keepAdded.map((l) => `+ ${l}`), ...(more > 0 ? [tc.approveMoreLines(more)] : [])];
+				body = tc.approveChange(path, diff.join("\n"));
+			}
+			setShared({ notifyNeedsAnswer: true });
+			let yes: boolean;
+			try {
+				yes = (await ctx.ui.select(`${tc.approveTitle}\n${body}`, [tg.yes, tg.no])) === tg.yes;
+			} finally {
+				setShared({ notifyNeedsAnswer: false });
+			}
+			if (!yes) return { content: [{ type: "text" as const, text: tc.approveDeclined(path) }], details: { approved: false } };
+			pi.appendEntry(ACTIVE_CONTRACT_ENTRY_TYPE, activeContractSnapshot(path));
+			pi.appendEntry(CONTRACT_APPROVAL_ENTRY_TYPE, approvalSnapshot(path, text));
+			return { content: [{ type: "text" as const, text: tc.approved(path) }], details: { approved: true } };
+		},
+		...compactRenderers("contract_approve"),
 	});
 }

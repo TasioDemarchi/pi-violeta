@@ -122,9 +122,9 @@ remains is the user's call.
 plain Spanish in four short parts: *qué vas a tener*, *qué NO va a hacer*, *cómo lo
 vas a abrir y qué pruebas podés hacer vos* (the exact command or click in one line;
 if it accepts data, **at least one error case**, such as an empty or negative value,
-and what should happen), and *qué decidí yo por vos y por qué*. Then ask "¿Apruebo
-el contrato?" Nothing is built until the user says yes. A change of requirement
-goes back to the contract, with the user.
+and what should happen), and *qué decidí yo por vos y por qué*. Then call
+`contract_approve`: the user answers in a dialog. Nothing is built until the user says
+yes. Once approved, a change goes back to the user through `contract_approve` again.
 
 ## 4. Build
 

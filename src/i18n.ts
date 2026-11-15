@@ -93,14 +93,21 @@ const dictionary = {
 		catastrophic: (reason: string) => `Catastrophic target denied without a prompt: ${reason}.`,
 		writeLocked: (path: string, contract: string) =>
 			`Blocked by jarvis.write-lock: do not write ${path} while ${contract} has unfinished tasks. ` +
-			'If this is field work no subagent can reach, add "— quién: Jarvis" to that task\'s row, ' +
+			'If this is field work no subagent can reach, add "— quién: Jarvis" to that task\'s row ' +
+			"(on an approved contract that is a change the user approves with contract_approve), " +
 			"tell the user and try again. Otherwise dispatch a builder for the task.",
+		contractFrozen: (path: string) =>
+			`Blocked by jarvis.contract-frozen: the user approved ${path}, and this change touches what they approved ` +
+			"(No-objetivos, Specs or the Tasks rows). Do not change it on your own: tell the user what you want to change " +
+			"and why, then call contract_approve so they can approve the new version. `commit:`, ## Decisiones and ## Log " +
+			"stay open; a shell command cannot write an approved contract, use edit.",
 		testsLocked: (path: string) =>
 			`Blocked by jarvis.tests-readonly: do not write ${path}. ` +
 			"Tests are written by a builder, never by the session that wrote the code. Dispatch a builder for that task.",
 		bashLocked: (path: string, contract: string) =>
 			`Blocked by jarvis.bash-write: this command writes ${path}, and ${contract} has unfinished tasks. ` +
-			'If this is field work no subagent can reach, add "— quién: Jarvis" to that task\'s row, ' +
+			'If this is field work no subagent can reach, add "— quién: Jarvis" to that task\'s row ' +
+			"(on an approved contract that is a change the user approves with contract_approve), " +
 			"tell the user and try again. Otherwise dispatch a builder for the task.",
 		agentReadOnly: (agent: string, path: string) =>
 			`Blocked by agent.read-only: you are ${agent} and you write nothing — ${path}. ` +
@@ -210,6 +217,19 @@ const dictionary = {
 		resumeEstadoBody: (task: number) => `T${task} was already verified by the harness: its Check passed.\n\nRebuild it anyway?`,
 		resumeDeclined: (task: number, proof: string) =>
 			`Task T${task} is already built (${proof}). Do not rebuild it: read the contract and git log, and carry on with the next task. If it really has to be redone, tell the owner why and wait for their yes.`,
+		approveDescription:
+			"Ask the user, in a dialog, to approve a contract that passes contract_check. Call it instead of asking \"¿Apruebo el contrato?\" in the chat, after summarizing the contract for them. On yes the harness freezes what they approved (No-objetivos, Specs, Tasks rows); a later change to those parts needs this tool again, and the dialog shows them what changes.",
+		approveTitle: "Contract approval",
+		approveFirst: (path: string) => `Approve ${path}? Nothing is built until you say yes.`,
+		approveChange: (path: string, diff: string) => `${path} was already approved. This version changes it:\n${diff}\n\nApprove the new version?`,
+		approveMoreLines: (n: number) => `… ${n} more line${n === 1 ? "" : "s"}`,
+		approved: (path: string) =>
+			`The user approved ${path}. Build it. No-objetivos, Specs and the Tasks rows are now frozen: to change them, tell the user why and call contract_approve again.`,
+		approveDeclined: (path: string) =>
+			`The user did not approve ${path}. Nothing is built: ask them what to change, adjust the contract and ask again.`,
+		approveNoUser: (path: string) =>
+			`Nobody can approve ${path} right now: there is no interactive user. Do not build: stop and tell the user the contract is waiting for their approval.`,
+		approveUnchanged: (path: string) => `${path} is already approved and nothing the user approved has changed. Carry on.`,
 		resumeDeclinedByOwner: (task: number) =>
 			`The owner did not authorize rebuilding T${task}. Do not rebuild it: tell them what is done, what is left, and wait for their reply.`,
 	},
