@@ -230,10 +230,10 @@ const dictionary = {
 		approveNoUser: (path: string) =>
 			`Nobody can approve ${path} right now: there is no interactive user. Do not build: stop and tell the user the contract is waiting for their approval.`,
 		closeNeedsTester: (tasks: string) =>
-			`Close refused by jarvis.close-needs-tester: every task is finished and ${tasks} is riesgo: sí, but no tester ran after the last builder. ` +
+			`Close refused by jarvis.close-needs-tester: every task is finished, these tasks are riesgo: sí (${tasks}), and no tester ran after the last builder. ` +
 			"Dispatch tester once with the contract path (jarvis.md §5), handle its findings like the judge's, and only then close.",
 		closeWarnOwner: (tasks: string) =>
-			`Closing without a tester report: ${tasks} is risky and nobody tried the program from the outside after the last change. Ask for it before trusting the result.`,
+			`Closing without a tester report: risky tasks (${tasks}) and nobody tried the program from the outside after the last change. Ask for it before trusting the result.`,
 		approveUnchanged: (path: string) => `${path} is already approved and nothing the user approved has changed. Carry on.`,
 		resumeDeclinedByOwner: (task: number) =>
 			`The owner did not authorize rebuilding T${task}. Do not rebuild it: tell them what is done, what is left, and wait for their reply.`,

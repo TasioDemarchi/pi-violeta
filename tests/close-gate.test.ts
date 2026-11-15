@@ -113,7 +113,9 @@ function project(contract: string): string {
 	return root;
 }
 
-const event = { type: "agent_before_settle", entries: [], continue: false, outcome: "completed", context: { canContinue: true } };
+// canContinue is false on a real close (the transcript ends with the model's
+// answer); the gate's own message is what makes the next request possible.
+const event = { type: "agent_before_settle", entries: [], continue: false, outcome: "completed", context: { canContinue: false } };
 
 const settleCtx = (root: string, branch: unknown[], notes: string[] = []) => ({
 	cwd: root,
@@ -131,6 +133,14 @@ test("at the close the harness asks for one more request with the reason, and th
 	assert.match(String(message?.content), /jarvis\.close-needs-tester/);
 	assert.match(String(message?.content), /T1/);
 	assert.ok(result!.entries!.some((e) => e.type === "custom" && e.customType === CLOSE_GATE_ENTRY_TYPE), "the nudge is recorded");
+});
+
+test("entries other handlers proposed before this one are kept", async () => {
+	const root = project(RISKY_DONE);
+	const branch = [{ type: "custom", customType: ACTIVE_CONTRACT_ENTRY_TYPE, data: { path: "tasks/demo.md" } }, ...call("builder")];
+	const earlier = { type: "custom", customType: "someone-else", data: 1 };
+	const result = await loadSettle()({ ...event, entries: [earlier] }, settleCtx(root, branch));
+	assert.equal(result!.entries![0], earlier);
 });
 
 test("a second close without tester warns the owner instead of looping", async () => {

@@ -116,7 +116,11 @@ export default function (pi: ExtensionAPI) {
 	 * instead: a gate that loops would cost more than the close it guards. */
 	pi.on("agent_before_settle", async (event, ctx) => {
 		if (process.env.VIOLETA_AGENTS_CHILD === "1") return undefined;
-		if (event.outcome !== "completed" || event.context?.canContinue === false) return undefined;
+		// `context.canContinue` is false here on every normal close: the transcript
+		// ends with the model's answer. The custom message below is what makes one
+		// more request possible, so it must not gate this handler (found in a real
+		// session: the gate never fired).
+		if (event.outcome !== "completed") return undefined;
 		const branch = (ctx.sessionManager as { getBranch?: () => unknown[] } | undefined)?.getBranch?.() ?? [];
 		let text: string;
 		try {
@@ -132,7 +136,10 @@ export default function (pi: ExtensionAPI) {
 			return undefined;
 		}
 		return {
+			// Each boundary handler's entries REPLACE the proposal so far: keep
+			// what earlier handlers proposed.
 			entries: [
+				...(event.entries ?? []),
 				{ type: "custom" as const, customType: CLOSE_GATE_ENTRY_TYPE, data: { key: verdict.key } },
 				{ type: "custom_message" as const, customType: CLOSE_GATE_ENTRY_TYPE, content: tc.closeNeedsTester(tasks), display: true },
 			],
