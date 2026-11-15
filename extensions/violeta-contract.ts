@@ -23,6 +23,8 @@ import { ACTIVE_CONTRACT_ENTRY_TYPE, activeContractSnapshot } from "../src/contr
 import { CONTRACT_APPROVAL_ENTRY_TYPE, approvalFrom, approvalSnapshot, frozenChanges, frozenView } from "../src/contract/approval.ts";
 import { contract as tc, guard as tg } from "../src/i18n.ts";
 import { setShared, getShared } from "../src/shared-hub.ts";
+import { activeContractFrom } from "../src/contract/active.ts";
+import { CLOSE_GATE_ENTRY_TYPE, alreadyNudged, closeGate } from "../src/contract/close-gate.ts";
 import { formatLint, lintContract } from "../src/contract/lint.ts";
 import { compactRenderers } from "../src/tools-view/compact.ts";
 
@@ -105,5 +107,36 @@ export default function (pi: ExtensionAPI) {
 			return { content: [{ type: "text" as const, text: tc.approved(path) }], details: { approved: true } };
 		},
 		...compactRenderers("contract_approve"),
+	});
+
+	/** jarvis.close-needs-tester (src/contract/close-gate.ts): at the moment the
+	 * session is about to settle, a finished contract with a risky task and no
+	 * tester after the last builder gets ONE more model request with the
+	 * reason. If it settles again owing the same tester, the owner is warned
+	 * instead: a gate that loops would cost more than the close it guards. */
+	pi.on("agent_before_settle", async (event, ctx) => {
+		if (process.env.VIOLETA_AGENTS_CHILD === "1") return undefined;
+		if (event.outcome !== "completed" || event.context?.canContinue === false) return undefined;
+		const branch = (ctx.sessionManager as { getBranch?: () => unknown[] } | undefined)?.getBranch?.() ?? [];
+		let text: string;
+		try {
+			text = readFileSync(resolve(ctx.cwd, activeContractFrom(ctx.sessionManager)), "utf8");
+		} catch {
+			return undefined;
+		}
+		const verdict = closeGate(text, branch);
+		if (!verdict) return undefined;
+		const tasks = verdict.risky.map((id) => `T${id}`).join(", ");
+		if (alreadyNudged(branch, verdict.key)) {
+			if (ctx.hasUI) ctx.ui.notify(tc.closeWarnOwner(tasks), "warning");
+			return undefined;
+		}
+		return {
+			entries: [
+				{ type: "custom" as const, customType: CLOSE_GATE_ENTRY_TYPE, data: { key: verdict.key } },
+				{ type: "custom_message" as const, customType: CLOSE_GATE_ENTRY_TYPE, content: tc.closeNeedsTester(tasks), display: true },
+			],
+			continue: true,
+		};
 	});
 }

@@ -200,6 +200,7 @@ function loadTools(): { tools: Map<string, Tool>; entries: Array<{ type: string;
 	contractExtension({
 		registerTool: (def: { name: string } & Tool) => tools.set(def.name, def),
 		appendEntry: (type: string, data: unknown) => entries.push({ type, data }),
+		on: () => {},
 	} as never);
 	return { tools, entries };
 }
