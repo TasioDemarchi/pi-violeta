@@ -251,7 +251,12 @@ test("jarvis keeps its two approvals, one critic round and the lint gate", () =>
 	assert.match(jarvis.prompt, /contract_check/);
 	assert.match(jarvis.prompt, /No second critic round/);
 	assert.match(jarvis.prompt, /Nothing is\s+built until the user says\s+yes/);
-	assert.ok(jarvis.prompt.split("\n").length <= 160, "the whole philosophy stays on one page");
+	// The page limit is measured, not chosen (2026-11-15, DeepSeek V4 Flash with
+	// thinking off, 141 replies): a rule planted at the END of the prompt held at
+	// 196 lines (11/12) and collapsed at 261 (3/12); start and middle rules held
+	// at every size. 200 is the measured ceiling with a margin before the drop.
+	// Details: ~/dev/pi-violeta-palancas.md §8.
+	assert.ok(jarvis.prompt.split("\n").length <= 200, "the whole philosophy stays on one page");
 });
 
 test("the critic only reads the contract, and its model is not the orchestrator's", () => {
